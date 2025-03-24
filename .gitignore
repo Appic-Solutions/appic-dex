@@ -1,0 +1,31 @@
+# Rust-specific ignores
+/target/                # Build output directory
+/**/*.rs.bk             # Backup files created by rustfmt
+
+# Common editor/IDE files
+.vscode/                # VS Code settings and extensions
+.idea/                  # IntelliJ IDEA project files
+*.swp                   # Vim swap files
+*.swo                   # Vim swap files
+*~                      # Temporary files from editors
+
+# Dependency directories (if you accidentally vendor them)
+vendor/                 # Vendored dependencies (if using `cargo vendor`)
+
+# Logs and temporary files
+*.log                   # Log files
+*.tmp                   # Temporary files
+*.temp                  # Temporary files
+
+# macOS-specific
+.DS_Store               # macOS Finder metadata
+
+# Miscellaneous
+*.bak                   # Backup files
+*.backup                # Backup files
+*.out                   # Compiled output files
+
+
+# Added by cargo
+/target
+
