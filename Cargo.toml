@@ -4,6 +4,20 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+candid = "0.10"
+ic-cdk = "0.16"
+ic-stable-structures="0.6.5"
+
+minicbor = { version = "0.26.3",features = ["derive","alloc"] }
+
 num-bigint = "0.4"
 num-traits = "0.2"
+ethnum = "1.5.0"
 lazy_static = "1.4"
+
+
+
+
+[dev-dependencies]
+proptest="1.4.0"
+
