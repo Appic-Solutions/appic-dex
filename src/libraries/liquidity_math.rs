@@ -4,6 +4,9 @@ pub enum AddDeltaError {
     Underflow, // 'LS'
 }
 
+/// Add a signed liquidity delta to liquidity and Err if it overflows or underflows
+/// x The liquidity before change
+/// y The delta by which liquidity should be changed
 pub fn add_delta(x: u128, y: i128) -> Result<u128, AddDeltaError> {
     if y >= 0 {
         x.checked_add(y as u128).ok_or(AddDeltaError::Overflow)

@@ -11,7 +11,6 @@ pub struct TickKey {
 }
 
 #[derive(Encode, Decode, Clone)]
-#[cbor(map)]
 pub struct TickInfo {
     #[cbor(n(0), with = "crate::cbor::u128")]
     pub liquidity_gross: u128, // Total liquidity at this tick
@@ -30,3 +29,14 @@ pub struct TickInfo {
     #[n(7)]
     pub initialized: bool, // Whether the tick is initialized
 }
+
+#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TickBitmapKey {
+    #[n(0)]
+    pub pool_id: PoolId, // Pool identifier
+    #[n(1)]
+    pub word_pos: i16, // Bitmap word position (tick >> 8)
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Encode, Decode)]
+pub struct BitmapWord(#[cbor(n(0), with = "crate::cbor::u256")] pub U256);

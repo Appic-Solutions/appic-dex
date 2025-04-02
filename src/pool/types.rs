@@ -12,7 +12,6 @@ pub struct PoolId {
 }
 
 #[derive(Encode, Decode, Clone)]
-#[cbor(map)]
 pub struct ProtocolFees {
     #[cbor(n(0), with = "crate::cbor::u128")]
     pub token0: u128, // Fees in token0 units
@@ -42,4 +41,17 @@ pub struct PoolState {
     pub max_liquidity_per_tick: u128, // Max liquidity per tick
     #[n(8)]
     pub fee_protocol: u8, // Protocol fee denominator (1/x%)
+    #[n(9)]
+    unlocked: bool, // Reentrancy guard
 }
+
+#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TokenId {
+    #[n(0)]
+    pub pool_id: PoolId,
+    #[n(1)]
+    pub token_index: u8, // 0 for token0, 1 for token1
+}
+
+#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TokenBalance(#[cbor(n(0), with = "crate::cbor::u256")] U256);
