@@ -20,14 +20,17 @@ pub struct TickInfo {
     pub fee_growth_outside_0_x128: U256, // Fees outside for token0
     #[cbor(n(3), with = "crate::cbor::u256")]
     pub fee_growth_outside_1_x128: U256, // Fees outside for token1
-    #[n(4)]
-    pub tick_cumulative_outside: i64, // Cumulative tick value
-    #[cbor(n(5), with = "crate::cbor::u256")]
-    pub seconds_per_liquidity_outside_x128: U256, // Time-weighted liquidity
-    #[n(6)]
-    pub seconds_outside: u32, // Seconds spent outside
-    #[n(7)]
-    pub initialized: bool, // Whether the tick is initialized
+}
+
+impl Default for TickInfo {
+    fn default() -> Self {
+        Self {
+            liquidity_gross: 0,
+            liquidity_net: 0,
+            fee_growth_outside_0_x128: U256::ZERO,
+            fee_growth_outside_1_x128: U256::ZERO,
+        }
+    }
 }
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord)]

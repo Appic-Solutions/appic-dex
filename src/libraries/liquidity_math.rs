@@ -1,4 +1,4 @@
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum AddDeltaError {
     Overflow,  // 'LA'
     Underflow, // 'LS'
@@ -18,6 +18,8 @@ pub fn add_delta(x: u128, y: i128) -> Result<u128, AddDeltaError> {
 
 #[cfg(test)]
 mod tests {
+    use std::u128;
+
     use super::*;
 
     #[test]

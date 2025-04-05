@@ -12,6 +12,7 @@ use crate::{
     position::{PositionInfo, PositionKey},
     tick::types::{BitmapWord, TickBitmapKey, TickInfo, TickKey},
 };
+
 use ic_stable_structures::BTreeMap;
 use memory_manager::{
     pool_balances_memory_id, pools_memory_id, positions_memory_id, ticks_memory_id, StableMemory,
@@ -22,21 +23,57 @@ pub mod memory_manager;
 pub mod storable_impl;
 
 thread_local! {
-    pub static STATE: State = State {
-        pools: RefCell::new(BTreeMap::init(pools_memory_id())),
-        pool_balances: RefCell::new(BTreeMap::init(pool_balances_memory_id())),
-        positions: RefCell::new(BTreeMap::init(positions_memory_id())),
-        ticks: RefCell::new(BTreeMap::init(ticks_memory_id())),
-        tick_bitmaps: RefCell::new(BTreeMap::init(ticks_memory_id())),
-    };
+    pub static STATE: RefCell<Option<State>> = RefCell::new(Some(State {
+        pools: BTreeMap::init(pools_memory_id()),
+        pool_balances: BTreeMap::init(pool_balances_memory_id()),
+        positions: BTreeMap::init(positions_memory_id()),
+        ticks: BTreeMap::init(ticks_memory_id()),
+        tick_bitmaps: BTreeMap::init(ticks_memory_id()),
+    }));
 }
 
 pub struct State {
-    pools: RefCell<BTreeMap<PoolId, PoolState, StableMemory>>,
-    pool_balances: RefCell<BTreeMap<TokenId, TokenBalance, StableMemory>>,
-    positions: RefCell<BTreeMap<PositionKey, PositionInfo, StableMemory>>,
-    ticks: RefCell<BTreeMap<TickKey, TickInfo, StableMemory>>,
-    tick_bitmaps: RefCell<BTreeMap<TickBitmapKey, BitmapWord, StableMemory>>,
+    pools: BTreeMap<PoolId, PoolState, StableMemory>,
+    pool_balances: BTreeMap<TokenId, TokenBalance, StableMemory>,
+    positions: BTreeMap<PositionKey, PositionInfo, StableMemory>,
+    ticks: BTreeMap<TickKey, TickInfo, StableMemory>,
+    tick_bitmaps: BTreeMap<TickBitmapKey, BitmapWord, StableMemory>,
 }
 
-impl State {}
+impl State {
+    pub fn get_tick(&self, tick: &TickKey) -> TickInfo {
+        self.ticks.get(tick).unwrap_or(TickInfo::default())
+    }
+
+    pub fn update_tick(&mut self, tick: TickKey, info: TickInfo) {
+        self.ticks.insert(tick, info);
+    }
+
+    pub fn clear_tick(&mut self, tick: &TickKey) {
+        self.ticks.remove(tick);
+    }
+}
+
+pub fn read_state<R>(f: impl FnOnce(&State) -> R) -> R {
+    STATE.with(|cell| {
+        f(cell
+            .borrow()
+            .as_ref()
+            .expect("BUG: state is not initialized"))
+    })
+}
+
+// / Mutates (part of) the current state using `f`.
+// /
+// / Panics if there is no state.
+pub fn mutate_state<F, R>(f: F) -> R
+where
+    F: FnOnce(&mut State) -> R,
+{
+    STATE.with(|cell| {
+        f(cell
+            .borrow_mut()
+            .as_mut()
+            .expect("BUG: state is not initialized"))
+    })
+}

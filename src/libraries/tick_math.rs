@@ -58,8 +58,8 @@ pub enum TickMathError {
 }
 
 impl TickMath {
-    const MIN_TICK: i32 = -887272;
-    const MAX_TICK: i32 = 887272;
+    pub const MIN_TICK: i32 = -887272;
+    pub const MAX_TICK: i32 = 887272;
 
     /// Calculates sqrt(1.0001^tick) * 2^96 as a Q64.96 number (returns U256).
     pub fn get_sqrt_ratio_at_tick(tick: i32) -> Result<U256, TickMathError> {

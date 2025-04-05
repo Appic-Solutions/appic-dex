@@ -1,4 +1,5 @@
 use candid::Principal;
+use ethnum::U256;
 use minicbor::{Decode, Encode};
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -18,8 +19,6 @@ pub struct ProtocolFees {
     #[cbor(n(1), with = "crate::cbor::u128")]
     pub token1: u128, // Fees in token1 units
 }
-
-use ethnum::U256;
 
 #[derive(Encode, Decode, Clone)]
 pub struct PoolState {
@@ -41,8 +40,6 @@ pub struct PoolState {
     pub max_liquidity_per_tick: u128, // Max liquidity per tick
     #[n(8)]
     pub fee_protocol: u8, // Protocol fee denominator (1/x%)
-    #[n(9)]
-    unlocked: bool, // Reentrancy guard
 }
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord)]
