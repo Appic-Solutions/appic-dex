@@ -52,6 +52,10 @@ impl State {
     pub fn clear_tick(&mut self, tick: &TickKey) {
         self.ticks.remove(tick);
     }
+
+    pub fn get_position(&self, positions_key: &PositionKey) -> Option<PositionInfo> {
+        self.positions.get(positions_key)
+    }
 }
 
 pub fn read_state<R>(f: impl FnOnce(&State) -> R) -> R {
