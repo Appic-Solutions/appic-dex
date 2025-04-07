@@ -2,7 +2,7 @@ use ethnum::U256;
 use num_bigint::BigUint;
 use num_traits::Zero;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum FullMathError {
     DivisionByZero,
     Overflow,

@@ -9,7 +9,7 @@
 
 use crate::{
     pool::types::{PoolId, PoolState, TokenBalance, TokenId},
-    position::{PositionInfo, PositionKey},
+    position::types::{PositionInfo, PositionKey},
     tick::types::{BitmapWord, TickBitmapKey, TickInfo, TickKey},
 };
 
@@ -53,8 +53,12 @@ impl State {
         self.ticks.remove(tick);
     }
 
-    pub fn get_position(&self, positions_key: &PositionKey) -> Option<PositionInfo> {
-        self.positions.get(positions_key)
+    pub fn get_position(&self, key: &PositionKey) -> Option<PositionInfo> {
+        self.positions.get(key)
+    }
+
+    pub fn update_position(&mut self, key: PositionKey, info: PositionInfo) {
+        self.positions.insert(key, info);
     }
 }
 

@@ -1,10 +1,9 @@
-use ethnum::U256;
 use ic_stable_structures::{storable::Bound, storable::Storable};
 use std::borrow::Cow;
 
 use crate::{
     pool::types::{PoolId, PoolState, ProtocolFees, TokenBalance, TokenId},
-    position::{PositionInfo, PositionKey},
+    position::types::{PositionInfo, PositionKey},
     tick::types::{BitmapWord, TickBitmapKey, TickInfo, TickKey},
 };
 
