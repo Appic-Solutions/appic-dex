@@ -42,3 +42,9 @@ const POOL_BALANCES_MEMORY_ID: MemoryId = MemoryId::new(4);
 pub fn pool_balances_memory_id() -> StableMemory {
     MEMORY_MANAGER.with(|m| m.borrow().get(POOL_BALANCES_MEMORY_ID))
 }
+
+const TICK_SPACINGS_MEMORY_ID: MemoryId = MemoryId::new(5);
+
+pub fn tick_spacings_memory_id() -> StableMemory {
+    MEMORY_MANAGER.with(|m| m.borrow().get(TICK_SPACINGS_MEMORY_ID))
+}

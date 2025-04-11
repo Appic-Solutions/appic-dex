@@ -8,14 +8,15 @@
 //  └──
 
 use crate::{
-    pool::types::{PoolId, PoolState, TokenBalance, TokenId},
+    pool::types::{PoolFee, PoolId, PoolState, PoolTickSpacing, TokenBalance, TokenId},
     position::types::{PositionInfo, PositionKey},
     tick::types::{BitmapWord, TickBitmapKey, TickInfo, TickKey},
 };
 
 use ic_stable_structures::BTreeMap;
 use memory_manager::{
-    pool_balances_memory_id, pools_memory_id, positions_memory_id, ticks_memory_id, StableMemory,
+    pool_balances_memory_id, pools_memory_id, positions_memory_id, tick_spacings_memory_id,
+    ticks_memory_id, StableMemory,
 };
 use std::cell::RefCell;
 
@@ -29,6 +30,7 @@ thread_local! {
         positions: BTreeMap::init(positions_memory_id()),
         ticks: BTreeMap::init(ticks_memory_id()),
         tick_bitmaps: BTreeMap::init(ticks_memory_id()),
+        tick_spacings:BTreeMap::init(tick_spacings_memory_id())
     }));
 }
 
@@ -38,6 +40,7 @@ pub struct State {
     positions: BTreeMap<PositionKey, PositionInfo, StableMemory>,
     ticks: BTreeMap<TickKey, TickInfo, StableMemory>,
     tick_bitmaps: BTreeMap<TickBitmapKey, BitmapWord, StableMemory>,
+    tick_spacings: BTreeMap<PoolFee, PoolTickSpacing, StableMemory>,
 }
 
 impl State {
@@ -59,6 +62,22 @@ impl State {
 
     pub fn update_position(&mut self, key: PositionKey, info: PositionInfo) {
         self.positions.insert(key, info);
+    }
+
+    pub fn get_tick_spacing(&self, fee: &PoolFee) -> Option<PoolTickSpacing> {
+        self.tick_spacings.get(fee)
+    }
+
+    pub fn set_tick_spacing(&mut self, fee: PoolFee, tick_spacing: PoolTickSpacing) {
+        self.tick_spacings.insert(fee, tick_spacing);
+    }
+
+    pub fn get_pool(&self, pool_id: &PoolId) -> Option<PoolState> {
+        self.pools.get(pool_id)
+    }
+
+    pub fn set_pool(&mut self, pool_id: PoolId, pool_state: PoolState) {
+        self.pools.insert(pool_id, pool_state);
     }
 }
 

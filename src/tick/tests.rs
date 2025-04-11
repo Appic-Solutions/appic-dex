@@ -1,7 +1,7 @@
 use candid::Principal;
 use std::str::FromStr;
 
-use crate::pool::types::PoolId;
+use crate::pool::types::{PoolFee, PoolId};
 
 use super::{types::TickInfo, *};
 
@@ -13,7 +13,7 @@ fn generate_tick_for_test_pool(tick: i32) -> TickKey {
 }
 fn test_pool_id() -> PoolId {
     PoolId {
-        fee: 500,
+        fee: PoolFee(500),
         token0: Principal::from_str("ss2fx-dyaaa-aaaar-qacoq-cai").unwrap(),
         token1: Principal::from_str("pe5t5-diaaa-aaaar-qahwa-cai").unwrap(),
     }

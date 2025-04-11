@@ -24,6 +24,7 @@ dependencies = [
  "num-bigint",
  "num-traits",
  "proptest",
+ "serde",
 ]
 
 [[package]]

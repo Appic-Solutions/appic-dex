@@ -2,7 +2,7 @@ use ic_stable_structures::{storable::Bound, storable::Storable};
 use std::borrow::Cow;
 
 use crate::{
-    pool::types::{PoolId, PoolState, ProtocolFees, TokenBalance, TokenId},
+    pool::types::{PoolFee, PoolId, PoolState, PoolTickSpacing, TokenBalance, TokenId},
     position::types::{PositionInfo, PositionKey},
     tick::types::{BitmapWord, TickBitmapKey, TickInfo, TickKey},
 };
@@ -37,8 +37,9 @@ impl_storable_minicbor!(TickInfo);
 impl_storable_minicbor!(PositionKey);
 impl_storable_minicbor!(PositionInfo);
 impl_storable_minicbor!(TokenId);
-impl_storable_minicbor!(ProtocolFees);
 impl_storable_minicbor!(TickBitmapKey);
 impl_storable_minicbor!(TickKey);
 impl_storable_minicbor!(TokenBalance);
 impl_storable_minicbor!(BitmapWord);
+impl_storable_minicbor!(PoolFee);
+impl_storable_minicbor!(PoolTickSpacing);

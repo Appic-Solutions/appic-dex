@@ -107,7 +107,7 @@ impl TickMath {
             ratio << (127 - msb)
         };
 
-        let log_2 = Self::compute_log_2(r, msb)?;
+        let log_2 = Self::compute_log_2(r, msb);
         let log_sqrt10001 = log_2 * *LOG_2_COEFF;
 
         let tick_low = ((log_sqrt10001 - *TICK_LOW_OFFSET) >> 128_u8).as_i32();
@@ -138,7 +138,7 @@ impl TickMath {
         msb
     }
 
-    fn compute_log_2(mut r: U256, msb: u32) -> Result<I256, TickMathError> {
+    fn compute_log_2(mut r: U256, msb: u32) -> I256 {
         let mut log_2 = I256::from(msb as i32 - 128) << 64;
 
         for shift in (50..=63).rev() {
@@ -148,7 +148,7 @@ impl TickMath {
             log_2 |= I256::from(f_u32) << shift;
             r >>= f_u32; // Use the u32 value here too for consistency
         }
-        Ok(log_2)
+        log_2
     }
 }
 
