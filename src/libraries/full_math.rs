@@ -59,8 +59,27 @@ pub fn mul_div_rounding_up(a: U256, b: U256, denominator: U256) -> Result<U256, 
     Ok(U256::from_str_radix(&result.to_str_radix(10), 10).unwrap())
 }
 
+/// Returns ceil(x / y)
+/// division by 0 will return 0, and should be checked externally
+/// returns z The quotient, ceil(x / y)
+pub fn div_rounding_up(x: U256, y: U256) -> U256 {
+    if y == U256::ZERO {
+        return U256::ZERO; // Match Solidity's behavior of returning 0 on division by 0
+    }
+    let quotient = x / y;
+    let remainder = x % y;
+    quotient
+        + if remainder > U256::ZERO {
+            U256::from(1u32)
+        } else {
+            U256::ZERO
+        }
+}
+
 #[cfg(test)]
-mod mul_div_tests {
+mod tests {
+    use crate::libraries::constants::Q96;
+
     use super::*;
     use ethnum::U256;
 
@@ -71,6 +90,12 @@ mod mul_div_tests {
     fn test_u128() {
         assert_eq!(Q128, U256::from(u128::MAX) + U256::ONE)
     }
+
+    #[test]
+    fn test_q96() {
+        assert_eq!(Q96.clone(), U256::from(2_u8).pow(96))
+    }
+
     #[test]
     fn reverts_if_denominator_is_zero() {
         let a = Q128;
@@ -340,5 +365,69 @@ mod mul_div_tests {
         assert!(!result_overflows(Q128, Q128 * 35, Q128 * 8));
         assert!(result_overflows(U256::MAX, U256::MAX, U256::MAX - 1));
         assert!(result_overflows(Q128, U256::MAX, U256::ONE));
+    }
+
+    #[test]
+    fn test_div_rounding_up_zero_does_not_revert() {
+        // In Solidity, x.divRoundingUp(0) doesn't revert and returns 0 due to assembly
+        // Rust version explicitly returns U256::ZERO, so we test various x values
+        let cases = [U256::from(0u32), U256::from(42u32), Q128, MAX_UINT256];
+        for x in cases {
+            assert_eq!(div_rounding_up(x, U256::ZERO), U256::ZERO);
+        }
+    }
+
+    #[test]
+    fn test_div_rounding_up_max_input() {
+        // MAX_UINT256 / MAX_UINT256 should be 1
+        assert_eq!(div_rounding_up(MAX_UINT256, MAX_UINT256), U256::from(1u32));
+    }
+
+    #[test]
+    fn test_div_rounding_up_rounds_up() {
+        // Q128 / 3 should round up to Q128 / 3 + 1
+        let result = Q128 / U256::from(3u32) + U256::from(1u32);
+        assert_eq!(div_rounding_up(Q128, U256::from(3u32)), result);
+    }
+
+    #[test]
+    fn test_fuzz_div_rounding_up() {
+        // Simulate fuzzing with sample cases (Rust doesn't have vm.assume natively)
+        let cases = [
+            (U256::from(5u32), U256::from(2u32)),    // 5 / 2 = 2.5 -> 3
+            (U256::from(10u32), U256::from(3u32)),   // 10 / 3 = 3.33 -> 4
+            (U256::from(100u32), U256::from(25u32)), // 100 / 25 = 4 -> 4
+            (Q128, U256::from(7u32)),                // Q128 / 7
+            (MAX_UINT256, Q128),                     // MAX_UINT256 / Q128
+        ];
+
+        for (x, y) in cases {
+            let result = div_rounding_up(x, y);
+            let floor = x / y;
+            assert!(result == floor || result == floor + U256::from(1u32));
+        }
+    }
+
+    #[test]
+    fn test_invariant_div_rounding_up() {
+        // Test the invariant: z = x / y or x / y + 1 based on remainder
+        let cases = [
+            (U256::from(6u32), U256::from(2u32)), // 6 / 2 = 3 (no remainder)
+            (U256::from(7u32), U256::from(3u32)), // 7 / 3 = 2 + 1 (remainder)
+            (Q128, U256::from(4u32)),             // Q128 / 4
+            (MAX_UINT256, U256::from(100u32)),    // MAX_UINT256 / 100
+        ];
+
+        for (x, y) in cases {
+            let z = div_rounding_up(x, y);
+            let floor = x / y;
+            let diff = z - floor;
+            let remainder = x % y;
+            if remainder == U256::ZERO {
+                assert_eq!(diff, U256::ZERO);
+            } else {
+                assert_eq!(diff, U256::from(1u32));
+            }
+        }
     }
 }

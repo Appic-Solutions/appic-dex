@@ -51,14 +51,14 @@ pub fn update_position(
     let fee0_owed = mul_div(
         fee_growth_inside_0_x128 - position_info.fee_growth_inside_0_last_x128,
         liquidity.into(),
-        Q128,
+        Q128.clone(),
     )
     .map_err(|e| UpdatePsotionError::MathError(e))?;
 
     let fee1_owed = mul_div(
         fee_growth_inside_1_x128 - position_info.fee_growth_inside_1_last_x128,
         liquidity.into(),
-        Q128,
+        Q128.clone(),
     )
     .map_err(|e| UpdatePsotionError::MathError(e))?;
 
