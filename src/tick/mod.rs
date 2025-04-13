@@ -1,11 +1,8 @@
-use std::ptr::read;
-
-use crate::cbor::u256;
 use crate::libraries::liquidity_math::{self, AddDeltaError};
 use crate::libraries::tick_math::TickMath;
 use crate::state::{mutate_state, read_state};
 use ethnum::U256;
-use types::TickKey;
+use types::{TickInfo, TickKey};
 
 pub mod types;
 
@@ -24,13 +21,12 @@ pub fn tick_spacing_to_max_liquidity_per_tick(tick_spacing: i32) -> u128 {
 pub fn get_fee_growth_inside(
     tick_lower: &TickKey,
     tick_upper: &TickKey,
+    lower_info: &TickInfo,
+    upper_info: &TickInfo,
     tick_current: &TickKey,
     fee_growth_global_0_x128: U256,
     fee_growth_global_1_x128: U256,
 ) -> (U256, U256) {
-    // get lowe and upper ticks info
-    let (lower_info, upper_info) = read_state(|s| (s.get_tick(tick_lower), s.get_tick(tick_upper)));
-
     // Calculate fee growth inside the tick range based on the current tick position
     let (fee_growth_below_0_x128, fee_growth_below_1_x128) = if tick_current.tick >= tick_lower.tick
     {
@@ -76,6 +72,13 @@ pub enum UpdateTickError {
     LiquidityNetOverflow,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct UpdateTickSucces {
+    pub flipped: bool,
+    pub liquidity_gross_after: u128,
+    pub updated_tick_info: TickInfo,
+}
+
 /// Updates a tick and returns true if the tick was flipped from initialized to uninitialized, or vice versa
 /// returns liquidityGrossAfter The total amount of liquidity for all positions that references the tick after the update
 pub fn update_tick(
@@ -85,7 +88,7 @@ pub fn update_tick(
     fee_growth_global_0_x128: U256,
     fee_growth_global_1_x128: U256,
     upper: bool,
-) -> Result<(bool, u128), UpdateTickError> {
+) -> Result<UpdateTickSucces, UpdateTickError> {
     // Get mutable tick info, defaulting to zeroed if not found
     let mut tick_info = read_state(|s| s.get_tick(tick));
 
@@ -119,10 +122,15 @@ pub fn update_tick(
             .ok_or(UpdateTickError::LiquidityNetOverflow)?
     };
 
-    // Store updated tick info
-    mutate_state(|s| s.update_tick(tick.clone(), tick_info));
-
-    Ok((flipped, liquidity_gross_after))
+    // Storing updated tick info will not happen here since this function will be called in other
+    // operations and in those operations there are other function calls that can fail, so tick
+    // updating happens in those operations if nothing fails
+    // This way we guarantee we dont need a state reverting mechanism
+    Ok(UpdateTickSucces {
+        flipped,
+        liquidity_gross_after,
+        updated_tick_info: tick_info,
+    })
 }
 
 /// Transitions to next tick as needed by price movement

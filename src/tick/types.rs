@@ -10,7 +10,7 @@ pub struct TickKey {
     pub tick: i32,
 }
 
-#[derive(Encode, Decode, Clone)]
+#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
 pub struct TickInfo {
     #[cbor(n(0), with = "crate::cbor::u128")]
     pub liquidity_gross: u128, // Total liquidity at this tick

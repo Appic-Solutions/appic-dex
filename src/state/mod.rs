@@ -52,6 +52,10 @@ impl State {
         self.ticks.insert(tick, info);
     }
 
+    pub fn revert_tick(&mut self, tick: TickKey, preveious_info: TickInfo) {
+        self.ticks.insert(tick, preveious_info);
+    }
+
     pub fn clear_tick(&mut self, tick: &TickKey) {
         self.ticks.remove(tick);
     }
@@ -62,6 +66,10 @@ impl State {
 
     pub fn update_position(&mut self, key: PositionKey, info: PositionInfo) {
         self.positions.insert(key, info);
+    }
+
+    pub fn revert_position(&mut self, key: PositionKey, previous_info: PositionInfo) {
+        self.positions.insert(key, previous_info);
     }
 
     pub fn get_tick_spacing(&self, fee: &PoolFee) -> Option<PoolTickSpacing> {

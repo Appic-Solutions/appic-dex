@@ -96,6 +96,8 @@ mod fee_growth_inside {
         let result = get_fee_growth_inside(
             &generate_tick_for_test_pool(-2),
             &generate_tick_for_test_pool(2),
+            &TickInfo::default(),
+            &TickInfo::default(),
             &generate_tick_for_test_pool(0),
             U256::from(15_u8),
             U256::from(15_u8),
@@ -109,6 +111,8 @@ mod fee_growth_inside {
         let result = get_fee_growth_inside(
             &generate_tick_for_test_pool(-2),
             &generate_tick_for_test_pool(2),
+            &TickInfo::default(),
+            &TickInfo::default(),
             &generate_tick_for_test_pool(4),
             U256::from(15_u8),
             U256::from(15_u8),
@@ -122,6 +126,8 @@ mod fee_growth_inside {
         let result = get_fee_growth_inside(
             &generate_tick_for_test_pool(-2),
             &generate_tick_for_test_pool(2),
+            &TickInfo::default(),
+            &TickInfo::default(),
             &generate_tick_for_test_pool(-5),
             U256::from(15_u8),
             U256::from(15_u8),
@@ -134,9 +140,13 @@ mod fee_growth_inside {
     fn subtract_upper_tick_if_below() {
         set_tick_for_test_pool_id(2, 0, 0, U256::from(2_u8), U256::from(3_u8));
 
+        let tick_plus_two = get_tick_from_state(2);
+
         let result = get_fee_growth_inside(
             &generate_tick_for_test_pool(-2),
             &generate_tick_for_test_pool(2),
+            &TickInfo::default(),
+            &tick_plus_two,
             &generate_tick_for_test_pool(0),
             U256::from(15_u8),
             U256::from(15_u8),
@@ -148,10 +158,13 @@ mod fee_growth_inside {
     #[test]
     fn subtract_lower_tick_if_above() {
         set_tick_for_test_pool_id(-2, 0, 0, U256::from(2_u8), U256::from(3_u8));
+        let tick_minut_two = get_tick_from_state(-2);
 
         let result = get_fee_growth_inside(
             &generate_tick_for_test_pool(-2),
             &generate_tick_for_test_pool(2),
+            &tick_minut_two,
+            &TickInfo::default(),
             &generate_tick_for_test_pool(0),
             U256::from(15_u8),
             U256::from(15_u8),
@@ -165,9 +178,14 @@ mod fee_growth_inside {
         set_tick_for_test_pool_id(-2, 0, 0, U256::from(2_u8), U256::from(3_u8));
         set_tick_for_test_pool_id(2, 0, 0, U256::from(4_u8), U256::from(1_u8));
 
+        let tick_plus_two = get_tick_from_state(2);
+        let tick_minut_two = get_tick_from_state(-2);
+
         let result = get_fee_growth_inside(
             &generate_tick_for_test_pool(-2),
             &generate_tick_for_test_pool(2),
+            &tick_minut_two,
+            &tick_plus_two,
             &generate_tick_for_test_pool(0),
             U256::from(15_u8),
             U256::from(15_u8),
@@ -187,9 +205,14 @@ mod fee_growth_inside {
         );
         set_tick_for_test_pool_id(2, 0, 0, U256::from(3_u8), U256::from(5_u8));
 
+        let tick_plus_two = get_tick_from_state(2);
+        let tick_minut_two = get_tick_from_state(-2);
+
         let result = get_fee_growth_inside(
             &generate_tick_for_test_pool(-2),
             &generate_tick_for_test_pool(2),
+            &tick_minut_two,
+            &tick_plus_two,
             &generate_tick_for_test_pool(0),
             U256::from(15_u8),
             U256::from(15_u8),
@@ -214,21 +237,26 @@ mod update_tick {
             U256::ZERO,
             U256::ZERO,
             false,
-        );
+        )
+        .unwrap();
 
-        assert_eq!(Ok((true, 1)), result)
+        assert_eq!(true, result.flipped);
+        assert_eq!(1, result.liquidity_gross_after);
     }
 
     #[test]
     fn should_not_flip_when_non_zero_to_greater_non_zero() {
-        let _ = update_tick(
+        let result_0 = update_tick(
             &generate_tick_for_test_pool(0),
             &generate_tick_for_test_pool(0),
             1,
             U256::ZERO,
             U256::ZERO,
             false,
-        );
+        )
+        .unwrap();
+
+        mutate_state(|s| s.update_tick(generate_tick_for_test_pool(0), result_0.updated_tick_info));
 
         let result = update_tick(
             &generate_tick_for_test_pool(0),
@@ -237,21 +265,26 @@ mod update_tick {
             U256::ZERO,
             U256::ZERO,
             false,
-        );
+        )
+        .unwrap();
 
-        assert_eq!(Ok((false, 2)), result)
+        assert_eq!(false, result.flipped);
+        assert_eq!(2, result.liquidity_gross_after);
     }
 
     #[test]
     fn should_not_flip_when_non_zero_to_lesser_non_zero() {
-        let _ = update_tick(
+        let result_0 = update_tick(
             &generate_tick_for_test_pool(0),
             &generate_tick_for_test_pool(0),
             2,
             U256::ZERO,
             U256::ZERO,
             false,
-        );
+        )
+        .unwrap();
+
+        mutate_state(|s| s.update_tick(generate_tick_for_test_pool(0), result_0.updated_tick_info));
 
         let result = update_tick(
             &generate_tick_for_test_pool(0),
@@ -260,48 +293,62 @@ mod update_tick {
             U256::ZERO,
             U256::ZERO,
             false,
-        );
+        )
+        .unwrap();
 
-        assert_eq!(Ok((false, 1)), result)
+        assert_eq!(false, result.flipped);
+        assert_eq!(1, result.liquidity_gross_after);
     }
 
     #[test]
     fn update_nets_liquidity_based_on_upper_flag() {
-        let _ = update_tick(
+        let result_0 = update_tick(
             &generate_tick_for_test_pool(0),
             &generate_tick_for_test_pool(0),
             2,
             U256::ZERO,
             U256::ZERO,
             false,
-        );
+        )
+        .unwrap();
 
-        let _ = update_tick(
+        mutate_state(|s| s.update_tick(generate_tick_for_test_pool(0), result_0.updated_tick_info));
+
+        let result_1 = update_tick(
             &generate_tick_for_test_pool(0),
             &generate_tick_for_test_pool(0),
             1,
             U256::ZERO,
             U256::ZERO,
             true,
-        );
+        )
+        .unwrap();
 
-        let _ = update_tick(
+        mutate_state(|s| s.update_tick(generate_tick_for_test_pool(0), result_1.updated_tick_info));
+
+        let result_2 = update_tick(
             &generate_tick_for_test_pool(0),
             &generate_tick_for_test_pool(0),
             3,
             U256::ZERO,
             U256::ZERO,
             true,
-        );
+        )
+        .unwrap();
 
-        let _ = update_tick(
+        mutate_state(|s| s.update_tick(generate_tick_for_test_pool(0), result_2.updated_tick_info));
+
+        let result_3 = update_tick(
             &generate_tick_for_test_pool(0),
             &generate_tick_for_test_pool(0),
             1,
             U256::ZERO,
             U256::ZERO,
             false,
-        );
+        )
+        .unwrap();
+
+        mutate_state(|s| s.update_tick(generate_tick_for_test_pool(0), result_3.updated_tick_info));
 
         let tick_after_updates = get_tick_from_state(0);
 
@@ -311,14 +358,17 @@ mod update_tick {
 
     #[test]
     fn should_err_on_liquidity_net_overflow() {
-        let _ = update_tick(
+        let result_0 = update_tick(
             &generate_tick_for_test_pool(0),
             &generate_tick_for_test_pool(0),
             (u128::MAX / 2 - 1) as i128,
             U256::ZERO,
             U256::ZERO,
             false,
-        );
+        )
+        .unwrap();
+
+        mutate_state(|s| s.update_tick(generate_tick_for_test_pool(0), result_0.updated_tick_info));
 
         let result = update_tick(
             &generate_tick_for_test_pool(0),
@@ -334,14 +384,17 @@ mod update_tick {
 
     #[test]
     fn update_tick_assumes_all_growth_happens_below_ticks_lte_current_tick() {
-        let _result = update_tick(
+        let result_0 = update_tick(
             &generate_tick_for_test_pool(1),
             &generate_tick_for_test_pool(1),
             1,
             U256::ONE,
             U256::from(2_u8),
             false,
-        );
+        )
+        .unwrap();
+
+        mutate_state(|s| s.update_tick(generate_tick_for_test_pool(1), result_0.updated_tick_info));
 
         let updated_tick = get_tick_from_state(1);
 
@@ -351,23 +404,29 @@ mod update_tick {
 
     #[test]
     fn update_tick_does_not_set_any_growth_fields_if_tick_already_initialized() {
-        let _result = update_tick(
+        let result_0 = update_tick(
             &generate_tick_for_test_pool(1),
             &generate_tick_for_test_pool(1),
             1,
             U256::ONE,
             U256::from(2_u8),
             false,
-        );
+        )
+        .unwrap();
 
-        let _result = update_tick(
+        mutate_state(|s| s.update_tick(generate_tick_for_test_pool(1), result_0.updated_tick_info));
+
+        let result_1 = update_tick(
             &generate_tick_for_test_pool(1),
             &generate_tick_for_test_pool(1),
             1,
             U256::from(6_u8),
             U256::from(7_u8),
             false,
-        );
+        )
+        .unwrap();
+
+        mutate_state(|s| s.update_tick(generate_tick_for_test_pool(1), result_1.updated_tick_info));
 
         let updated_tick = get_tick_from_state(1);
 
@@ -377,14 +436,17 @@ mod update_tick {
 
     #[test]
     fn update_tick_does_not_set_any_growth_fields_for_ticks_gt_current_tick() {
-        let _result = update_tick(
+        let result_0 = update_tick(
             &generate_tick_for_test_pool(2),
             &generate_tick_for_test_pool(1),
             1,
             U256::ONE,
             U256::from(2_u8),
             false,
-        );
+        )
+        .unwrap();
+
+        mutate_state(|s| s.update_tick(generate_tick_for_test_pool(2), result_0.updated_tick_info));
 
         let updated_tick = get_tick_from_state(1);
 
@@ -396,14 +458,17 @@ mod update_tick {
     fn update_tick_liquidity_parsing_parses_max_uint128_stored_liquidity_gross_before_update() {
         set_tick_for_test_pool_id(2, u128::MAX, 0, U256::ZERO, U256::ZERO);
 
-        let _result = update_tick(
+        let result_0 = update_tick(
             &generate_tick_for_test_pool(2),
             &generate_tick_for_test_pool(1),
             -1,
             U256::ONE,
             U256::from(2_u8),
             false,
-        );
+        )
+        .unwrap();
+
+        mutate_state(|s| s.update_tick(generate_tick_for_test_pool(2), result_0.updated_tick_info));
 
         let tick_result = get_tick_from_state(2);
 
@@ -415,14 +480,17 @@ mod update_tick {
     fn update_tick_liquidity_parsing_parses_max_uint128_stored_liquidity_gross_after_update() {
         set_tick_for_test_pool_id(2, (u128::MAX / 2) + 1, 0, U256::ZERO, U256::ZERO);
 
-        let _result = update_tick(
+        let result_0 = update_tick(
             &generate_tick_for_test_pool(2),
             &generate_tick_for_test_pool(1),
             (u128::MAX / 2) as i128,
             U256::ONE,
             U256::from(2_u8),
             false,
-        );
+        )
+        .unwrap();
+
+        mutate_state(|s| s.update_tick(generate_tick_for_test_pool(2), result_0.updated_tick_info));
 
         let tick_result = get_tick_from_state(2);
 
@@ -434,14 +502,17 @@ mod update_tick {
     fn update_tick_liquidity_parsing_parses_max_int128_stored_liquidity_net_before_update() {
         set_tick_for_test_pool_id(2, 0, (u128::MAX / 2 - 1) as i128, U256::ZERO, U256::ZERO);
 
-        let _result = update_tick(
+        let result_0 = update_tick(
             &generate_tick_for_test_pool(2),
             &generate_tick_for_test_pool(1),
             1,
             U256::ONE,
             U256::from(2_u8),
             false,
-        );
+        )
+        .unwrap();
+
+        mutate_state(|s| s.update_tick(generate_tick_for_test_pool(2), result_0.updated_tick_info));
 
         let tick_result = get_tick_from_state(2);
 

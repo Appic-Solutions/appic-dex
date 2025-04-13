@@ -1,6 +1,8 @@
 use ethnum::{I256, U256};
 use lazy_static::lazy_static;
 
+use super::bit_math::get_msb_bit_position;
+
 pub struct TickMath;
 
 // Precomputed constants using U256

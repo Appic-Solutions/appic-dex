@@ -1,5 +1,5 @@
 use ethnum::U256;
-use types::PositionKey;
+use types::{PositionInfo, PositionKey};
 
 use crate::{
     libraries::{
@@ -7,7 +7,7 @@ use crate::{
         full_math::{mul_div, FullMathError},
         liquidity_math::{self, AddDeltaError},
     },
-    state::{mutate_state, read_state},
+    state::read_state,
 };
 
 pub mod types;
@@ -20,6 +20,12 @@ pub enum UpdatePsotionError {
     MathError(FullMathError),
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct UpdatePsotionSuccess {
+    pub fee0_owed: U256,
+    pub fee1_owed: U256,
+    pub updated_position_info: PositionInfo,
+}
 /// Credits accumulated fees to a user's position
 /// param position_key of the individual position to update
 /// param liquidityDelta The change in pool liquidity as a result of the position update
@@ -32,7 +38,7 @@ pub fn update_position(
     liquidity_delta: i128,
     fee_growth_inside_0_x128: U256,
     fee_growth_inside_1_x128: U256,
-) -> Result<(U256, U256), UpdatePsotionError> {
+) -> Result<UpdatePsotionSuccess, UpdatePsotionError> {
     let mut position_info =
         read_state(|s| s.get_position(position_key)).ok_or(UpdatePsotionError::PositionNotFound)?;
 
@@ -65,7 +71,14 @@ pub fn update_position(
     position_info.fee_growth_inside_0_last_x128 = fee_growth_inside_0_x128;
     position_info.fee_growth_inside_1_last_x128 = fee_growth_inside_1_x128;
 
-    mutate_state(|s| s.update_position(position_key.clone(), position_info));
+    // Storing updated position info will not happen here since this function will be called in other
+    // operations as well and in those operations there are other function calls that can fail, so tick
+    // updating happens in those operations if nothing fails
+    // This way we guarantee we dont need a state reverting mechanism
 
-    Ok((fee0_owed, fee1_owed))
+    Ok(UpdatePsotionSuccess {
+        fee0_owed,
+        fee1_owed,
+        updated_position_info: position_info,
+    })
 }
