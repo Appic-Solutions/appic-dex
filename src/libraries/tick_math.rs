@@ -1,15 +1,12 @@
 use ethnum::{I256, U256};
 use lazy_static::lazy_static;
 
-use super::bit_math::get_msb_bit_position;
+use super::constants::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
 
 pub struct TickMath;
 
 // Precomputed constants using U256
 lazy_static! {
-    static ref MIN_SQRT_RATIO: U256 = U256::from_str_radix("4295128739", 10).unwrap();
-    static ref MAX_SQRT_RATIO: U256 =
-        U256::from_str_radix("1461446703485210103287273052203988822378723970342", 10).unwrap();
     static ref TWO_POW_32: U256 = U256::from(1_u8) << 32;
     static ref TWO_POW_128: U256 = U256::from(1_u8) << 128;
     static ref TWO_POW_256_MINUS_1: U256 = U256::from_be_bytes([0xff; 32]);
@@ -56,17 +53,13 @@ lazy_static! {
 pub enum TickMathError {
     TickOutOfBounds,
     SqrtPriceOutOfBounds,
-    ArithmeticOverflow,
 }
 
 impl TickMath {
-    pub const MIN_TICK: i32 = -887272;
-    pub const MAX_TICK: i32 = 887272;
-
     /// Calculates sqrt(1.0001^tick) * 2^96 as a Q64.96 number (returns U256).
-    pub fn get_sqrt_ratio_at_tick(tick: i32) -> Result<U256, TickMathError> {
-        if tick < Self::MIN_TICK || tick > Self::MAX_TICK {
-            return Err(TickMathError::TickOutOfBounds);
+    pub fn get_sqrt_ratio_at_tick(tick: i32) -> U256 {
+        if tick < MIN_TICK || tick > MAX_TICK {
+            panic!("Bug: TickOutOfBounds")
         }
 
         let abs_tick = tick.unsigned_abs();
@@ -92,13 +85,13 @@ impl TickMath {
             } else {
                 U256::ONE
             };
-        Ok(sqrt_price_x96)
+        sqrt_price_x96
     }
 
     /// Computes the tick corresponding to a given sqrtPriceX96 (U256).
-    pub fn get_tick_at_sqrt_ratio(sqrt_price_x96: U256) -> Result<i32, TickMathError> {
+    pub fn get_tick_at_sqrt_ratio(sqrt_price_x96: U256) -> i32 {
         if sqrt_price_x96 < *MIN_SQRT_RATIO || sqrt_price_x96 >= *MAX_SQRT_RATIO {
-            return Err(TickMathError::SqrtPriceOutOfBounds);
+            panic!("Bug: SqrtPriceOutOfBounds");
         }
 
         let ratio = sqrt_price_x96 << 32;
@@ -115,16 +108,16 @@ impl TickMath {
         let tick_low = ((log_sqrt10001 - *TICK_LOW_OFFSET) >> 128_u8).as_i32();
         let tick_hi = ((log_sqrt10001 + *TICK_HI_OFFSET) >> 128_u8).as_i32();
 
-        Ok(if tick_low == tick_hi {
+        if tick_low == tick_hi {
             tick_low
         } else {
-            let sqrt_ratio_at_tick_hi = Self::get_sqrt_ratio_at_tick(tick_hi)?;
+            let sqrt_ratio_at_tick_hi = Self::get_sqrt_ratio_at_tick(tick_hi);
             if sqrt_ratio_at_tick_hi <= sqrt_price_x96 {
                 tick_hi
             } else {
                 tick_low
             }
-        })
+        }
     }
 
     fn compute_msb_fast(value: &U256) -> u32 {
@@ -163,24 +156,30 @@ mod tests {
 
     #[test]
     fn test_large_ticks() {
-        assert!(TickMath::get_sqrt_ratio_at_tick(10000).is_ok());
-        assert!(TickMath::get_sqrt_ratio_at_tick(-10000).is_ok());
+        assert_eq!(
+            TickMath::get_sqrt_ratio_at_tick(10000),
+            U256::from_str_radix("130621891405341611593710811006", 10).unwrap()
+        );
+        assert_eq!(
+            TickMath::get_sqrt_ratio_at_tick(-10000),
+            U256::from_str_radix("48055510970269007215549348797", 10).unwrap()
+        );
     }
 
     #[test]
     fn test_between_ticks() {
-        let tick_1 = TickMath::get_sqrt_ratio_at_tick(1).unwrap();
-        let tick_2 = TickMath::get_sqrt_ratio_at_tick(2).unwrap();
+        let tick_1 = TickMath::get_sqrt_ratio_at_tick(1);
+        let tick_2 = TickMath::get_sqrt_ratio_at_tick(2);
         let mid = (&tick_1 + &tick_2) / 2u128;
-        let tick = TickMath::get_tick_at_sqrt_ratio(mid).unwrap();
+        let tick = TickMath::get_tick_at_sqrt_ratio(mid);
         assert_eq!(tick, 1); // Should select greatest tick <= mid
     }
 
     #[test]
     fn test_near_max_tick() {
-        let tick = TickMath::MAX_TICK - 10;
-        let sqrt_price = TickMath::get_sqrt_ratio_at_tick(tick).unwrap();
-        assert_eq!(TickMath::get_tick_at_sqrt_ratio(sqrt_price).unwrap(), tick);
+        let tick = MAX_TICK - 10;
+        let sqrt_price = TickMath::get_sqrt_ratio_at_tick(tick);
+        assert_eq!(TickMath::get_tick_at_sqrt_ratio(sqrt_price), tick);
     }
 
     #[test]
@@ -189,45 +188,59 @@ mod tests {
 
         // Tick 0
         assert_eq!(
-            TickMath::get_sqrt_ratio_at_tick(0).unwrap(),
+            TickMath::get_sqrt_ratio_at_tick(0),
             two_pow_96,
             "Tick 0 should be 2^96"
         );
 
         // Tick 1
         let expected_tick_1 = U256::from_str_radix("79232123823359799118286999568", 10).unwrap();
-        let tick_1 = TickMath::get_sqrt_ratio_at_tick(1).unwrap();
+        let tick_1 = TickMath::get_sqrt_ratio_at_tick(1);
         assert!(tick_1 > two_pow_96, "Tick 1 should be > 2^96");
         assert_eq!(tick_1, expected_tick_1);
 
         // Max Tick - 1
         let expected_max_tick_minus_one =
             U256::from_str_radix("1461373636630004318706518188784493106690254656249", 10).unwrap();
-        let max_tick_minus_one = TickMath::get_sqrt_ratio_at_tick(TickMath::MAX_TICK - 1).unwrap();
+        let max_tick_minus_one = TickMath::get_sqrt_ratio_at_tick(MAX_TICK - 1);
         assert!(max_tick_minus_one > two_pow_96, "Tick -1 should be < 2^96");
         assert_eq!(max_tick_minus_one, expected_max_tick_minus_one);
 
         // Min Tick + 1
         let expected_min_tick_plus_one = U256::from_str_radix("4295343490", 10).unwrap();
-        let min_tick_plus_one = TickMath::get_sqrt_ratio_at_tick(TickMath::MIN_TICK + 1).unwrap();
+        let min_tick_plus_one = TickMath::get_sqrt_ratio_at_tick(MIN_TICK + 1);
         assert!(min_tick_plus_one < two_pow_96);
         assert_eq!(min_tick_plus_one, expected_min_tick_plus_one);
 
         // MIN_TICK
-        assert_eq!(
-            TickMath::get_sqrt_ratio_at_tick(TickMath::MIN_TICK).unwrap(),
-            *MIN_SQRT_RATIO
-        );
+        assert_eq!(TickMath::get_sqrt_ratio_at_tick(MIN_TICK), *MIN_SQRT_RATIO);
 
         // MAX_TICK
-        assert_eq!(
-            TickMath::get_sqrt_ratio_at_tick(TickMath::MAX_TICK).unwrap(),
-            *MAX_SQRT_RATIO
-        );
+        assert_eq!(TickMath::get_sqrt_ratio_at_tick(MAX_TICK), *MAX_SQRT_RATIO);
+    }
 
-        // Out of bounds
-        assert!(TickMath::get_sqrt_ratio_at_tick(TickMath::MAX_TICK + 1).is_err());
-        assert!(TickMath::get_sqrt_ratio_at_tick(TickMath::MIN_TICK - 1).is_err());
+    #[test]
+    #[should_panic]
+    fn get_sqrt_ratio_above_max_tick_should_panic() {
+        TickMath::get_sqrt_ratio_at_tick(MAX_TICK + 1);
+    }
+
+    #[test]
+    #[should_panic]
+    fn get_sqrt_ratio_below_min_tick_should_panic() {
+        TickMath::get_sqrt_ratio_at_tick(MIN_TICK - 1);
+    }
+
+    #[test]
+    #[should_panic]
+    fn get_tick_below_min_sqrt_should_panic() {
+        TickMath::get_tick_at_sqrt_ratio(*MIN_SQRT_RATIO - U256::ONE);
+    }
+
+    #[test]
+    #[should_panic]
+    fn get_tick_above_max_sqrt_should_panic() {
+        TickMath::get_tick_at_sqrt_ratio(*MAX_SQRT_RATIO);
     }
 
     #[test]
@@ -239,8 +252,7 @@ mod tests {
         for &abs_tick in &ABS_TICKS {
             for &tick in &[abs_tick as i32, -(abs_tick as i32)] {
                 let precise_sqrt_ratio = precise_sqrt_ratio_at_tick(tick);
-                let calculated_sqrt_ratio =
-                    TickMath::get_sqrt_ratio_at_tick(tick).expect("Failed to compute sqrt ratio");
+                let calculated_sqrt_ratio = TickMath::get_sqrt_ratio_at_tick(tick);
                 let abs_diff = (precise_sqrt_ratio - calculated_sqrt_ratio.as_f64()).abs();
                 let rel_diff = abs_diff / precise_sqrt_ratio;
                 assert!(
@@ -259,57 +271,42 @@ mod tests {
 
         // 2^96 -> Tick 0
         assert_eq!(
-            TickMath::get_tick_at_sqrt_ratio(two_pow_96.clone()).unwrap(),
+            TickMath::get_tick_at_sqrt_ratio(two_pow_96.clone()),
             0,
             "2^96 should map to tick 0"
         );
 
         // MIN_SQRT_RATIO -> MIN_TICK
-        assert_eq!(
-            TickMath::get_tick_at_sqrt_ratio(*MIN_SQRT_RATIO).unwrap(),
-            TickMath::MIN_TICK
-        );
+        assert_eq!(TickMath::get_tick_at_sqrt_ratio(*MIN_SQRT_RATIO), MIN_TICK);
 
         let min_tick_plus_one = U256::from_str_radix("4295343490", 10).unwrap();
         assert_eq!(
-            TickMath::get_tick_at_sqrt_ratio(min_tick_plus_one).unwrap(),
-            TickMath::MIN_TICK + 1
+            TickMath::get_tick_at_sqrt_ratio(min_tick_plus_one),
+            MIN_TICK + 1
         );
 
         // closest to MAX_SQRT_RATIO -> MAX_TICK
         let max_minus_one = *MAX_SQRT_RATIO - U256::ONE;
         assert_eq!(
-            TickMath::get_tick_at_sqrt_ratio(max_minus_one).unwrap(),
-            TickMath::MAX_TICK - 1
+            TickMath::get_tick_at_sqrt_ratio(max_minus_one),
+            MAX_TICK - 1
         );
 
         // Max tick - 1
         let max_tick_minus_one_sqrt_price =
             U256::from_str_radix("1461373636630004318706518188784493106690254656249", 10).unwrap();
         assert_eq!(
-            TickMath::get_tick_at_sqrt_ratio(max_tick_minus_one_sqrt_price).unwrap(),
-            TickMath::MAX_TICK - 1
+            TickMath::get_tick_at_sqrt_ratio(max_tick_minus_one_sqrt_price),
+            MAX_TICK - 1
         );
-
-        // Out of bounds
-        assert!(TickMath::get_tick_at_sqrt_ratio(*MIN_SQRT_RATIO - U256::ONE).is_err());
-        assert!(TickMath::get_tick_at_sqrt_ratio(*MAX_SQRT_RATIO).is_err());
     }
 
     #[test]
     fn test_round_trip() {
-        let ticks = [
-            0,
-            1,
-            -1,
-            295,
-            -295,
-            TickMath::MIN_TICK,
-            TickMath::MAX_TICK - 1,
-        ];
+        let ticks = [0, 1, -1, 295, -295, MIN_TICK, MAX_TICK - 1];
         for &tick in ticks.iter() {
-            let sqrt_price = TickMath::get_sqrt_ratio_at_tick(tick).unwrap();
-            let computed_tick = TickMath::get_tick_at_sqrt_ratio(sqrt_price.clone()).unwrap();
+            let sqrt_price = TickMath::get_sqrt_ratio_at_tick(tick);
+            let computed_tick = TickMath::get_tick_at_sqrt_ratio(sqrt_price.clone());
             assert!(
                 computed_tick == tick || computed_tick == tick - 1,
                 "Round trip failed for tick {}: got {}",
@@ -317,7 +314,7 @@ mod tests {
                 computed_tick
             );
             assert!(
-                TickMath::get_sqrt_ratio_at_tick(computed_tick).unwrap() <= sqrt_price,
+                TickMath::get_sqrt_ratio_at_tick(computed_tick) <= sqrt_price,
                 "Computed tick ratio exceeds original"
             );
         }
@@ -343,9 +340,9 @@ mod tests {
     }
 
     fn test_ratio(ratio: U256) {
-        let tick = TickMath::get_tick_at_sqrt_ratio(ratio.clone()).unwrap();
-        let ratio_of_tick = TickMath::get_sqrt_ratio_at_tick(tick).unwrap();
-        let ratio_of_tick_plus_one = TickMath::get_sqrt_ratio_at_tick(tick + 1).unwrap();
+        let tick = TickMath::get_tick_at_sqrt_ratio(ratio.clone());
+        let ratio_of_tick = TickMath::get_sqrt_ratio_at_tick(tick);
+        let ratio_of_tick_plus_one = TickMath::get_sqrt_ratio_at_tick(tick + 1);
         assert!(
             ratio >= ratio_of_tick,
             "Ratio {} < tick ratio {}",

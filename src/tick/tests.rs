@@ -11,7 +11,7 @@ fn generate_tick_for_test_pool(tick: i32) -> TickKey {
         pool_id: test_pool_id(),
     }
 }
-fn test_pool_id() -> PoolId {
+pub fn test_pool_id() -> PoolId {
     PoolId {
         fee: PoolFee(500),
         token0: Principal::from_str("ss2fx-dyaaa-aaaar-qacoq-cai").unwrap(),

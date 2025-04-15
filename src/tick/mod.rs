@@ -1,5 +1,5 @@
+use crate::libraries::constants::{MAX_TICK, MIN_TICK};
 use crate::libraries::liquidity_math::{self, AddDeltaError};
-use crate::libraries::tick_math::TickMath;
 use crate::state::{mutate_state, read_state};
 use ethnum::U256;
 use types::{TickInfo, TickKey};
@@ -12,8 +12,8 @@ pub mod tests;
 /// Derives max liquidity per tick from tick spacing.
 /// Used in pool initialization.
 pub fn tick_spacing_to_max_liquidity_per_tick(tick_spacing: i32) -> u128 {
-    let min_tick = (TickMath::MIN_TICK / tick_spacing) * tick_spacing;
-    let max_tick = (TickMath::MAX_TICK / tick_spacing) * tick_spacing;
+    let min_tick = (MIN_TICK / tick_spacing) * tick_spacing;
+    let max_tick = (MAX_TICK / tick_spacing) * tick_spacing;
     let num_ticks = ((max_tick - min_tick) / tick_spacing) as u32 + 1;
     u128::MAX / num_ticks as u128
 }

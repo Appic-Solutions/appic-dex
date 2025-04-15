@@ -4,4 +4,5 @@ pub mod bit_math;
 pub mod constants;
 pub mod full_math;
 pub mod liquidity_math;
+pub mod tick_bitmap;
 pub mod tick_math;

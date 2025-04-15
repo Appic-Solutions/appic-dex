@@ -33,7 +33,7 @@ impl Default for TickInfo {
     }
 }
 
-#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct TickBitmapKey {
     #[n(0)]
     pub pool_id: PoolId, // Pool identifier
@@ -41,5 +41,5 @@ pub struct TickBitmapKey {
     pub word_pos: i16, // Bitmap word position (tick >> 8)
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Encode, Decode)]
+#[derive(Clone, Copy, PartialEq, Eq, Encode, Decode, Debug)]
 pub struct BitmapWord(#[cbor(n(0), with = "crate::cbor::u256")] pub U256);

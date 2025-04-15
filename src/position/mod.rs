@@ -14,7 +14,6 @@ pub mod types;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum UpdatePsotionError {
-    PositionNotFound,
     ZeropLiquidity,
     AddDeltaError(AddDeltaError),
     MathError(FullMathError),
@@ -39,8 +38,7 @@ pub fn update_position(
     fee_growth_inside_0_x128: U256,
     fee_growth_inside_1_x128: U256,
 ) -> Result<UpdatePsotionSuccess, UpdatePsotionError> {
-    let mut position_info =
-        read_state(|s| s.get_position(position_key)).ok_or(UpdatePsotionError::PositionNotFound)?;
+    let mut position_info = read_state(|s| s.get_position(position_key));
 
     let liquidity = position_info.liquidity.clone();
     if liquidity_delta == 0 {

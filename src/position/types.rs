@@ -15,7 +15,7 @@ pub struct PositionKey {
     pub tick_upper: i32,
 }
 
-#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, Default)]
 pub struct PositionInfo {
     #[cbor(n(0), with = "crate::cbor::u128")]
     pub liquidity: u128, // Position liquidity

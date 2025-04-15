@@ -13,6 +13,7 @@ use crate::{
     tick::types::{BitmapWord, TickBitmapKey, TickInfo, TickKey},
 };
 
+use ethnum::U256;
 use ic_stable_structures::BTreeMap;
 use memory_manager::{
     pool_balances_memory_id, pools_memory_id, positions_memory_id, tick_spacings_memory_id,
@@ -60,8 +61,8 @@ impl State {
         self.ticks.remove(tick);
     }
 
-    pub fn get_position(&self, key: &PositionKey) -> Option<PositionInfo> {
-        self.positions.get(key)
+    pub fn get_position(&self, key: &PositionKey) -> PositionInfo {
+        self.positions.get(key).unwrap_or_default()
     }
 
     pub fn update_position(&mut self, key: PositionKey, info: PositionInfo) {
@@ -86,6 +87,16 @@ impl State {
 
     pub fn set_pool(&mut self, pool_id: PoolId, pool_state: PoolState) {
         self.pools.insert(pool_id, pool_state);
+    }
+
+    pub fn get_bitmap_word(&self, bitmap_key: &TickBitmapKey) -> BitmapWord {
+        self.tick_bitmaps
+            .get(bitmap_key)
+            .unwrap_or(BitmapWord(U256::ZERO))
+    }
+
+    pub fn set_bitmap_word(&mut self, bitmap_key: TickBitmapKey, bitmap_word: BitmapWord) {
+        self.tick_bitmaps.insert(bitmap_key, bitmap_word);
     }
 }
 
