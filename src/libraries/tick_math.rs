@@ -48,13 +48,6 @@ lazy_static! {
         I256::from_str_radix("291339464771989622907027621153398088495", 10).unwrap();
 }
 
-// Custom error type
-#[derive(Debug, PartialEq)]
-pub enum TickMathError {
-    TickOutOfBounds,
-    SqrtPriceOutOfBounds,
-}
-
 impl TickMath {
     /// Calculates sqrt(1.0001^tick) * 2^96 as a Q64.96 number (returns U256).
     pub fn get_sqrt_ratio_at_tick(tick: i32) -> U256 {

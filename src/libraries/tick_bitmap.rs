@@ -63,8 +63,8 @@ pub enum TickBitmapError {
 
 #[derive(Debug, PartialEq)]
 pub struct TickBitmapFlipSuccess {
-    bitmap_key: TickBitmapKey,
-    flipped_bitmap_word: BitmapWord,
+    pub bitmap_key: TickBitmapKey,
+    pub flipped_bitmap_word: BitmapWord,
 }
 
 pub fn flip_tick(
