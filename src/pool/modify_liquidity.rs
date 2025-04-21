@@ -1,14 +1,15 @@
 // Liquidity modification
 
 use candid::Principal;
-use ethnum::I256;
+use ethnum::{I256, U256};
 
 use crate::{
     libraries::{
         amount_delta::{get_amount_0_delta_signed, get_amount_1_delta_signed},
         balance_delta::BalanceDelta,
         constants::{MAX_TICK, MIN_TICK},
-        tick_bitmap, tick_math,
+        tick_bitmap::{self, TickBitmapError},
+        tick_math::TickMath,
     },
     position::{
         types::{PositionInfo, PositionKey},
@@ -22,17 +23,18 @@ use crate::{
     },
 };
 
-use super::types::{PoolId, PoolTickSpacing};
+use super::types::{PoolId, PoolState, PoolTickSpacing};
 
 /// Keeps state changes, in case of success, state transition will be applied using this buffer
 /// state, In case of failure no state transition will be triggered
-#[derive(Clone, PartialEq, Eq, Default)]
+/// Buffer for state changes to apply only on successful modification.
+#[derive(Clone, PartialEq, Eq)]
 pub struct ModifyLiquidityBufferState {
-    tick_lower: Option<(TickKey, TickInfo)>,
-    tick_upper: Option<(TickKey, TickInfo)>,
+    tick_lower: (TickKey, TickInfo),
+    tick_upper: (TickKey, TickInfo),
     flipped_lower_tick_bitmap: Option<(TickBitmapKey, BitmapWord)>,
     flipped_upper_tick_bitmap: Option<(TickBitmapKey, BitmapWord)>,
-    postion: Option<(PositionKey, PositionInfo)>,
+    position: Option<(PositionKey, PositionInfo)>,
 }
 
 #[derive(Clone, PartialEq, Eq, Default)]
@@ -61,7 +63,7 @@ pub struct ModifyLiquidityParams {
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ModifyLiquidityError {
     InvalidTick,
-    TickNotAligendWithTickSpacing,
+    TickNotAlignedWithTickSpacing,
     PoolNotInitialized,
     LiquidityOverflow,
     TickLiquidityOverflow,
@@ -69,11 +71,12 @@ pub enum ModifyLiquidityError {
     PositionOverflow,
     FeeOwedOverflow,
     AmountDeltaOverflow,
+    InvalidTickSpacing,
 }
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct ModifyLiquiditySuccess {
-    balalnce_delta: BalanceDelta,
+    balance_delta: BalanceDelta,
     fee_delta: BalanceDelta,
     buffer_state: ModifyLiquidityBufferState,
 }
@@ -94,219 +97,285 @@ pub struct ModifyLiquiditySuccess {
 pub fn modify_liquidity(
     params: ModifyLiquidityParams,
 ) -> Result<ModifyLiquiditySuccess, ModifyLiquidityError> {
-    let liquidity_delta = params.liquidity_delta;
-    let tick_lower = params.tick_lower;
-    let tick_upper = params.tick_upper;
+    // Validate inputs
+    validate_inputs(&params)?;
 
-    if tick_lower >= tick_upper || tick_lower < MIN_TICK || tick_upper > MAX_TICK {
-        return Err(ModifyLiquidityError::InvalidTick);
-    };
+    // Fetch pool and tick data in a single state read
+    let (pool, tick_lower_info, tick_upper_info) = read_state(|s| {
+        (
+            s.get_pool(&params.pool_id),
+            s.get_tick(&TickKey {
+                pool_id: params.pool_id.clone(),
+                tick: params.tick_lower,
+            }),
+            s.get_tick(&TickKey {
+                pool_id: params.pool_id.clone(),
+                tick: params.tick_upper,
+            }),
+        )
+    });
 
-    let pool = read_state(|s| s.get_pool(&params.pool_id))
-        .ok_or(ModifyLiquidityError::PoolNotInitialized)?;
-
-    let tick_current = pool.tick;
-    let fee_growth_global_0_x128 = pool.fee_growth_global_0_x128;
-    let fee_growth_global_1_x128 = pool.fee_growth_global_1_x128;
-
-    let tick_lower_key = TickKey {
-        pool_id: params.pool_id.clone(),
-        tick: tick_lower,
-    };
-
-    let tick_upper_key = TickKey {
-        pool_id: params.pool_id.clone(),
-        tick: tick_upper,
-    };
-
-    let tick_current_key = TickKey {
-        pool_id: params.pool_id.clone(),
-        tick: tick_current,
-    };
-
+    let pool = pool.ok_or(ModifyLiquidityError::PoolNotInitialized)?;
     let tick_spacing = params.tick_spacing.0;
 
-    let mut modifiy_liquidity_state = ModifyLiquidityState::default();
-    let mut buffer_state = ModifyLiquidityBufferState::default();
+    // Initialize buffer state with current tick info
+    let mut buffer_state = ModifyLiquidityBufferState {
+        tick_lower: (
+            TickKey {
+                pool_id: params.pool_id.clone(),
+                tick: params.tick_lower,
+            },
+            tick_lower_info,
+        ),
+        tick_upper: (
+            TickKey {
+                pool_id: params.pool_id.clone(),
+                tick: params.tick_upper,
+            },
+            tick_upper_info,
+        ),
+        flipped_lower_tick_bitmap: None,
+        flipped_upper_tick_bitmap: None,
+        position: None,
+    };
 
-    // add current ticks to buffer state
-    buffer_state.tick_lower = Some((
-        tick_lower_key.clone(),
-        read_state(|s| s.get_tick(&tick_lower_key)),
-    ));
-    buffer_state.tick_upper = Some((
-        tick_upper_key.clone(),
-        read_state(|s| s.get_tick(&tick_upper_key)),
-    ));
+    let mut modify_state = ModifyLiquidityState::default();
 
-    // if we need to update the ticks, do it
-    if liquidity_delta != 0 {
-        let updated_tick_lower = update_tick(
-            &tick_lower_key,
-            &tick_current_key,
-            liquidity_delta,
-            pool.fee_growth_global_0_x128,
-            pool.fee_growth_global_1_x128,
-            false,
-        )
-        .map_err(|_e| ModifyLiquidityError::LiquidityOverflow)?;
-
-        modifiy_liquidity_state.liquidity_gross_after_lower =
-            updated_tick_lower.liquidity_gross_after;
-
-        let updated_tick_upper = update_tick(
-            &tick_upper_key,
-            &tick_current_key,
-            liquidity_delta,
-            pool.fee_growth_global_0_x128,
-            pool.fee_growth_global_1_x128,
-            true,
-        )
-        .map_err(|_e| ModifyLiquidityError::LiquidityOverflow)?;
-
-        modifiy_liquidity_state.liquidity_gross_after_upper =
-            updated_tick_upper.liquidity_gross_after;
-
-        // Ceck liquidity growth after
-        if liquidity_delta > 0 {
-            if updated_tick_lower.liquidity_gross_after
-                > tick_spacing_to_max_liquidity_per_tick(tick_spacing)
-                || updated_tick_upper.liquidity_gross_after
-                    > tick_spacing_to_max_liquidity_per_tick(tick_spacing)
-            {
-                return Err(ModifyLiquidityError::TickLiquidityOverflow);
-            }
-        }
-
-        if updated_tick_lower.flipped {
-            let flipped_info = tick_bitmap::flip_tick(&tick_lower_key, tick_spacing)
-                .map_err(|_e| ModifyLiquidityError::TickNotAligendWithTickSpacing)?;
-            // update buffer state
-            buffer_state.flipped_lower_tick_bitmap =
-                Some((flipped_info.bitmap_key, flipped_info.flipped_bitmap_word));
-            // modifiy liquidity state update
-            modifiy_liquidity_state.flipped_lower = true
-        }
-
-        if updated_tick_upper.flipped {
-            let flipped_info = tick_bitmap::flip_tick(&tick_lower_key, tick_spacing)
-                .map_err(|_e| ModifyLiquidityError::TickNotAligendWithTickSpacing)?;
-            // update buffer state
-            buffer_state.flipped_upper_tick_bitmap =
-                Some((flipped_info.bitmap_key, flipped_info.flipped_bitmap_word));
-            // modifiy liquidity state update
-            modifiy_liquidity_state.flipped_upper = true
-        }
-
-        // update buffer state based on changes
-        buffer_state.tick_lower =
-            Some((tick_lower_key.clone(), updated_tick_lower.updated_tick_info));
-        buffer_state.tick_upper =
-            Some((tick_upper_key.clone(), updated_tick_upper.updated_tick_info));
+    // Update ticks if liquidity changes
+    if params.liquidity_delta != 0 {
+        update_ticks(
+            &params,
+            &pool,
+            &mut buffer_state,
+            &mut modify_state,
+            tick_spacing,
+        )?;
     }
 
-    // Calculate fees owed + update position if needed
-    let (fee_growth_inside_0_x128, fee_growth_inside_1_x128) = get_fee_growth_inside(
-        &tick_lower_key,
-        &tick_upper_key,
-        &buffer_state
-            .tick_lower
-            .clone()
-            .expect("Bug: Tick should be populated")
-            .1,
-        &buffer_state
-            .tick_upper
-            .clone()
-            .expect("Bug: Tick should be populated")
-            .1,
+    // Calculate fees and update position
+    let fee_delta = update_position_and_fees(
+        &params,
+        &mut buffer_state,
+        pool.fee_growth_global_0_x128,
+        pool.fee_growth_global_1_x128,
+        pool.tick,
+    )?;
+
+    // Clear tick data if liquidity is removed
+    if params.liquidity_delta < 0 {
+        if modify_state.flipped_lower {
+            buffer_state.tick_lower.1 = TickInfo::default();
+        }
+        if modify_state.flipped_upper {
+            buffer_state.tick_upper.1 = TickInfo::default();
+        }
+    }
+
+    // Calculate balance delta based on tick range
+    let balance_delta = calculate_balance_delta(
+        params.tick_lower,
+        params.tick_upper,
+        params.liquidity_delta,
+        pool.tick,
+    )?;
+
+    Ok(ModifyLiquiditySuccess {
+        balance_delta,
+        fee_delta,
+        buffer_state,
+    })
+}
+
+/// Validates input parameters for liquidity modification.
+fn validate_inputs(params: &ModifyLiquidityParams) -> Result<(), ModifyLiquidityError> {
+    if params.tick_lower >= params.tick_upper
+        || params.tick_lower < MIN_TICK
+        || params.tick_upper > MAX_TICK
+    {
+        return Err(ModifyLiquidityError::InvalidTick);
+    }
+    if params.tick_spacing.0 <= 0 {
+        return Err(ModifyLiquidityError::InvalidTickSpacing);
+    }
+    if params.tick_lower % params.tick_spacing.0 != 0
+        || params.tick_upper % params.tick_spacing.0 != 0
+    {
+        return Err(ModifyLiquidityError::TickNotAlignedWithTickSpacing);
+    }
+    Ok(())
+}
+
+/// Updates tick states and bitmap for non-zero liquidity changes.
+fn update_ticks(
+    params: &ModifyLiquidityParams,
+    pool: &PoolState,
+    buffer_state: &mut ModifyLiquidityBufferState,
+    modify_state: &mut ModifyLiquidityState,
+    tick_spacing: i32,
+) -> Result<(), ModifyLiquidityError> {
+    let tick_current_key = TickKey {
+        pool_id: params.pool_id.clone(),
+        tick: pool.tick,
+    };
+
+    // Update lower tick
+    let updated_lower = update_tick(
+        &buffer_state.tick_lower.0,
         &tick_current_key,
+        params.liquidity_delta,
+        pool.fee_growth_global_0_x128,
+        pool.fee_growth_global_1_x128,
+        false,
+    )
+    .map_err(|_e| ModifyLiquidityError::LiquidityOverflow)?;
+
+    modify_state.liquidity_gross_after_lower = updated_lower.liquidity_gross_after;
+    buffer_state.tick_lower.1 = updated_lower.updated_tick_info;
+
+    // Update upper tick
+    let updated_upper = update_tick(
+        &buffer_state.tick_upper.0,
+        &tick_current_key,
+        params.liquidity_delta,
+        pool.fee_growth_global_0_x128,
+        pool.fee_growth_global_1_x128,
+        true,
+    )
+    .map_err(|_e| ModifyLiquidityError::LiquidityOverflow)?;
+
+    modify_state.liquidity_gross_after_upper = updated_upper.liquidity_gross_after;
+    buffer_state.tick_upper.1 = updated_upper.updated_tick_info;
+
+    // Check liquidity limits for positive delta
+    if params.liquidity_delta > 0 {
+        let max_liquidity = tick_spacing_to_max_liquidity_per_tick(tick_spacing);
+        if updated_lower.liquidity_gross_after > max_liquidity
+            || updated_upper.liquidity_gross_after > max_liquidity
+        {
+            return Err(ModifyLiquidityError::TickLiquidityOverflow);
+        }
+    }
+
+    // Flip tick bitmaps if needed
+    if updated_lower.flipped {
+        let flipped_info = tick_bitmap::flip_tick(&buffer_state.tick_lower.0, tick_spacing)
+            .map_err(|e| match e {
+                TickBitmapError::TickMisaligned(_, _) => {
+                    ModifyLiquidityError::TickNotAlignedWithTickSpacing
+                }
+            })?;
+        buffer_state.flipped_lower_tick_bitmap =
+            Some((flipped_info.bitmap_key, flipped_info.flipped_bitmap_word));
+        modify_state.flipped_lower = true;
+    }
+
+    if updated_upper.flipped {
+        let flipped_info = tick_bitmap::flip_tick(&buffer_state.tick_upper.0, tick_spacing)
+            .map_err(|e| match e {
+                TickBitmapError::TickMisaligned(_, _) => {
+                    ModifyLiquidityError::TickNotAlignedWithTickSpacing
+                }
+            })?;
+        buffer_state.flipped_upper_tick_bitmap =
+            Some((flipped_info.bitmap_key, flipped_info.flipped_bitmap_word));
+        modify_state.flipped_upper = true;
+    }
+
+    Ok(())
+}
+
+/// Updates position and calculates fees owed.
+fn update_position_and_fees(
+    params: &ModifyLiquidityParams,
+    buffer_state: &mut ModifyLiquidityBufferState,
+    fee_growth_global_0_x128: U256,
+    fee_growth_global_1_x128: U256,
+    tick_current: i32,
+) -> Result<BalanceDelta, ModifyLiquidityError> {
+    // Calculate fee growth inside the range
+    let (fee_growth_inside_0_x128, fee_growth_inside_1_x128) = get_fee_growth_inside(
+        &buffer_state.tick_lower.0,
+        &buffer_state.tick_upper.0,
+        &buffer_state.tick_lower.1,
+        &buffer_state.tick_upper.1,
+        &TickKey {
+            pool_id: params.pool_id.clone(),
+            tick: tick_current,
+        },
         fee_growth_global_0_x128,
         fee_growth_global_1_x128,
     );
+
+    // Update position
     let position_key = PositionKey {
         owner: params.owner,
-        pool_id: params.pool_id,
-        tick_lower,
-        tick_upper,
+        pool_id: params.pool_id.clone(),
+        tick_lower: params.tick_lower,
+        tick_upper: params.tick_upper,
     };
 
     let updated_position = update_position(
         &position_key,
-        liquidity_delta,
+        params.liquidity_delta,
         fee_growth_inside_0_x128,
         fee_growth_inside_1_x128,
     )
     .map_err(|e| match e {
         UpdatePsotionError::ZeropLiquidity => ModifyLiquidityError::ZeroLiquidityPosition,
-        UpdatePsotionError::AddDeltaError(_add_delta_error) => {
-            ModifyLiquidityError::PositionOverflow
-        }
-        UpdatePsotionError::MathError(_full_math_error) => ModifyLiquidityError::PositionOverflow,
+        UpdatePsotionError::AddDeltaError(_) => ModifyLiquidityError::PositionOverflow,
+        UpdatePsotionError::MathError(_) => ModifyLiquidityError::PositionOverflow,
     })?;
 
-    // update buffer state with new position info
-    buffer_state.postion = Some((position_key, updated_position.updated_position_info));
+    // Store updated position in buffer
+    buffer_state.position = Some((position_key, updated_position.updated_position_info));
 
-    let fee_delta = BalanceDelta::new(
+    // Calculate fee delta
+    Ok(BalanceDelta::new(
         updated_position
             .fee0_owed
             .try_into()
-            .map_err(|_e| ModifyLiquidityError::FeeOwedOverflow)?,
+            .map_err(|_| ModifyLiquidityError::FeeOwedOverflow)?,
         updated_position
             .fee1_owed
             .try_into()
-            .map_err(|_e| ModifyLiquidityError::FeeOwedOverflow)?,
-    );
+            .map_err(|_| ModifyLiquidityError::FeeOwedOverflow)?,
+    ))
+}
 
-    // clear any tick data that is no longer needed
-    if liquidity_delta < 0 {
-        if modifiy_liquidity_state.flipped_lower {
-            buffer_state.tick_lower = Some((tick_lower_key, TickInfo::default()));
-        }
-        if modifiy_liquidity_state.flipped_upper {
-            buffer_state.tick_upper = Some((tick_upper_key, TickInfo::default()));
-        }
+/// Calculates balance delta based on the current tick and position range.
+fn calculate_balance_delta(
+    tick_lower: i32,
+    tick_upper: i32,
+    liquidity_delta: i128,
+    tick_current: i32,
+) -> Result<BalanceDelta, ModifyLiquidityError> {
+    if liquidity_delta == 0 {
+        return Ok(BalanceDelta::ZERO_DELTA);
     }
 
-    let sqrt_price_a_x96 = tick_math::TickMath::get_sqrt_ratio_at_tick(tick_lower);
-    let sqrt_price_b_x96 = tick_math::TickMath::get_sqrt_ratio_at_tick(tick_upper);
+    let sqrt_price_a_x96 = TickMath::get_sqrt_ratio_at_tick(tick_lower);
+    let sqrt_price_b_x96 = TickMath::get_sqrt_ratio_at_tick(tick_upper);
 
-    // calculate amount deltas
-    let mut balalnce_delta = BalanceDelta::ZERO_DELTA;
-    if liquidity_delta != 0 {
-        if tick_current < tick_lower {
-            // current tick is below the passed range; liquidity can only become in range by crossing from left to
-            // right, when we'll need _more_ currency0 (it's becoming more valuable) so user must provide it
-            let amount0_delta =
-                get_amount_0_delta_signed(sqrt_price_a_x96, sqrt_price_b_x96, liquidity_delta)
-                    .map_err(|_e| ModifyLiquidityError::AmountDeltaOverflow)?;
-
-            balalnce_delta = BalanceDelta::new(amount0_delta, I256::ZERO);
-        } else if tick_current < tick_upper {
-            let amount0_delta =
-                get_amount_0_delta_signed(sqrt_price_a_x96, sqrt_price_b_x96, liquidity_delta)
-                    .map_err(|_e| ModifyLiquidityError::AmountDeltaOverflow)?;
-
-            let amount1_delta =
-                get_amount_1_delta_signed(sqrt_price_a_x96, sqrt_price_b_x96, liquidity_delta)
-                    .map_err(|_e| ModifyLiquidityError::AmountDeltaOverflow)?;
-
-            balalnce_delta = BalanceDelta::new(amount0_delta, amount1_delta);
-        } else {
-            // current tick is above the passed range; liquidity can only become in range by crossing from right to
-            // left, when we'll need _more_ currency1 (it's becoming more valuable) so user must provide it
-
-            let amount1_delta =
-                get_amount_1_delta_signed(sqrt_price_a_x96, sqrt_price_b_x96, liquidity_delta)
-                    .map_err(|_e| ModifyLiquidityError::AmountDeltaOverflow)?;
-
-            balalnce_delta = BalanceDelta::new(I256::ZERO, amount1_delta);
-        }
-    };
-
-    Ok(ModifyLiquiditySuccess {
-        balalnce_delta,
-        fee_delta,
-        buffer_state,
-    })
+    if tick_current < tick_lower {
+        // Below range: only token0 is needed
+        let amount0_delta =
+            get_amount_0_delta_signed(sqrt_price_a_x96, sqrt_price_b_x96, liquidity_delta)
+                .map_err(|_| ModifyLiquidityError::AmountDeltaOverflow)?;
+        Ok(BalanceDelta::new(amount0_delta, I256::ZERO))
+    } else if tick_current < tick_upper {
+        // In range: both tokens needed
+        let amount0_delta =
+            get_amount_0_delta_signed(sqrt_price_a_x96, sqrt_price_b_x96, liquidity_delta)
+                .map_err(|_| ModifyLiquidityError::AmountDeltaOverflow)?;
+        let amount1_delta =
+            get_amount_1_delta_signed(sqrt_price_a_x96, sqrt_price_b_x96, liquidity_delta)
+                .map_err(|_| ModifyLiquidityError::AmountDeltaOverflow)?;
+        Ok(BalanceDelta::new(amount0_delta, amount1_delta))
+    } else {
+        // Above range: only token1 is needed
+        let amount1_delta =
+            get_amount_1_delta_signed(sqrt_price_a_x96, sqrt_price_b_x96, liquidity_delta)
+                .map_err(|_| ModifyLiquidityError::AmountDeltaOverflow)?;
+        Ok(BalanceDelta::new(I256::ZERO, amount1_delta))
+    }
 }
