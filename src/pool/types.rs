@@ -47,14 +47,3 @@ pub struct PoolState {
     #[n(7)]
     pub fee_protocol: u16, // Max protocol fee is 0.1% (1000 pips)
 }
-
-#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct TokenId {
-    #[n(0)]
-    pub pool_id: PoolId,
-    #[n(1)]
-    pub token_index: u8, // 0 for token0, 1 for token1
-}
-
-#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct TokenBalance(#[cbor(n(0), with = "crate::cbor::u256")] U256);

@@ -8,7 +8,8 @@
 //  └──
 
 use crate::{
-    pool::types::{PoolFee, PoolId, PoolState, PoolTickSpacing, TokenBalance, TokenId},
+    balances::types::{UserBalance, UserBalanceKey},
+    pool::types::{PoolFee, PoolId, PoolState, PoolTickSpacing},
     position::types::{PositionInfo, PositionKey},
     tick::types::{BitmapWord, TickBitmapKey, TickInfo, TickKey},
 };
@@ -16,8 +17,8 @@ use crate::{
 use ethnum::U256;
 use ic_stable_structures::BTreeMap;
 use memory_manager::{
-    pool_balances_memory_id, pools_memory_id, positions_memory_id, tick_spacings_memory_id,
-    ticks_memory_id, StableMemory,
+    pools_memory_id, positions_memory_id, tick_spacings_memory_id, ticks_memory_id,
+    user_balances_memory_id, StableMemory,
 };
 use std::cell::RefCell;
 
@@ -27,7 +28,7 @@ pub mod storable_impl;
 thread_local! {
     pub static STATE: RefCell<Option<State>> = RefCell::new(Some(State {
         pools: BTreeMap::init(pools_memory_id()),
-        pool_balances: BTreeMap::init(pool_balances_memory_id()),
+        user_balances: BTreeMap::init(user_balances_memory_id()),
         positions: BTreeMap::init(positions_memory_id()),
         ticks: BTreeMap::init(ticks_memory_id()),
         tick_bitmaps: BTreeMap::init(ticks_memory_id()),
@@ -37,7 +38,7 @@ thread_local! {
 
 pub struct State {
     pools: BTreeMap<PoolId, PoolState, StableMemory>,
-    pool_balances: BTreeMap<TokenId, TokenBalance, StableMemory>,
+    user_balances: BTreeMap<UserBalanceKey, UserBalance, StableMemory>,
     positions: BTreeMap<PositionKey, PositionInfo, StableMemory>,
     ticks: BTreeMap<TickKey, TickInfo, StableMemory>,
     tick_bitmaps: BTreeMap<TickBitmapKey, BitmapWord, StableMemory>,

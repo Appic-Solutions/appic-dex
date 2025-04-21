@@ -16,3 +16,6 @@ pub enum CreatePoolError {
     InvalidToken(Principal),
     PoolAlreadyExists,
 }
+
+#[derive(Debug, Clone, CandidType, Deserialize, Serialize)]
+pub enum MintPositionError {}

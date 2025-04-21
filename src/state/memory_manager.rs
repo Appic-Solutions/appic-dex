@@ -37,10 +37,10 @@ pub fn tick_bitmaps_memory_id() -> StableMemory {
     MEMORY_MANAGER.with(|m| m.borrow().get(TICK_BITMAPS_MEMORY_ID))
 }
 
-const POOL_BALANCES_MEMORY_ID: MemoryId = MemoryId::new(4);
+const USER_BALANCES_MEMORY_ID: MemoryId = MemoryId::new(4);
 
-pub fn pool_balances_memory_id() -> StableMemory {
-    MEMORY_MANAGER.with(|m| m.borrow().get(POOL_BALANCES_MEMORY_ID))
+pub fn user_balances_memory_id() -> StableMemory {
+    MEMORY_MANAGER.with(|m| m.borrow().get(USER_BALANCES_MEMORY_ID))
 }
 
 const TICK_SPACINGS_MEMORY_ID: MemoryId = MemoryId::new(5);

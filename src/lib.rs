@@ -1,3 +1,4 @@
+pub mod balances;
 pub mod cbor;
 pub mod endpoints;
 pub mod libraries;

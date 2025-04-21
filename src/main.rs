@@ -1,5 +1,5 @@
 use appic_dex::{
-    endpoints::{CreatePoolArgs, CreatePoolError},
+    endpoints::{CreatePoolArgs, CreatePoolError, MintPositionError},
     libraries::tick_math::{self, TickMath, TickMathError},
     pool::types::{PoolFee, PoolId, PoolState},
     state::{mutate_state, read_state},
@@ -61,6 +61,15 @@ use ic_cdk::{query, update};
 //    return Ok(());
 //}
 //
+
+#[update]
+async fn mint() -> Result<(), MintPositionError> {
+    // Transfer Part
+    //
+    //
+
+    todo!()
+}
 fn main() {
     println!("Hello, world!");
 }
