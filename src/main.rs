@@ -1,6 +1,6 @@
 use appic_dex::{
     endpoints::{CreatePoolArgs, CreatePoolError, MintPositionError},
-    libraries::tick_math::{self, TickMath, TickMathError},
+    libraries::tick_math::{self, TickMath} 
     pool::types::{PoolFee, PoolId, PoolState},
     state::{mutate_state, read_state},
     tick,
