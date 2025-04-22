@@ -1,0 +1,12 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc fac201df48747313d6a6f184e3f1f2ab962c85ca21b9c4b9f956bc3b417d5737 # shrinks to tick_lower = -2, tick_upper = 972, liquidity_delta = 1000, tick_spacing = 10
+cc 37b6d0ef59ea3dd738de5c1fdeae7decc31b036d6655991c15af3cb6e901dd1a # shrinks to tick_lower = -2, tick_upper = 638, liquidity_delta = 1000, tick_spacing = 10
+cc 40534779aa6413688151e7384cf22d66b918c3fcf50c6dd4b1c368ae408b30fd # shrinks to tick_lower = -787743, tick_upper = 637211, liquidity_delta = 38482920, tick_spacing = 558
+cc 468e757faa35517a179d0e9d4918b6f6176176396aaeb7155c99a599170e1ff2 # shrinks to tick_lower = -312303, tick_upper = 220954, liquidity_delta = 656301567, tick_spacing = 942
+cc c388ac591ddfa513837fa0fa26befe8db91123024b760a567e099fb8cce8158b # shrinks to tick_lower = -90088, tick_upper = 437498, liquidity_delta = 968679905, tick_spacing = 877
+cc 6b8ab8f928d1fa3f8bfe5304a950041b9d40f10cc76276b631b5777cd9be41b1 # shrinks to tick_lower = -1861, tick_upper = 0, liquidity_delta = 1, tick_spacing = 10

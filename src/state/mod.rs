@@ -9,7 +9,10 @@
 
 use crate::{
     balances::types::{UserBalance, UserBalanceKey},
-    pool::types::{PoolFee, PoolId, PoolState, PoolTickSpacing},
+    pool::{
+        modify_liquidity::ModifyLiquidityBufferState,
+        types::{PoolFee, PoolId, PoolState, PoolTickSpacing},
+    },
     position::types::{PositionInfo, PositionKey},
     tick::types::{BitmapWord, TickBitmapKey, TickInfo, TickKey},
 };
@@ -17,8 +20,8 @@ use crate::{
 use ethnum::U256;
 use ic_stable_structures::BTreeMap;
 use memory_manager::{
-    pools_memory_id, positions_memory_id, tick_spacings_memory_id, ticks_memory_id,
-    user_balances_memory_id, StableMemory,
+    pools_memory_id, positions_memory_id, tick_bitmaps_memory_id, tick_spacings_memory_id,
+    ticks_memory_id, user_balances_memory_id, StableMemory,
 };
 use std::cell::RefCell;
 
@@ -31,7 +34,7 @@ thread_local! {
         user_balances: BTreeMap::init(user_balances_memory_id()),
         positions: BTreeMap::init(positions_memory_id()),
         ticks: BTreeMap::init(ticks_memory_id()),
-        tick_bitmaps: BTreeMap::init(ticks_memory_id()),
+        tick_bitmaps: BTreeMap::init(tick_bitmaps_memory_id()),
         tick_spacings:BTreeMap::init(tick_spacings_memory_id())
     }));
 }
@@ -98,6 +101,34 @@ impl State {
 
     pub fn set_bitmap_word(&mut self, bitmap_key: TickBitmapKey, bitmap_word: BitmapWord) {
         self.tick_bitmaps.insert(bitmap_key, bitmap_word);
+    }
+
+    pub fn apply_modify_liquidity_buffer_state(
+        &mut self,
+        buffer_state: ModifyLiquidityBufferState,
+    ) {
+        // pool state transation
+        let pool_id = buffer_state.pool.0;
+        self.pools.insert(pool_id, buffer_state.pool.1);
+
+        //ticks state transition
+        self.ticks
+            .insert(buffer_state.tick_lower.0, buffer_state.tick_lower.1);
+        self.ticks
+            .insert(buffer_state.tick_upper.0, buffer_state.tick_upper.1);
+
+        // poisition state transition
+        if let Some((position_key, position_info)) = buffer_state.position {
+            self.positions.insert(position_key, position_info);
+        }
+
+        // tickbitmaps state transition
+        if let Some((bitmap_key, bitmap_word)) = buffer_state.flipped_lower_tick_bitmap {
+            self.tick_bitmaps.insert(bitmap_key, bitmap_word);
+        }
+        if let Some((bitmap_key, bitmap_word)) = buffer_state.flipped_upper_tick_bitmap {
+            self.tick_bitmaps.insert(bitmap_key, bitmap_word);
+        }
     }
 }
 

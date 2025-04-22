@@ -3,7 +3,7 @@ use candid::Principal;
 use ethnum::U256;
 use minicbor::{Decode, Encode};
 
-#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct PositionKey {
     #[cbor(n(0), with = "crate::cbor::principal")]
     pub owner: Principal,

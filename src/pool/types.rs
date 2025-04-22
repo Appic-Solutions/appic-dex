@@ -15,7 +15,7 @@ impl TryFrom<Nat> for PoolFee {
     }
 }
 
-#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Debug, Ord)]
 pub struct PoolTickSpacing(#[n(0)] pub i32);
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -28,7 +28,7 @@ pub struct PoolId {
     pub fee: PoolFee, // Fee tier (e.g., 500 for 0.05%)
 }
 
-#[derive(Encode, Decode, Clone)]
+#[derive(Encode, Decode, Clone, Debug, Eq, PartialEq)]
 pub struct PoolState {
     #[cbor(n(0), with = "crate::cbor::u256")]
     pub sqrt_price_x96: U256, // Current price in Q64.96 format

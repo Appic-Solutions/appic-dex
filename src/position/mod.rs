@@ -45,11 +45,11 @@ pub fn update_position(
         // disallow pokes for 0 liquidity positions
         if liquidity == 0 {
             return Err(UpdatePsotionError::ZeropLiquidity);
-        } else {
-            position_info.liquidity = liquidity_math::add_delta(liquidity, liquidity_delta)
-                .map_err(|e| UpdatePsotionError::AddDeltaError(e))?;
         }
-    };
+    } else {
+        position_info.liquidity = liquidity_math::add_delta(liquidity, liquidity_delta)
+            .map_err(|e| UpdatePsotionError::AddDeltaError(e))?;
+    }
 
     // calculate accumulated fees. overflow in the subtraction of fee growth is expected
     let fee0_owed = mul_div(

@@ -2,7 +2,7 @@ use crate::pool::types::PoolId;
 use ethnum::U256;
 use minicbor::{Decode, Encode};
 
-#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct TickKey {
     #[n(0)]
     pub pool_id: PoolId,

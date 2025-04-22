@@ -6,3 +6,4 @@
 # everyone who runs the test benefits from these saved cases.
 cc 171e82a6ae9c27cfca5776d60f805ee5bdec3ef39b949c02b5c10200c2a8b69a # shrinks to tick = 887273, lte = false
 cc a8e8d635fd7695f12c34a48c019a1812d009ae382d665587b0353e9aecc2ad90 # shrinks to tick = -1, tick_spacing = 1, next_bit_pos = 0, lte = false
+cc 776cf3aeb9ed859935c0bef7838afcc3faf6bba5bd93bcf1e3472cc9fec985db # shrinks to tick = -887041, lte = true

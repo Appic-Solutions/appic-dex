@@ -8,6 +8,7 @@ use crate::{
         amount_delta::{get_amount_0_delta_signed, get_amount_1_delta_signed},
         balance_delta::BalanceDelta,
         constants::{MAX_TICK, MIN_TICK},
+        liquidity_math::add_delta,
         tick_bitmap::{self, TickBitmapError},
         tick_math::TickMath,
     },
@@ -28,13 +29,14 @@ use super::types::{PoolId, PoolState, PoolTickSpacing};
 /// Keeps state changes, in case of success, state transition will be applied using this buffer
 /// state, In case of failure no state transition will be triggered
 /// Buffer for state changes to apply only on successful modification.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct ModifyLiquidityBufferState {
-    tick_lower: (TickKey, TickInfo),
-    tick_upper: (TickKey, TickInfo),
-    flipped_lower_tick_bitmap: Option<(TickBitmapKey, BitmapWord)>,
-    flipped_upper_tick_bitmap: Option<(TickBitmapKey, BitmapWord)>,
-    position: Option<(PositionKey, PositionInfo)>,
+    pub tick_lower: (TickKey, TickInfo),
+    pub tick_upper: (TickKey, TickInfo),
+    pub pool: (PoolId, PoolState),
+    pub flipped_lower_tick_bitmap: Option<(TickBitmapKey, BitmapWord)>,
+    pub flipped_upper_tick_bitmap: Option<(TickBitmapKey, BitmapWord)>,
+    pub position: Option<(PositionKey, PositionInfo)>,
 }
 
 #[derive(Clone, PartialEq, Eq, Default)]
@@ -60,7 +62,7 @@ pub struct ModifyLiquidityParams {
     pub tick_spacing: PoolTickSpacing,
 }
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum ModifyLiquidityError {
     InvalidTick,
     TickNotAlignedWithTickSpacing,
@@ -74,11 +76,11 @@ pub enum ModifyLiquidityError {
     InvalidTickSpacing,
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct ModifyLiquiditySuccess {
-    balance_delta: BalanceDelta,
-    fee_delta: BalanceDelta,
-    buffer_state: ModifyLiquidityBufferState,
+    pub balance_delta: BalanceDelta,
+    pub fee_delta: BalanceDelta,
+    pub buffer_state: ModifyLiquidityBufferState,
 }
 
 /// Effects changes to a position in a pool, updating its liquidity and calculating resulting token balance changes and fees.
@@ -134,6 +136,7 @@ pub fn modify_liquidity(
             },
             tick_upper_info,
         ),
+        pool: (params.pool_id.clone(), pool.clone()),
         flipped_lower_tick_bitmap: None,
         flipped_upper_tick_bitmap: None,
         position: None,
@@ -172,7 +175,9 @@ pub fn modify_liquidity(
     }
 
     // Calculate balance delta based on tick range
-    let balance_delta = calculate_balance_delta(
+    let balance_delta = calculate_balance_delta_and_update_pool_liquidty(
+        &params,
+        &mut buffer_state,
         params.tick_lower,
         params.tick_upper,
         params.liquidity_delta,
@@ -343,7 +348,9 @@ fn update_position_and_fees(
 }
 
 /// Calculates balance delta based on the current tick and position range.
-fn calculate_balance_delta(
+fn calculate_balance_delta_and_update_pool_liquidty(
+    params: &ModifyLiquidityParams,
+    buffer_state: &mut ModifyLiquidityBufferState,
     tick_lower: i32,
     tick_upper: i32,
     liquidity_delta: i128,
@@ -370,6 +377,12 @@ fn calculate_balance_delta(
         let amount1_delta =
             get_amount_1_delta_signed(sqrt_price_a_x96, sqrt_price_b_x96, liquidity_delta)
                 .map_err(|_| ModifyLiquidityError::AmountDeltaOverflow)?;
+
+        // Add liquidty delta to pool state
+        let pool_liquidity = buffer_state.pool.1.liquidity;
+        buffer_state.pool.1.liquidity = add_delta(pool_liquidity, params.liquidity_delta)
+            .map_err(|_e| ModifyLiquidityError::AmountDeltaOverflow)?;
+
         Ok(BalanceDelta::new(amount0_delta, amount1_delta))
     } else {
         // Above range: only token1 is needed

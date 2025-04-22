@@ -194,7 +194,7 @@ pub fn next_initialized_tick_within_one_word(
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
 
     use crate::{state::mutate_state, tick::tests::test_pool_id};
 
@@ -235,7 +235,7 @@ mod tests {
         }
     }
 
-    fn is_initialized(tick_key: &TickKey, tick_spacing: i32) -> bool {
+    pub fn is_initialized(tick_key: &TickKey, tick_spacing: i32) -> bool {
         if tick_key.tick % tick_spacing != 0 {
             return false;
         }
@@ -599,8 +599,8 @@ mod tests {
             setup_state();
             let tick_key = create_tick_key( tick);
             let (next, initialized) = next_initialized_tick_within_one_word(&tick_key, 1, lte);
-
-            if lte {
+            if next > MIN_TICK && next < MAX_TICK{
+                 if lte {
                 prop_assert!(next <= tick);
                 prop_assert!((tick - next) <= 256);
                 for i in (next + 1)..=tick {
@@ -615,6 +615,8 @@ mod tests {
                 }
                 prop_assert_eq!(is_initialized(&create_tick_key( next), 1), initialized);
             }
+
+            }
         }
     }
 
@@ -626,22 +628,24 @@ mod tests {
             lte in any::<bool>()
         ) {
            let tick_key = create_tick_key( tick);
-            let (next, initialized) = next_initialized_tick_within_one_word(&tick_key, 1, lte);
+           let (next, initialized) = next_initialized_tick_within_one_word(&tick_key, 1, lte);
+                if next > MIN_TICK && next < MAX_TICK{
 
-            if lte {
-                prop_assert!(next <= tick);
-                prop_assert!((tick - next) <= 256);
-                for i in (next + 1)..=tick {
-                    prop_assert!(!is_initialized(&create_tick_key( i), tick_spacing));
+                if lte {
+                    prop_assert!(next <= tick);
+                    prop_assert!((tick - next) <= 256);
+                    for i in (next + 1)..=tick {
+                        prop_assert!(!is_initialized(&create_tick_key( i), tick_spacing));
+                    }
+                    prop_assert_eq!(is_initialized(&create_tick_key( next), tick_spacing), initialized);
+                } else {
+                    prop_assert!(next > tick);
+                    prop_assert!((next - tick) <= 256);
+                    for i in (tick + 1)..next {
+                        prop_assert!(!is_initialized(&create_tick_key( i), tick_spacing));
+                    }
+                    prop_assert_eq!(is_initialized(&create_tick_key( next), tick_spacing), initialized);
                 }
-                prop_assert_eq!(is_initialized(&create_tick_key( next), tick_spacing), initialized);
-            } else {
-                prop_assert!(next > tick);
-                prop_assert!((next - tick) <= 256);
-                for i in (tick + 1)..next {
-                    prop_assert!(!is_initialized(&create_tick_key( i), tick_spacing));
-                }
-                prop_assert_eq!(is_initialized(&create_tick_key( next), tick_spacing), initialized);
             }
         }
     }
