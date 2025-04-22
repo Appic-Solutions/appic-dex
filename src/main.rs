@@ -1,6 +1,7 @@
 use appic_dex::{
-    endpoints::{CreatePoolArgs, CreatePoolError, MintPositionError},
+    endpoints::{CreatePoolArgs, CreatePoolError, MintPositionArgs, MintPositionError},
     libraries::tick_math::{self, TickMath},
+    validate_candid_args::validate_mint_position_args,
 };
 
 use ic_cdk::{query, update};
@@ -59,8 +60,11 @@ use ic_cdk::{query, update};
 //
 
 #[update]
-async fn mint() -> Result<(), MintPositionError> {
+async fn mint(args: MintPositionArgs) -> Result<(), MintPositionError> {
+    let validted_args = validate_mint_position_args(args)?;
+
     // Transfer Part
+    //
     //
     //
 

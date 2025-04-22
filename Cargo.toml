@@ -4,11 +4,15 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+
 candid = "0.10"
 ic-cdk = "0.16"
 ic-canister-log = "0.2.0"
 ic-cdk-timers = "0.10" 
 ic-stable-structures="0.6.5"
+icrc-ledger-client-cdk = { git = "https://github.com/dfinity/ic.git" }
+icrc-ledger-types={ git = "https://github.com/dfinity/ic.git"}
+ic-canister-log = "0.2.0"
 
 
 hex = { version = "0.4.3", features = ["serde"] }
