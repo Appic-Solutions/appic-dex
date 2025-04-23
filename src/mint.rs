@@ -68,11 +68,10 @@ pub fn execute_mint_position(
             .unwrap_or(I256::MAX),
         )
     });
+
+    // fee delta can be ignored as this is a new position
     validate_max_in(
-        success_result
-            .balance_delta
-            .add(success_result.fee_delta)
-            .map_err(|_| MintPositionError::FeeOverflow)?,
+        success_result.balance_delta,
         user_balance.amount0.as_u256(),
         user_balance.amount1.as_u256(),
     )
@@ -80,8 +79,6 @@ pub fn execute_mint_position(
 
     let final_balance = user_balance
         .sub(success_result.balance_delta)
-        .unwrap()
-        .add(success_result.fee_delta)
         .map_err(|_| MintPositionError::FeeOverflow)?;
 
     //Batch state updates

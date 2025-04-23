@@ -1,3 +1,4 @@
+use candid::{types::principal, Principal};
 use ethnum::{I256, U256};
 
 use crate::{
@@ -7,6 +8,7 @@ use crate::{
         safe_cast::big_uint_to_u256,
     },
     pool::types::{PoolId, PoolTickSpacing},
+    position::types::PositionKey,
     state::read_state,
 };
 
@@ -20,12 +22,12 @@ pub struct ValidatedMintPositionArgs {
 }
 pub fn validate_mint_position_args(
     args: MintPositionArgs,
+    caller: Principal,
 ) -> Result<ValidatedMintPositionArgs, MintPositionError> {
     // check pool
     let pool_id: PoolId = args.pool.try_into()?;
     let pool = read_state(|s| s.get_pool(&pool_id)).ok_or(MintPositionError::PoolNotInitialized)?;
     let tick_spacing = pool.tick_spacing;
-
     // check ticks
     let lower_tick: i32 = args
         .tick_lower
@@ -40,6 +42,17 @@ pub fn validate_mint_position_args(
     if lower_tick < MIN_TICK || upper_tick > MAX_TICK || lower_tick >= upper_tick {
         return Err(MintPositionError::InvalidTick);
     };
+
+    // poisition should not exist
+    let position_key = PositionKey {
+        owner: caller,
+        pool_id: pool_id.clone(),
+        tick_lower: lower_tick,
+        tick_upper: upper_tick,
+    };
+    if read_state(|s| s.get_position(&position_key)).liquidity != 0 {
+        return Err(MintPositionError::PositoinAlreadyExists);
+    }
 
     // check alignment with tick spacing
     if upper_tick % tick_spacing.0 != 0 || lower_tick % tick_spacing.0 != 0 {

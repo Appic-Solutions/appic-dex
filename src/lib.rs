@@ -1,6 +1,7 @@
 pub mod balances;
 pub mod cbor;
 pub mod endpoints;
+pub mod gaurd;
 pub mod icrc_client;
 pub mod libraries;
 pub mod logs;

@@ -62,6 +62,7 @@ pub struct MintPositionArgs {
 pub enum MintPositionError {
     InvalidPoolFee,
     PoolNotInitialized,
+    PositoinAlreadyExists,
     InvalidTick,
     InvalidAmount,
     TickNotAlignedWithTickSpacing,

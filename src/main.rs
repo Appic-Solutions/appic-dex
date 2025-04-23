@@ -85,12 +85,12 @@ fn validate_caller_not_anonymous() -> candid::Principal {
 //
 
 #[update]
-async fn mint(args: MintPositionArgs) -> Result<(), MintPositionError> {
+async fn mint_potision(args: MintPositionArgs) -> Result<(), MintPositionError> {
     // TODO: Principal Lock to be implemented
 
     // Validate inputs and caller
-    let validated_args = validate_mint_position_args(args.clone())?;
     let caller = validate_caller_not_anonymous();
+    let validated_args = validate_mint_position_args(args.clone(), caller)?;
 
     let pool_id = validated_args.pool_id.clone();
     let token0 = args.pool.token0;
