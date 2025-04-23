@@ -103,6 +103,16 @@ impl State {
         self.tick_bitmaps.insert(bitmap_key, bitmap_word);
     }
 
+    pub fn get_user_balance(&self, key: &UserBalanceKey) -> UserBalance {
+        self.user_balances
+            .get(key)
+            .unwrap_or(UserBalance(U256::ZERO))
+    }
+
+    pub fn update_user_balance(&mut self, key: UserBalanceKey, value: UserBalance) {
+        self.user_balances.insert(key, value);
+    }
+
     pub fn apply_modify_liquidity_buffer_state(
         &mut self,
         buffer_state: ModifyLiquidityBufferState,

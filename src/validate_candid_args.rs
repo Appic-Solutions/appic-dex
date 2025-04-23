@@ -1,26 +1,26 @@
-use ethnum::U256;
+use ethnum::{I256, U256};
 
 use crate::{
     endpoints::{MintPositionArgs, MintPositionError},
     libraries::{
-        big_uint_to_u256::big_uint_to_u256,
         constants::{MAX_TICK, MIN_TICK},
+        safe_cast::big_uint_to_u256,
     },
     pool::types::{PoolId, PoolTickSpacing},
     state::read_state,
 };
 
-pub struct ValidudatedMintPosiotnArgs {
+pub struct ValidatedMintPosiotnArgs {
     pub tick_spacing: PoolTickSpacing,
     pub lower_tick: i32,
     pub upper_tick: i32,
     pub pool_id: PoolId,
-    pub amount0_max: U256,
-    pub amount1_max: U256,
+    pub amount0_max: I256,
+    pub amount1_max: I256,
 }
 pub fn validate_mint_position_args(
     args: MintPositionArgs,
-) -> Result<ValidudatedMintPosiotnArgs, MintPositionError> {
+) -> Result<ValidatedMintPosiotnArgs, MintPositionError> {
     // check pool
     let pool_id: PoolId = args.pool.try_into()?;
     let pool = read_state(|s| s.get_pool(&pool_id)).ok_or(MintPositionError::PoolNotInitialized)?;
@@ -51,7 +51,15 @@ pub fn validate_mint_position_args(
     let amount1_max: U256 =
         big_uint_to_u256(args.amount1_max.0).map_err(|_e| MintPositionError::InvalidAmount)?;
 
-    Ok(ValidudatedMintPosiotnArgs {
+    // MAX amount should be I256 to prevent overflow
+    let amount0_max: I256 = amount0_max
+        .try_into()
+        .map_err(|_e| MintPositionError::InvalidAmount)?;
+    let amount1_max: I256 = amount1_max
+        .try_into()
+        .map_err(|_e| MintPositionError::InvalidAmount)?;
+
+    Ok(ValidatedMintPosiotnArgs {
         tick_spacing,
         lower_tick,
         upper_tick,

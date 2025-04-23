@@ -12,4 +12,4 @@ pub struct UserBalanceKey {
 }
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct UserBalance(#[cbor(n(0), with = "crate::cbor::u256")] U256);
+pub struct UserBalance(#[cbor(n(0), with = "crate::cbor::u256")] pub U256);

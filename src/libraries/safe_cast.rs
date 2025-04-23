@@ -11,3 +11,7 @@ pub fn big_uint_to_u256(biguint: BigUint) -> Result<U256, String> {
     }
     Ok(U256::from_be_bytes(value_u256))
 }
+
+pub fn u256_to_big_uint(value: U256) -> BigUint {
+    BigUint::from_bytes_be(&value.to_be_bytes())
+}
