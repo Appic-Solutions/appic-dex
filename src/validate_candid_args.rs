@@ -10,7 +10,7 @@ use crate::{
     state::read_state,
 };
 
-pub struct ValidatedMintPosiotnArgs {
+pub struct ValidatedMintPositionArgs {
     pub tick_spacing: PoolTickSpacing,
     pub lower_tick: i32,
     pub upper_tick: i32,
@@ -20,7 +20,7 @@ pub struct ValidatedMintPosiotnArgs {
 }
 pub fn validate_mint_position_args(
     args: MintPositionArgs,
-) -> Result<ValidatedMintPosiotnArgs, MintPositionError> {
+) -> Result<ValidatedMintPositionArgs, MintPositionError> {
     // check pool
     let pool_id: PoolId = args.pool.try_into()?;
     let pool = read_state(|s| s.get_pool(&pool_id)).ok_or(MintPositionError::PoolNotInitialized)?;
@@ -59,7 +59,7 @@ pub fn validate_mint_position_args(
         .try_into()
         .map_err(|_e| MintPositionError::InvalidAmount)?;
 
-    Ok(ValidatedMintPosiotnArgs {
+    Ok(ValidatedMintPositionArgs {
         tick_spacing,
         lower_tick,
         upper_tick,

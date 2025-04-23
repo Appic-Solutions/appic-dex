@@ -69,6 +69,7 @@ pub enum MintPositionError {
     LiquidityOverflow,
     FeeOverflow,
     AmountOverflow,
+    InsufficientBalance,
 }
 
 #[derive(CandidType, Deserialize, Serialize, Clone, Debug, PartialEq)]

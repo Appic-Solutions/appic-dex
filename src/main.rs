@@ -11,9 +11,10 @@ use appic_dex::{
         slippage_check::BalanceDeltaValidationError,
         tick_math::{self, TickMath},
     },
+    mint::execute_mint_position,
     pool::modify_liquidity::{self, modify_liquidity, ModifyLiquidityError, ModifyLiquidityParams},
     state::{mutate_state, read_state},
-    validate_candid_args::{self, validate_mint_position_args, ValidatedMintPosiotnArgs},
+    validate_candid_args::{self, validate_mint_position_args, ValidatedMintPositionArgs},
 };
 
 use candid::Principal;
@@ -85,17 +86,18 @@ fn validate_caller_not_anonymous() -> candid::Principal {
 
 #[update]
 async fn mint(args: MintPositionArgs) -> Result<(), MintPositionError> {
-    // Principal Lock to be implemented
-    let validated_args = validate_mint_position_args(args.clone())?;
+    // TODO: Principal Lock to be implemented
 
+    // Validate inputs and caller
+    let validated_args = validate_mint_position_args(args.clone())?;
     let caller = validate_caller_not_anonymous();
 
-    // check user internal balance if there are enough funds, deduct from user balance
-    // if not enough tokens trigger an on-chain transfer using ledger client
+    let pool_id = validated_args.pool_id.clone();
     let token0 = args.pool.token0;
     let token1 = args.pool.token1;
+    let max_deposit = BalanceDelta::new(validated_args.amount0_max, validated_args.amount1_max);
 
-    let user_balalnce = read_state(|s| {
+    let user_balance = read_state(|s| {
         BalanceDelta::new(
             s.get_user_balance(&UserBalanceKey {
                 user: caller,
@@ -103,7 +105,7 @@ async fn mint(args: MintPositionArgs) -> Result<(), MintPositionError> {
             })
             .0
             .try_into()
-            .unwrap_or(I256::MAX),
+            .unwrap_or(I256::MAX), // Safe due to balance constraints
             s.get_user_balance(&UserBalanceKey {
                 user: caller,
                 token: token1,
@@ -113,187 +115,78 @@ async fn mint(args: MintPositionArgs) -> Result<(), MintPositionError> {
             .unwrap_or(I256::MAX),
         )
     });
-    let max_amounts = BalanceDelta::new(validated_args.amount0_max, validated_args.amount1_max);
 
-    let balance_delta = max_amounts
-        .sub(user_balalnce)
-        .expect("Bug: Amounts are already checked so overflow or underflow should not happen");
+    // Check if additional deposits are needed
+    let deposit_needed = max_deposit
+        .sub(user_balance)
+        .map_err(|_| MintPositionError::InsufficientBalance)?;
 
-    let mut from: Account = ic_cdk::caller().into();
+    // Prepare account for deposits
+    let mut from: Account = caller.into();
     if let Some(subaccount) = args.from_subaccount {
         from.subaccount = Some(subaccount);
-    };
-
-    if balance_delta.amount0 > 0 {
-        match LedgerClient::new(token0)
-            .deposit(
-                from,
-                u256_to_big_uint(balance_delta.amount0().as_u256()),
-                DepositMemo::MintPotion {
-                    sender: caller,
-                    amount: balance_delta.amount0.as_u256(),
-                },
-            )
-            .await
-        {
-            Ok(_block_index) => mutate_state(|s| {
-                s.update_user_balance(
-                    UserBalanceKey {
-                        user: caller,
-                        token: token0,
-                    },
-                    UserBalance(max_amounts.amount0.as_u256()),
-                )
-            }),
-            Err(transfer_error) => {
-                return Err(MintPositionError::DepositError(transfer_error.into()))
-            }
-        };
     }
 
-    if balance_delta.amount1 > 0 {
-        match LedgerClient::new(token1)
-            .deposit(
-                from,
-                u256_to_big_uint(balance_delta.amount1().as_u256()),
-                DepositMemo::MintPotion {
-                    sender: caller,
-                    amount: balance_delta.amount1.as_u256(),
-                },
-            )
-            .await
-        {
-            Ok(_block_index) => mutate_state(|s| {
-                s.update_user_balance(
-                    UserBalanceKey {
-                        user: caller,
-                        token: token1,
-                    },
-                    UserBalance(max_amounts.amount1.as_u256()),
-                )
-            }),
-            Err(transfer_error) => {
-                return Err(MintPositionError::DepositError(transfer_error.into()))
-            }
-        };
-    }
+    // Perform deposits if needed
+    deposit_if_needed(
+        caller,
+        token0,
+        deposit_needed.amount0,
+        &from,
+        max_deposit.amount0,
+        &mut DepositMemo::MintPotion {
+            sender: caller,
+            amount: U256::ZERO,
+        },
+    )
+    .await?;
+    deposit_if_needed(
+        caller,
+        token1,
+        deposit_needed.amount1,
+        &from,
+        max_deposit.amount1,
+        &mut DepositMemo::MintPotion {
+            sender: caller,
+            amount: U256::ZERO,
+        },
+    )
+    .await?;
 
-    // Now we are sure that there is amount0_max and amount1_max available in the canister
-    process_mint_potions(caller, token0, token1, validated_args)
+    // Execute minting
+    execute_mint_position(caller, pool_id, token0, token1, validated_args)
 }
 
-fn process_mint_potions(
+/// Deposits tokens if the required amount is positive, updating user balance on success.
+async fn deposit_if_needed(
     caller: Principal,
-    token0: Principal,
-    token1: Principal,
-    validated_args: ValidatedMintPosiotnArgs,
+    token: Principal,
+    amount: I256,
+    from: &Account,
+    max_amount: I256,
+    memo: &mut DepositMemo,
 ) -> Result<(), MintPositionError> {
-    let pool = read_state(|s| s.get_pool(&validated_args.pool_id))
-        .expect("Bug: Already validate, pool should be intialized by now");
-    let sqrt_price_x96 = pool.sqrt_price_x96;
-    let sqrt_price_a_x96 = tick_math::TickMath::get_sqrt_ratio_at_tick(validated_args.lower_tick);
-    let sqrt_price_b_x96 = tick_math::TickMath::get_sqrt_ratio_at_tick(validated_args.upper_tick);
+    if amount > I256::ZERO {
+        let deposit_amount = u256_to_big_uint(amount.as_u256());
+        memo.set_amount(amount.as_u256());
+        LedgerClient::new(token)
+            .deposit(*from, deposit_amount, memo.clone())
+            .await
+            .map_err(|e| MintPositionError::DepositError(e.into()))?;
 
-    let liquidity_delta = liquidity_amounts::get_liquidity_for_amounts(
-        sqrt_price_x96,
-        sqrt_price_a_x96,
-        sqrt_price_b_x96,
-        validated_args.amount0_max.as_u256(),
-        validated_args.amount1_max.as_u256(),
-    )
-    .map_err(|_e| MintPositionError::LiquidityOverflow)?
-    .to_i128()
-    .ok_or(MintPositionError::LiquidityOverflow)?;
-
-    let modify_liquidity_params = ModifyLiquidityParams {
-        owner: caller,
-        pool_id: validated_args.pool_id,
-        tick_lower: validated_args.lower_tick,
-        tick_upper: validated_args.upper_tick,
-        liquidity_delta,
-        tick_spacing: pool.tick_spacing,
-    };
-
-    match modify_liquidity(modify_liquidity_params) {
-        Ok(success_result) => {
-            let user_balalnce = read_state(|s| {
-                BalanceDelta::new(
-                    s.get_user_balance(&UserBalanceKey {
-                        user: caller,
-                        token: token0,
-                    })
-                    .0
-                    .try_into()
-                    .unwrap_or(I256::MAX),
-                    s.get_user_balance(&UserBalanceKey {
-                        user: caller,
-                        token: token1,
-                    })
-                    .0
-                    .try_into()
-                    .unwrap_or(I256::MAX),
-                )
-            });
-
-            let balance = user_balalnce
-                .sub(success_result.balance_delta)
-                .expect("Bug: deducting from balance should notfail at this point")
-                .add(success_result.fee_delta)
-                .map_err(|_e| MintPositionError::FeeOverflow)?;
-
-            mutate_state(|s| {
-                s.update_user_balance(
-                    UserBalanceKey {
-                        user: caller,
-                        token: token0,
-                    },
-                    UserBalance(balance.amount0.as_u256()),
-                )
-            });
-            mutate_state(|s| {
-                s.update_user_balance(
-                    UserBalanceKey {
-                        user: caller,
-                        token: token1,
-                    },
-                    UserBalance(balance.amount1.as_u256()),
-                )
-            });
-
-            mutate_state(|s| s.apply_modify_liquidity_buffer_state(success_result.buffer_state));
-        }
-        Err(reason) => match reason {
-            ModifyLiquidityError::InvalidTick => return Err(MintPositionError::InvalidTick),
-            ModifyLiquidityError::TickNotAlignedWithTickSpacing => {
-                return Err(MintPositionError::TickNotAlignedWithTickSpacing)
-            }
-            ModifyLiquidityError::PoolNotInitialized => {
-                return Err(MintPositionError::PoolNotInitialized)
-            }
-            ModifyLiquidityError::LiquidityOverflow => {
-                return Err(MintPositionError::LiquidityOverflow)
-            }
-            ModifyLiquidityError::TickLiquidityOverflow => {
-                return Err(MintPositionError::LiquidityOverflow)
-            }
-            ModifyLiquidityError::PositionOverflow => {
-                return Err(MintPositionError::LiquidityOverflow)
-            }
-            ModifyLiquidityError::FeeOwedOverflow => return Err(MintPositionError::FeeOverflow),
-            ModifyLiquidityError::AmountDeltaOverflow => {
-                return Err(MintPositionError::AmountOverflow)
-            }
-            ModifyLiquidityError::InvalidTickSpacing => {
-                panic!("Bug: tick spacing should not be zero")
-            }
-            ModifyLiquidityError::ZeroLiquidityPosition => {
-                panic!("Bug: In minting liquidity delta is always bigger than 0")
-            }
-        },
-    };
-
+        mutate_state(|s| {
+            s.update_user_balance(
+                UserBalanceKey {
+                    user: caller,
+                    token,
+                },
+                UserBalance(max_amount.as_u256()),
+            );
+        });
+    }
     Ok(())
 }
+
 fn main() {
     println!("Hello, world!");
 }
