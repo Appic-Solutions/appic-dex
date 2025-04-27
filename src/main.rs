@@ -1,23 +1,33 @@
 use core::panic;
+use std::fmt::format;
 
 use appic_dex::{
     balances::types::{UserBalance, UserBalanceKey},
-    endpoints::{CreatePoolArgs, CreatePoolError, MintPositionArgs, MintPositionError},
-    icrc_client::{memo::DepositMemo, LedgerClient},
+    burn::execute_burn_position,
+    endpoints::{
+        BurnPositionArgs, BurnPositionError, CreatePoolArgs, CreatePoolError, MintPositionArgs,
+        MintPositionError, WithdrawalError,
+    },
+    icrc_client::{
+        memo::{DepositMemo, WithdrawalMemo},
+        LedgerClient, LedgerTransferError,
+    },
     libraries::{
         balance_delta::{self, BalanceDelta},
         liquidity_amounts,
-        safe_cast::u256_to_big_uint,
+        safe_cast::{big_uint_to_u256, u256_to_big_uint},
         slippage_check::BalanceDeltaValidationError,
         tick_math::{self, TickMath},
     },
     mint::execute_mint_position,
     pool::modify_liquidity::{self, modify_liquidity, ModifyLiquidityError, ModifyLiquidityParams},
     state::{mutate_state, read_state},
-    validate_candid_args::{self, validate_mint_position_args, ValidatedMintPositionArgs},
+    validate_candid_args::{
+        self, validate_burn_position_args, validate_mint_position_args, ValidatedMintPositionArgs,
+    },
 };
 
-use candid::Principal;
+use candid::{Nat, Principal};
 use ethnum::{I256, U256};
 use ic_cdk::{call, query, update};
 use icrc_ledger_types::icrc1::account::Account;
@@ -119,7 +129,7 @@ async fn mint_potision(args: MintPositionArgs) -> Result<(), MintPositionError> 
     // Check if additional deposits are needed
     let deposit_needed = max_deposit
         .sub(user_balance)
-        .map_err(|_| MintPositionError::InsufficientBalance)?;
+        .map_err(|_| MintPositionError::AmountOverflow)?;
 
     // Prepare account for deposits
     let mut from: Account = caller.into();
@@ -181,6 +191,95 @@ async fn deposit_if_needed(
                     token,
                 },
                 UserBalance(max_amount.as_u256()),
+            );
+        });
+    }
+    Ok(())
+}
+
+#[update]
+async fn burn(args: BurnPositionArgs) -> Result<(), BurnPositionError> {
+    // TODO: Principal Lock to be implemented
+
+    // Validate inputs and caller
+    let caller = validate_caller_not_anonymous();
+    let validated_args = validate_burn_position_args(args.clone(), caller)?;
+
+    let pool_id = validated_args.pool_id.clone();
+    let token0 = args.pool.token0;
+    let token1 = args.pool.token1;
+
+    let user_balance_after_burn =
+        execute_burn_position(caller, pool_id, token0, token1, validated_args)?;
+
+    let token0_fee = LedgerClient::new(token0).icrc_fee().await.map_err(|_e| {
+        BurnPositionError::BurntPositionWithdrawalFailed(WithdrawalError::FeeUnknown)
+    })?;
+
+    let token1_fee = LedgerClient::new(token1).icrc_fee().await.map_err(|_e| {
+        BurnPositionError::BurntPositionWithdrawalFailed(WithdrawalError::FeeUnknown)
+    })?;
+
+    let to_account = Account::from(caller);
+
+    let _ = _withdraw(
+        caller,
+        token0,
+        user_balance_after_burn.amount0(),
+        user_balance_after_burn.amount0,
+        token0_fee,
+        &to_account,
+        &mut WithdrawalMemo::BurnPotions {
+            receiver: caller,
+            amount: U256::ZERO,
+        },
+    )
+    .await
+    .map_err(|e| BurnPositionError::BurntPositionWithdrawalFailed(e.into()));
+
+    let _ = _withdraw(
+        caller,
+        token1,
+        user_balance_after_burn.amount1(),
+        user_balance_after_burn.amount1,
+        token1_fee,
+        &to_account,
+        &mut WithdrawalMemo::BurnPotions {
+            receiver: caller,
+            amount: U256::ZERO,
+        },
+    )
+    .await
+    .map_err(|e| BurnPositionError::BurntPositionWithdrawalFailed(e.into()));
+
+    Ok(())
+}
+
+/// withdraws tokens if the required amount is positive, updating user balance on success.
+async fn _withdraw(
+    caller: Principal,
+    token: Principal,
+    user_balance: I256,
+    amount: I256,
+    icrc_fee: Nat,
+    to: &Account,
+    memo: &mut WithdrawalMemo,
+) -> Result<(), LedgerTransferError> {
+    let fee: U256 = big_uint_to_u256(icrc_fee.0).expect("expect fee to be positive and above 0");
+    if amount - fee.as_i256() > I256::ZERO {
+        let withdrawal_amount = u256_to_big_uint(amount.as_u256() - fee);
+        memo.set_amount(amount.as_u256());
+        LedgerClient::new(token)
+            .withdraw(*to, withdrawal_amount, memo.clone())
+            .await?;
+
+        mutate_state(|s| {
+            s.update_user_balance(
+                UserBalanceKey {
+                    user: caller,
+                    token,
+                },
+                UserBalance((user_balance - amount).as_u256()),
             );
         });
     }

@@ -109,3 +109,26 @@ impl From<WithdrawalMemo> for Memo {
         Memo::from(encode(&value))
     }
 }
+
+impl WithdrawalMemo {
+    pub fn set_amount(&mut self, new_amount: U256) {
+        match self {
+            WithdrawalMemo::BurnPotions {
+                receiver: _,
+                amount,
+            } => *amount = new_amount,
+            WithdrawalMemo::DecreasePositon {
+                receiver: _,
+                amount,
+            } => *amount = new_amount,
+            WithdrawalMemo::SwapOut {
+                receiver: _,
+                amount,
+            } => *amount = new_amount,
+            WithdrawalMemo::WithdrawBalance {
+                receiver: _,
+                amount,
+            } => *amount = new_amount,
+        }
+    }
+}

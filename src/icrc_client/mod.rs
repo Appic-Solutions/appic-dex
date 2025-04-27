@@ -26,18 +26,18 @@ pub enum LedgerTransferError {
         ledger: Principal,
     },
     AmountTooLow {
-        minimum_burn_amount: Nat,
-        failed_burn_amount: Nat,
+        minimum_amount: Nat,
+        failed_amount: Nat,
         ledger: Principal,
     },
     InsufficientFunds {
         balance: Nat,
-        failed_burn_amount: Nat,
+        failed_amount: Nat,
         ledger: Principal,
     },
     InsufficientAllowance {
         allowance: Nat,
-        failed_burn_amount: Nat,
+        failed_amount: Nat,
         ledger: Principal,
     },
 }
@@ -89,22 +89,22 @@ impl LedgerClient {
                     }
                     TransferFromError::BadBurn { min_burn_amount } => {
                         LedgerTransferError::AmountTooLow {
-                            minimum_burn_amount: min_burn_amount,
-                            failed_burn_amount: amount.clone(),
+                            minimum_amount: min_burn_amount,
+                            failed_amount: amount.clone(),
                             ledger: self.client.ledger_canister_id,
                         }
                     }
                     TransferFromError::InsufficientFunds { balance } => {
                         LedgerTransferError::InsufficientFunds {
                             balance,
-                            failed_burn_amount: amount.clone(),
+                            failed_amount: amount.clone(),
                             ledger: self.client.ledger_canister_id,
                         }
                     }
                     TransferFromError::InsufficientAllowance { allowance } => {
                         LedgerTransferError::InsufficientAllowance {
                             allowance,
-                            failed_burn_amount: amount,
+                            failed_amount: amount,
                             ledger: self.client.ledger_canister_id,
                         }
                     }
@@ -227,6 +227,13 @@ impl LedgerClient {
                     ledger: self.client.ledger_canister_id,
                 })
             }
+        }
+    }
+
+    pub async fn icrc_fee(&self) -> Result<Nat, String> {
+        match self.client.fee().await {
+            Ok(fee) => Ok(fee),
+            Err(err) => Err(format!("{}, {}", err.0, err.1)),
         }
     }
 }

@@ -1,4 +1,5 @@
 pub mod balances;
+pub mod burn;
 pub mod cbor;
 pub mod endpoints;
 pub mod gaurd;
