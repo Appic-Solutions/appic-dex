@@ -8,5 +8,6 @@ pub mod liquidity_math;
 pub mod safe_cast;
 pub mod slippage_check;
 pub mod sqrt_price_math;
+pub mod swap_math;
 pub mod tick_bitmap;
 pub mod tick_math;

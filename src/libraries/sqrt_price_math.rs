@@ -10,6 +10,7 @@ pub enum SqrtPriceMathError {
     PriceOverflow,
     NotEnoughLiquidity,
     InvalidPriceOrLiquidity,
+    InvalidFee,
 }
 
 /// Gets the next sqrt price given a delta of currency0, rounding up.
@@ -192,13 +193,13 @@ pub fn get_next_sqrt_price_from_output(
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
     use ethnum::U256;
     use lazy_static::lazy_static;
 
     // Constants for testing, matching Solidity Constants.sol
-    const SQRT_PRICE_121_100: u128 = 87150978765690771352898345369; // sqrt(1.21/1) * 2^96
+    pub const SQRT_PRICE_121_100: u128 = 87150978765690771352898345369; // sqrt(1.21/1) * 2^96
     lazy_static! {
             pub static ref SQRT_PRICE_1_1: U256 = U256::from(79228162514264337593543950336_u128); // sqrt(1/1) * 2^96
 
