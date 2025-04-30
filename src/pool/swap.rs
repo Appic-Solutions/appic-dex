@@ -1,5 +1,7 @@
 use ethnum::{I256, U256};
 
+use crate::state::read_state;
+
 use super::types::{PoolId, PoolTickSpacing};
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -51,8 +53,13 @@ pub struct SwapResult {
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
-pub enum SwapError {}
+pub enum SwapError {
+    PoolNotInitialized,
+}
 
 pub fn swap(params: SwapParams) -> Result<SwapResult, SwapError> {
+    let pool_state_start =
+        read_state(|s| s.get_pool(&params.pool_id)).ok_or(SwapError::PoolNotInitialized)?;
+
     todo!()
 }

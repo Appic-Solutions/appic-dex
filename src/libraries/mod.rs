@@ -2,6 +2,7 @@ pub mod amount_delta;
 pub mod balance_delta;
 pub mod bit_math;
 pub mod constants;
+pub mod fee_math;
 pub mod full_math;
 pub mod liquidity_amounts;
 pub mod liquidity_math;
