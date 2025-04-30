@@ -6,7 +6,7 @@ use crate::{
     endpoints::BurnPositionError,
     libraries::{balance_delta::BalanceDelta, slippage_check::validate_min_out},
     pool::{
-        modify_liquidity::{modify_liquidity, ModifyLiquidityError, ModifyLiquidityParams},
+        modify_liquidity::{ModifyLiquidityError, ModifyLiquidityParams, modify_liquidity},
         types::PoolId,
     },
     state::{mutate_state, read_state},
@@ -97,7 +97,7 @@ fn map_modify_liquidity_error(error: ModifyLiquidityError) -> BurnPositionError 
     match error {
         ModifyLiquidityError::InvalidTick => BurnPositionError::InvalidTick,
         ModifyLiquidityError::TickNotAlignedWithTickSpacing => {
-            panic!("Bug: Exsisting positions should have correct tick spacing")
+            panic!("Bug: Existing positions should have correct tick spacing")
         }
         ModifyLiquidityError::PoolNotInitialized => BurnPositionError::PoolNotInitialized,
         ModifyLiquidityError::LiquidityOverflow

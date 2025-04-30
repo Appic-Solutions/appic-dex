@@ -73,7 +73,7 @@ pub enum UpdateTickError {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct UpdateTickSucces {
+pub struct UpdateTickSuccess {
     pub flipped: bool,
     pub liquidity_gross_after: u128,
     pub updated_tick_info: TickInfo,
@@ -88,7 +88,7 @@ pub fn update_tick(
     fee_growth_global_0_x128: U256,
     fee_growth_global_1_x128: U256,
     upper: bool,
-) -> Result<UpdateTickSucces, UpdateTickError> {
+) -> Result<UpdateTickSuccess, UpdateTickError> {
     // Get mutable tick info, defaulting to zeroed if not found
     let mut tick_info = read_state(|s| s.get_tick(tick));
 
@@ -125,8 +125,8 @@ pub fn update_tick(
     // Storing updated tick info will not happen here since this function will be called in other
     // operations and in those operations there are other function calls that can fail, so tick
     // updating happens in those operations if nothing fails
-    // This way we guarantee we dont need a state reverting mechanism
-    Ok(UpdateTickSucces {
+    // This way we guarantee we don't need a state reverting mechanism
+    Ok(UpdateTickSuccess {
         flipped,
         liquidity_gross_after,
         updated_tick_info: tick_info,

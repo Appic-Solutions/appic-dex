@@ -61,9 +61,9 @@ pub fn get_amount_0_delta(
 
     if round_up {
         // UnsafeMath.divRoundingUp(FullMath.mulDivRoundingUp(numerator1, numerator2, sqrt_upper), sqrt_lower)
-        let mult_div_roundup_result = mul_div_rounding_up(numerator1, numerator2, sqrt_upper)
+        let mul_div_roundup_result = mul_div_rounding_up(numerator1, numerator2, sqrt_upper)
             .map_err(|_e| AmountDeltaError::Overflow)?;
-        Ok(div_rounding_up(mult_div_roundup_result, sqrt_lower))
+        Ok(div_rounding_up(mul_div_roundup_result, sqrt_lower))
     } else {
         // FullMath.mulDiv(numerator1, numerator2, sqrt_upper) / sqrt_lower
         let mul_div_result =

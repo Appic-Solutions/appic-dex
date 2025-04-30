@@ -9,8 +9,8 @@ use appic_dex::{
         MintPositionError, WithdrawalError,
     },
     icrc_client::{
-        memo::{DepositMemo, WithdrawalMemo},
         LedgerClient, LedgerTransferError,
+        memo::{DepositMemo, WithdrawalMemo},
     },
     libraries::{
         balance_delta::{self, BalanceDelta},
@@ -20,10 +20,10 @@ use appic_dex::{
         tick_math::{self, TickMath},
     },
     mint::execute_mint_position,
-    pool::modify_liquidity::{self, modify_liquidity, ModifyLiquidityError, ModifyLiquidityParams},
+    pool::modify_liquidity::{self, ModifyLiquidityError, ModifyLiquidityParams, modify_liquidity},
     state::{mutate_state, read_state},
     validate_candid_args::{
-        self, validate_burn_position_args, validate_mint_position_args, ValidatedMintPositionArgs,
+        self, ValidatedMintPositionArgs, validate_burn_position_args, validate_mint_position_args,
     },
 };
 
@@ -95,7 +95,7 @@ fn validate_caller_not_anonymous() -> candid::Principal {
 //
 
 #[update]
-async fn mint_potision(args: MintPositionArgs) -> Result<(), MintPositionError> {
+async fn mint_position(args: MintPositionArgs) -> Result<(), MintPositionError> {
     // TODO: Principal Lock to be implemented
 
     // Validate inputs and caller

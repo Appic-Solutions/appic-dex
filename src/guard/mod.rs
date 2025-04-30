@@ -18,7 +18,7 @@ where
     GUARDED_PRINCIPALS.with(|s| {
         f(s.borrow_mut()
             .as_mut()
-            .expect("Bug: principal gurd should be initialized"))
+            .expect("Bug: principal guard should be initialized"))
     })
 }
 

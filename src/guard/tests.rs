@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::gaurd::{mutate_guarded_principals, PrincipalGuard, PrincipalGuardError};
+    use crate::guard::{PrincipalGuard, PrincipalGuardError, mutate_guarded_principals};
 
     use candid::Principal;
 

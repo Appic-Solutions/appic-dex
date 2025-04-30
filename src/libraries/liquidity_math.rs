@@ -4,7 +4,7 @@ pub enum AddDeltaError {
     Underflow, // 'LS'
 }
 
-/// Add a signed liquidity delta to liquidity and Err if it overflows or underflows
+/// Add a signed liquidity delta to liquidity and Err if it overflows or underflow
 /// x The liquidity before change
 /// y The delta by which liquidity should be changed
 pub fn add_delta(x: u128, y: i128) -> Result<u128, AddDeltaError> {
@@ -45,13 +45,13 @@ mod tests {
     }
 
     #[test]
-    fn test_zero_plus_negative_one_underflows() {
+    fn test_zero_plus_negative_one_underflow() {
         let result = add_delta(0, -1);
         assert!(matches!(result, Err(AddDeltaError::Underflow)));
     }
 
     #[test]
-    fn test_three_plus_negative_four_underflows() {
+    fn test_three_plus_negative_four_underflow() {
         let result = add_delta(3, -4);
         assert!(matches!(result, Err(AddDeltaError::Underflow)));
     }
@@ -69,7 +69,7 @@ mod tests {
     }
 
     #[test]
-    fn test_zero_plus_min_i128_underflows() {
+    fn test_zero_plus_min_i128_underflow() {
         let result = add_delta(0, i128::MIN);
         assert!(matches!(result, Err(AddDeltaError::Underflow)));
     }

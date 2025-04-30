@@ -25,7 +25,7 @@ pub enum DepositMemo {
     },
     /// The pool manager received funds to increase liquidity of a position.
     #[n(1)]
-    IncreasePositon {
+    IncreasePosition {
         #[cbor(n(0), with = "crate::cbor::principal")]
         /// The id corresponding to the withdrawal request.
         sender: Principal,
@@ -48,7 +48,7 @@ impl DepositMemo {
     pub fn set_amount(&mut self, new_amount: U256) {
         match self {
             DepositMemo::MintPotion { sender: _, amount } => *amount = new_amount,
-            DepositMemo::IncreasePositon { sender: _, amount } => *amount = new_amount,
+            DepositMemo::IncreasePosition { sender: _, amount } => *amount = new_amount,
             DepositMemo::SwapIn { sender: _, amount } => *amount = new_amount,
         }
     }
@@ -74,7 +74,7 @@ pub enum WithdrawalMemo {
     },
     /// The user received funds after decrease in liquidity of a position.
     #[n(1)]
-    DecreasePositon {
+    DecreasePosition {
         #[cbor(n(0), with = "crate::cbor::principal")]
         /// The receiver of the token.
         receiver: Principal,
@@ -117,7 +117,7 @@ impl WithdrawalMemo {
                 receiver: _,
                 amount,
             } => *amount = new_amount,
-            WithdrawalMemo::DecreasePositon {
+            WithdrawalMemo::DecreasePosition {
                 receiver: _,
                 amount,
             } => *amount = new_amount,

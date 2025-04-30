@@ -93,7 +93,7 @@ pub struct MintPositionArgs {
 pub enum MintPositionError {
     InvalidPoolFee,
     PoolNotInitialized,
-    PositoinAlreadyExists,
+    PositionAlreadyExists,
     InvalidTick,
     InvalidAmount,
     TickNotAlignedWithTickSpacing,
@@ -140,7 +140,9 @@ impl From<LedgerTransferError> for WithdrawalError {
                 failed_amount,
                 ledger,
             } => {
-                panic!("BUG: deposit amount {failed_amount} on the {ledger:?} should always be higher than the ledger transaction fee {minimum_amount}")
+                panic!(
+                    "BUG: deposit amount {failed_amount} on the {ledger:?} should always be higher than the ledger transaction fee {minimum_amount}"
+                )
             }
         }
     }
@@ -163,7 +165,9 @@ impl From<LedgerTransferError> for DepositError {
                 failed_amount,
                 ledger,
             } => {
-                panic!("BUG: deposit amount {failed_amount} on the {ledger:?} should always be higher than the ledger transaction fee {minimum_amount}")
+                panic!(
+                    "BUG: deposit amount {failed_amount} on the {ledger:?} should always be higher than the ledger transaction fee {minimum_amount}"
+                )
             }
         }
     }

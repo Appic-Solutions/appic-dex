@@ -2,7 +2,7 @@ pub mod balances;
 pub mod burn;
 pub mod cbor;
 pub mod endpoints;
-pub mod gaurd;
+pub mod guard;
 pub mod icrc_client;
 pub mod libraries;
 pub mod logs;

@@ -158,12 +158,12 @@ mod fee_growth_inside {
     #[test]
     fn subtract_lower_tick_if_above() {
         set_tick_for_test_pool_id(-2, 0, 0, U256::from(2_u8), U256::from(3_u8));
-        let tick_minut_two = get_tick_from_state(-2);
+        let tick_minus_two = get_tick_from_state(-2);
 
         let result = get_fee_growth_inside(
             &generate_tick_for_test_pool(-2),
             &generate_tick_for_test_pool(2),
-            &tick_minut_two,
+            &tick_minus_two,
             &TickInfo::default(),
             &generate_tick_for_test_pool(0),
             U256::from(15_u8),
@@ -179,12 +179,12 @@ mod fee_growth_inside {
         set_tick_for_test_pool_id(2, 0, 0, U256::from(4_u8), U256::from(1_u8));
 
         let tick_plus_two = get_tick_from_state(2);
-        let tick_minut_two = get_tick_from_state(-2);
+        let tick_minus_two = get_tick_from_state(-2);
 
         let result = get_fee_growth_inside(
             &generate_tick_for_test_pool(-2),
             &generate_tick_for_test_pool(2),
-            &tick_minut_two,
+            &tick_minus_two,
             &tick_plus_two,
             &generate_tick_for_test_pool(0),
             U256::from(15_u8),
@@ -206,12 +206,12 @@ mod fee_growth_inside {
         set_tick_for_test_pool_id(2, 0, 0, U256::from(3_u8), U256::from(5_u8));
 
         let tick_plus_two = get_tick_from_state(2);
-        let tick_minut_two = get_tick_from_state(-2);
+        let tick_minus_two = get_tick_from_state(-2);
 
         let result = get_fee_growth_inside(
             &generate_tick_for_test_pool(-2),
             &generate_tick_for_test_pool(2),
-            &tick_minut_two,
+            &tick_minus_two,
             &tick_plus_two,
             &generate_tick_for_test_pool(0),
             U256::from(15_u8),

@@ -1,4 +1,4 @@
-mod modify_liquidty_tests {
+mod modify_liquidity_tests {
     use candid::Principal;
     use ethnum::U256;
     use proptest::{prop_assert, prop_assert_eq, proptest};
@@ -10,7 +10,7 @@ mod modify_liquidty_tests {
             tick_math,
         },
         pool::{
-            modify_liquidity::{modify_liquidity, ModifyLiquidityError, ModifyLiquidityParams},
+            modify_liquidity::{ModifyLiquidityError, ModifyLiquidityParams, modify_liquidity},
             types::{PoolState, PoolTickSpacing},
         },
         position::types::PositionKey,
@@ -90,14 +90,13 @@ mod modify_liquidty_tests {
     }
 
     #[test]
-    fn modify_liquidty_on_the_same_position() {
+    fn modify_liquidity_on_the_same_position() {
         initialize_test_pool(10);
         let position = read_state(|s| s.get_position(&test_position_key()));
         assert_eq!(position.liquidity, 0);
 
         let result = modify_liquidity(test_modify_liquidity_params()).unwrap();
         mutate_state(|s| s.apply_modify_liquidity_buffer_state(result.buffer_state.clone()));
-
         let position = read_state(|s| s.get_position(&test_position_key()));
 
         assert_eq!(
@@ -109,15 +108,26 @@ mod modify_liquidty_tests {
         mutate_state(|s| s.apply_modify_liquidity_buffer_state(result.buffer_state.clone()));
 
         let position = read_state(|s| s.get_position(&test_position_key()));
-
         assert_eq!(
             position.liquidity,
             test_modify_liquidity_params().liquidity_delta as u128 * 2
         );
+
+        // remove liquidity from the same position
+        let mut remove_liquidity_params = test_modify_liquidity_params();
+        remove_liquidity_params.liquidity_delta = -remove_liquidity_params.liquidity_delta;
+        let result = modify_liquidity(remove_liquidity_params).unwrap();
+        mutate_state(|s| s.apply_modify_liquidity_buffer_state(result.buffer_state.clone()));
+
+        let position = read_state(|s| s.get_position(&test_position_key()));
+        assert_eq!(
+            position.liquidity,
+            test_modify_liquidity_params().liquidity_delta as u128
+        );
     }
 
     #[test]
-    fn modify_liquidty_on_the_different_positions_should_not_modify_each_other() {
+    fn modify_liquidity_on_the_different_positions_should_not_modify_each_other() {
         initialize_test_pool(10);
         let position = read_state(|s| s.get_position(&test_position_key()));
         assert_eq!(position.liquidity, 0);
@@ -164,7 +174,7 @@ mod modify_liquidty_tests {
     }
 
     #[test]
-    fn modify_liquidty_should_update_and_flip_ticks() {
+    fn modify_liquidity_should_update_and_flip_ticks() {
         initialize_test_pool(10);
         let position = read_state(|s| s.get_position(&test_position_key()));
         assert_eq!(position.liquidity, 0);
@@ -192,7 +202,7 @@ mod modify_liquidty_tests {
 
         assert!(is_upper_flipped);
 
-        // check tick lqiudity
+        // check tick liquidity
         let tick_lower_info = read_state(|s| {
             s.get_tick(&TickKey {
                 pool_id: test_pool_id(),

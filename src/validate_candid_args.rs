@@ -1,4 +1,4 @@
-use candid::{types::principal, Principal};
+use candid::{Principal, types::principal};
 use ethnum::{I256, U256};
 
 use crate::{
@@ -47,7 +47,7 @@ pub fn validate_mint_position_args(
         return Err(MintPositionError::InvalidTick);
     };
 
-    // poisition should not exist
+    // position should not exist
     let position_key = PositionKey {
         owner: caller,
         pool_id: pool_id.clone(),
@@ -55,7 +55,7 @@ pub fn validate_mint_position_args(
         tick_upper: upper_tick,
     };
     if read_state(|s| s.get_position(&position_key)).liquidity != 0 {
-        return Err(MintPositionError::PositoinAlreadyExists);
+        return Err(MintPositionError::PositionAlreadyExists);
     }
 
     // check alignment with tick spacing
@@ -124,7 +124,7 @@ pub fn validate_burn_position_args(
         return Err(BurnPositionError::InvalidTick);
     };
 
-    // poisition should not exist
+    // position should not exist
     let position_key = PositionKey {
         owner: caller,
         pool_id: pool_id.clone(),

@@ -4,7 +4,7 @@ use types::{PositionInfo, PositionKey};
 use crate::{
     libraries::{
         constants::Q128,
-        full_math::{mul_div, FullMathError},
+        full_math::{FullMathError, mul_div},
         liquidity_math::{self, AddDeltaError},
     },
     state::read_state,
@@ -13,14 +13,14 @@ use crate::{
 pub mod types;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum UpdatePsotionError {
-    ZeropLiquidity,
+pub enum UpdatePositionError {
+    ZeroLiquidity,
     AddDeltaError(AddDeltaError),
     MathError(FullMathError),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct UpdatePsotionSuccess {
+pub struct UpdatePositionSuccess {
     pub fee0_owed: U256,
     pub fee1_owed: U256,
     pub updated_position_info: PositionInfo,
@@ -37,18 +37,18 @@ pub fn update_position(
     liquidity_delta: i128,
     fee_growth_inside_0_x128: U256,
     fee_growth_inside_1_x128: U256,
-) -> Result<UpdatePsotionSuccess, UpdatePsotionError> {
+) -> Result<UpdatePositionSuccess, UpdatePositionError> {
     let mut position_info = read_state(|s| s.get_position(position_key));
 
     let liquidity = position_info.liquidity.clone();
     if liquidity_delta == 0 {
         // disallow pokes for 0 liquidity positions
         if liquidity == 0 {
-            return Err(UpdatePsotionError::ZeropLiquidity);
+            return Err(UpdatePositionError::ZeroLiquidity);
         }
     } else {
         position_info.liquidity = liquidity_math::add_delta(liquidity, liquidity_delta)
-            .map_err(|e| UpdatePsotionError::AddDeltaError(e))?;
+            .map_err(|e| UpdatePositionError::AddDeltaError(e))?;
     }
 
     // calculate accumulated fees. overflow in the subtraction of fee growth is expected
@@ -57,14 +57,14 @@ pub fn update_position(
         liquidity.into(),
         Q128.clone(),
     )
-    .map_err(|e| UpdatePsotionError::MathError(e))?;
+    .map_err(|e| UpdatePositionError::MathError(e))?;
 
     let fee1_owed = mul_div(
         fee_growth_inside_1_x128 - position_info.fee_growth_inside_1_last_x128,
         liquidity.into(),
         Q128.clone(),
     )
-    .map_err(|e| UpdatePsotionError::MathError(e))?;
+    .map_err(|e| UpdatePositionError::MathError(e))?;
 
     position_info.fee_growth_inside_0_last_x128 = fee_growth_inside_0_x128;
     position_info.fee_growth_inside_1_last_x128 = fee_growth_inside_1_x128;
@@ -74,7 +74,7 @@ pub fn update_position(
     // updating happens in those operations if nothing fails
     // This way we guarantee we dont need a state reverting mechanism
 
-    Ok(UpdatePsotionSuccess {
+    Ok(UpdatePositionSuccess {
         fee0_owed,
         fee1_owed,
         updated_position_info: position_info,

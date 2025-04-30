@@ -20,8 +20,8 @@ use crate::{
 use ethnum::U256;
 use ic_stable_structures::BTreeMap;
 use memory_manager::{
-    pools_memory_id, positions_memory_id, tick_bitmaps_memory_id, tick_spacings_memory_id,
-    ticks_memory_id, user_balances_memory_id, StableMemory,
+    StableMemory, pools_memory_id, positions_memory_id, tick_bitmaps_memory_id,
+    tick_spacings_memory_id, ticks_memory_id, user_balances_memory_id,
 };
 use std::cell::RefCell;
 
@@ -57,8 +57,8 @@ impl State {
         self.ticks.insert(tick, info);
     }
 
-    pub fn revert_tick(&mut self, tick: TickKey, preveious_info: TickInfo) {
-        self.ticks.insert(tick, preveious_info);
+    pub fn revert_tick(&mut self, tick: TickKey, previous_info: TickInfo) {
+        self.ticks.insert(tick, previous_info);
     }
 
     pub fn clear_tick(&mut self, tick: &TickKey) {
@@ -117,7 +117,7 @@ impl State {
         &mut self,
         buffer_state: ModifyLiquidityBufferState,
     ) {
-        // pool state transation
+        // pool state transition
         let pool_id = buffer_state.pool.0;
         self.pools.insert(pool_id, buffer_state.pool.1);
 
@@ -127,7 +127,7 @@ impl State {
         self.ticks
             .insert(buffer_state.tick_upper.0, buffer_state.tick_upper.1);
 
-        // poisition state transition
+        // position state transition
         if let Some((position_key, position_info)) = buffer_state.position {
             self.positions.insert(position_key, position_info);
         }

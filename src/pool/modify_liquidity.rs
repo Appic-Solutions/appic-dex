@@ -13,8 +13,9 @@ use crate::{
         tick_math::TickMath,
     },
     position::{
+        UpdatePositionError,
         types::{PositionInfo, PositionKey},
-        update_position, UpdatePsotionError,
+        update_position,
     },
     state::read_state,
     tick::{
@@ -175,7 +176,7 @@ pub fn modify_liquidity(
     }
 
     // Calculate balance delta based on tick range
-    let balance_delta = calculate_balance_delta_and_update_pool_liquidty(
+    let balance_delta = calculate_balance_delta_and_update_pool_liquidity(
         &params,
         &mut buffer_state,
         params.tick_lower,
@@ -326,9 +327,9 @@ fn update_position_and_fees(
         fee_growth_inside_1_x128,
     )
     .map_err(|e| match e {
-        UpdatePsotionError::ZeropLiquidity => ModifyLiquidityError::ZeroLiquidityPosition,
-        UpdatePsotionError::AddDeltaError(_) => ModifyLiquidityError::PositionOverflow,
-        UpdatePsotionError::MathError(_) => ModifyLiquidityError::PositionOverflow,
+        UpdatePositionError::ZeroLiquidity => ModifyLiquidityError::ZeroLiquidityPosition,
+        UpdatePositionError::AddDeltaError(_) => ModifyLiquidityError::PositionOverflow,
+        UpdatePositionError::MathError(_) => ModifyLiquidityError::PositionOverflow,
     })?;
 
     // Store updated position in buffer
@@ -348,7 +349,7 @@ fn update_position_and_fees(
 }
 
 /// Calculates balance delta based on the current tick and position range.
-fn calculate_balance_delta_and_update_pool_liquidty(
+fn calculate_balance_delta_and_update_pool_liquidity(
     params: &ModifyLiquidityParams,
     buffer_state: &mut ModifyLiquidityBufferState,
     tick_lower: i32,
@@ -378,7 +379,7 @@ fn calculate_balance_delta_and_update_pool_liquidty(
             get_amount_1_delta_signed(sqrt_price_a_x96, sqrt_price_b_x96, liquidity_delta)
                 .map_err(|_| ModifyLiquidityError::AmountDeltaOverflow)?;
 
-        // Add liquidty delta to pool state
+        // Add liquidity delta to pool state
         let pool_liquidity = buffer_state.pool.1.liquidity;
         buffer_state.pool.1.liquidity = add_delta(pool_liquidity, params.liquidity_delta)
             .map_err(|_e| ModifyLiquidityError::AmountDeltaOverflow)?;

@@ -78,7 +78,7 @@ pub fn execute_mint_position(
     .map_err(|_| MintPositionError::InsufficientBalance)?;
 
     let final_balance = user_balance
-        .sub(success_result.balance_delta)
+        .add(success_result.balance_delta)
         .map_err(|_| MintPositionError::AmountOverflow)?;
 
     //Batch state updates
