@@ -1,7 +1,7 @@
 use ethnum::U256;
 
 /// Denominator for fee calculations, in hundredths of a bip (100% = 1,000,000).
-const PIPS_DENOMINATOR: u32 = 1_000_000;
+pub const PIPS_DENOMINATOR: u32 = 1_000_000;
 
 /// notice Max protocol fee is 0.1% (1000 pips)
 /// Increasing these values could lead to overflow in Pool.swap

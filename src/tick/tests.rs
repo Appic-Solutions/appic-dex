@@ -543,12 +543,17 @@ mod cross {
     #[test]
     fn cross_flips_the_growth_variables() {
         set_tick_for_test_pool_id(2, 3, 4, U256::ONE, U256::from(2_u8));
-
-        cross_tick(
-            &generate_tick_for_test_pool(2),
-            U256::from(7_u8),
-            U256::from(9_u8),
-        );
+        let mut tick = get_tick_from_state(2);
+        cross_tick(&mut tick, U256::from(7_u8), U256::from(9_u8));
+        mutate_state(|s| {
+            s.update_tick(
+                TickKey {
+                    pool_id: test_pool_id(),
+                    tick: 2,
+                },
+                tick,
+            )
+        });
         let tick_result = get_tick_from_state(2);
 
         assert_eq!(tick_result.fee_growth_outside_0_x128, U256::from(6_u8));
@@ -559,17 +564,21 @@ mod cross {
     fn cross_two_flips_the_growth_variables() {
         set_tick_for_test_pool_id(2, 3, 4, U256::ONE, U256::from(2_u8));
 
-        cross_tick(
-            &generate_tick_for_test_pool(2),
-            U256::from(7_u8),
-            U256::from(9_u8),
-        );
+        let mut tick = get_tick_from_state(2);
 
-        cross_tick(
-            &generate_tick_for_test_pool(2),
-            U256::from(7_u8),
-            U256::from(9_u8),
-        );
+        cross_tick(&mut tick, U256::from(7_u8), U256::from(9_u8));
+
+        cross_tick(&mut tick, U256::from(7_u8), U256::from(9_u8));
+
+        mutate_state(|s| {
+            s.update_tick(
+                TickKey {
+                    pool_id: test_pool_id(),
+                    tick: 2,
+                },
+                tick,
+            )
+        });
 
         let tick_result = get_tick_from_state(2);
 

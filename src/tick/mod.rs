@@ -133,25 +133,25 @@ pub fn update_tick(
     })
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct CrossTickSuccess {
+    pub liquidity_net: i128,
+    pub updated_tick_info: TickInfo,
+}
+
 /// Transitions to next tick as needed by price movement
 /// returns liquidityNet The amount of liquidity added (subtracted) when tick is crossed from left to right (right to left)
 pub fn cross_tick(
-    tick: &TickKey,
+    tick_info: &mut TickInfo,
     fee_growth_global_0_x128: U256,
     fee_growth_global_1_x128: U256,
 ) -> i128 {
     // Get mutable tick info, defaulting to zeroed if not found
-    let mut tick_info = read_state(|s| s.get_tick(tick));
 
     tick_info.fee_growth_outside_0_x128 =
         fee_growth_global_0_x128 - tick_info.fee_growth_outside_0_x128;
     tick_info.fee_growth_outside_1_x128 =
         fee_growth_global_1_x128 - tick_info.fee_growth_outside_1_x128;
 
-    let liquidity_net = tick_info.liquidity_net;
-
-    // Store updated tick info
-    mutate_state(|s| s.update_tick(tick.clone(), tick_info));
-
-    liquidity_net
+    tick_info.liquidity_net
 }

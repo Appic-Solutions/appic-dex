@@ -3,13 +3,13 @@ use ethnum::U256;
 use minicbor::{Decode, Encode};
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
-pub struct PoolFee(#[n(0)] pub u16);
+pub struct PoolFee(#[n(0)] pub u32);
 
 impl TryFrom<Nat> for PoolFee {
     type Error = String;
 
     fn try_from(value: Nat) -> Result<Self, Self::Error> {
-        u16::try_from(value.0)
+        u32::try_from(value.0)
             .map(|fee| PoolFee(fee))
             .map_err(|err| format!("{}", err))
     }

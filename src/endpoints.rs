@@ -65,7 +65,7 @@ impl TryFrom<CandidPoolId> for PoolId {
     type Error = String;
 
     fn try_from(value: CandidPoolId) -> Result<Self, Self::Error> {
-        let fee: u16 = value
+        let fee: u32 = value
             .fee
             .0
             .try_into()

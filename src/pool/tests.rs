@@ -10,7 +10,7 @@ mod modify_liquidity_tests {
             tick_math,
         },
         pool::{
-            modify_liquidity::{ModifyLiquidityError, ModifyLiquidityParams, modify_liquidity},
+            modify_liquidity::{modify_liquidity, ModifyLiquidityError, ModifyLiquidityParams},
             types::{PoolState, PoolTickSpacing},
         },
         position::types::PositionKey,
@@ -98,7 +98,6 @@ mod modify_liquidity_tests {
         let result = modify_liquidity(test_modify_liquidity_params()).unwrap();
         mutate_state(|s| s.apply_modify_liquidity_buffer_state(result.buffer_state.clone()));
         let position = read_state(|s| s.get_position(&test_position_key()));
-
         assert_eq!(
             position.liquidity,
             test_modify_liquidity_params().liquidity_delta as u128

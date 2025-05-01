@@ -58,7 +58,7 @@ pub enum ComputeSwapError {
 }
 
 /// Maximum swap fee in hundredths of a bip (100% = 1,000,000).
-const MAX_SWAP_FEE: u32 = 1_000_000;
+pub const MAX_SWAP_FEE: u32 = 1_000_000;
 
 /// Computes the result of swapping some amount in or out, given the parameters of the swap.
 ///
@@ -84,8 +84,10 @@ const MAX_SWAP_FEE: u32 = 1_000_000;
 ///
 /// # Errors
 /// Returns `ComputeSwapError::InvalidPriceOrLiquidity` if `sqrt_price_current_x96` or `liquidity` is zero.
-/// Returns `ComputeSwapError::PriceOverflow` for arithmetic overflows or invalid fee calculations.
+/// Returns `ComputeSwapError::PriceOverflow` for arithmetic overflows.
 /// Returns `ComputeSwapError::NotEnoughLiquidity` if the swap cannot proceed due to insufficient liquidity.
+/// Returns `ComputeSwapError::InvalidFee` if the fee is greator than max fee.
+
 pub fn compute_swap_step(
     sqrt_price_current_x96: U256,
     sqrt_price_target_x96: U256,
