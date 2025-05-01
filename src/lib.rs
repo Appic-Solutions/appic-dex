@@ -10,5 +10,6 @@ pub mod mint;
 pub mod pool;
 pub mod position;
 pub mod state;
+pub mod swap;
 pub mod tick;
 pub mod validate_candid_args;

@@ -52,14 +52,10 @@ pub struct StepComputations {
 /// Keeps state changes, in case of success, state transition will be applied using this buffer
 /// state, In case of failure no state transition will be triggered
 /// Buffer for state changes to apply only on successful modification.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Default)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct SwapBufferState {
+    pub pool: (PoolId, PoolState),
     pub shifted_ticks: Vec<(TickKey, TickInfo)>,
-    pub sqrt_price_x96: Option<U256>,
-    pub tick: Option<i32>,
-    pub liquidity: Option<u128>,
-    pub fee_growth_global_0_x128: Option<U256>,
-    pub fee_growth_global_1_x128: Option<U256>,
 }
 
 // Tracks the state of a pool throughout a swap, and returns these values at the end of the swap
@@ -106,7 +102,10 @@ pub fn swap(params: SwapParams) -> Result<SwapSuccess, SwapError> {
 
     // protocol fee after the swap, initially set to 0
     let mut amount_to_protocol: U256 = U256::ZERO;
-    let mut buffer_state = SwapBufferState::default();
+    let mut buffer_state = SwapBufferState {
+        pool: (params.pool_id.clone(), pool_state_initial.clone()),
+        shifted_ticks: vec![],
+    };
 
     // swapFee is the pool's fee in pips (LP fee + protocol fee)
     // when the amount swapped is 0, there is no protocolFee applied and the fee amount paid to the protocol is set to 0
@@ -396,15 +395,15 @@ fn update_buffer_state(
     step: &StepComputations,
     zero_for_one: bool,
 ) {
-    buffer_state.sqrt_price_x96 = Some(swap_result.sqrt_price_x96);
-    buffer_state.tick = Some(swap_result.tick);
+    buffer_state.pool.1.sqrt_price_x96 = swap_result.sqrt_price_x96;
+    buffer_state.pool.1.tick = swap_result.tick;
     if pool_state_initial.liquidity != swap_result.liquidity {
-        buffer_state.liquidity = Some(swap_result.liquidity);
+        buffer_state.pool.1.liquidity = swap_result.liquidity;
     }
     if zero_for_one {
-        buffer_state.fee_growth_global_0_x128 = Some(step.fee_growth_global_x128);
+        buffer_state.pool.1.fee_growth_global_0_x128 = step.fee_growth_global_x128;
     } else {
-        buffer_state.fee_growth_global_1_x128 = Some(step.fee_growth_global_x128);
+        buffer_state.pool.1.fee_growth_global_1_x128 = step.fee_growth_global_x128;
     }
 }
 

@@ -11,6 +11,7 @@ use crate::{
     balances::types::{UserBalance, UserBalanceKey},
     pool::{
         modify_liquidity::ModifyLiquidityBufferState,
+        swap::SwapBufferState,
         types::{PoolFee, PoolId, PoolState, PoolTickSpacing},
     },
     position::types::{PositionInfo, PositionKey},
@@ -20,8 +21,8 @@ use crate::{
 use ethnum::U256;
 use ic_stable_structures::BTreeMap;
 use memory_manager::{
-    StableMemory, pools_memory_id, positions_memory_id, tick_bitmaps_memory_id,
-    tick_spacings_memory_id, ticks_memory_id, user_balances_memory_id,
+    pools_memory_id, positions_memory_id, tick_bitmaps_memory_id, tick_spacings_memory_id,
+    ticks_memory_id, user_balances_memory_id, StableMemory,
 };
 use std::cell::RefCell;
 
@@ -138,6 +139,16 @@ impl State {
         }
         if let Some((bitmap_key, bitmap_word)) = buffer_state.flipped_upper_tick_bitmap {
             self.tick_bitmaps.insert(bitmap_key, bitmap_word);
+        }
+    }
+
+    pub fn apply_swap_buffer_state(&mut self, buffer_state: SwapBufferState) {
+        // pool state transition
+        let pool_id = buffer_state.pool.0;
+        self.pools.insert(pool_id, buffer_state.pool.1);
+
+        for tick in buffer_state.shifted_ticks.into_iter() {
+            self.ticks.insert(tick.0, tick.1);
         }
     }
 }

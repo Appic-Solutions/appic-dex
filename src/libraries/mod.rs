@@ -6,6 +6,7 @@ pub mod fee_math;
 pub mod full_math;
 pub mod liquidity_amounts;
 pub mod liquidity_math;
+pub mod path_key;
 pub mod safe_cast;
 pub mod slippage_check;
 pub mod sqrt_price_math;

@@ -2,7 +2,7 @@ use candid::{Nat, Principal};
 use ethnum::U256;
 use minicbor::{Decode, Encode};
 
-#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[derive(Encode, Decode, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct PoolFee(#[n(0)] pub u32);
 
 impl TryFrom<Nat> for PoolFee {
