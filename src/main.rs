@@ -1,12 +1,14 @@
 use core::panic;
-use std::fmt::format;
+use std::{fmt::format, process::Output};
 
 use appic_dex::{
     balances::types::{UserBalance, UserBalanceKey},
     burn::execute_burn_position,
-    endpoints::{
-        BurnPositionArgs, BurnPositionError, CreatePoolArgs, CreatePoolError, MintPositionArgs,
-        MintPositionError, SwapArgs, SwapError, WithdrawalError,
+    candid_types::{
+        position::{BurnPositionArgs, BurnPositionError, MintPositionArgs, MintPositionError},
+        quote::{QuoteArgs, QuoteError},
+        swap::{SwapArgs, SwapError},
+        WithdrawalError,
     },
     icrc_client::{
         memo::{DepositMemo, WithdrawalMemo},
@@ -14,24 +16,35 @@ use appic_dex::{
     },
     libraries::{
         balance_delta::{self, BalanceDelta},
+        constants::{MAX_SQRT_RATIO, MIN_SQRT_RATIO},
         liquidity_amounts,
+        path_key::PathKey,
         safe_cast::{big_uint_to_u256, u256_to_big_uint},
         slippage_check::BalanceDeltaValidationError,
         tick_math::{self, TickMath},
     },
     mint::execute_mint_position,
-    pool::modify_liquidity::{self, modify_liquidity, ModifyLiquidityError, ModifyLiquidityParams},
+    pool::{
+        modify_liquidity::{self, modify_liquidity, ModifyLiquidityError, ModifyLiquidityParams},
+        swap::{swap_inner, SwapParams},
+        types::{PoolId, PoolTickSpacing},
+    },
+    quote::{
+        process_multi_hop_exact_input, process_multi_hop_exact_output,
+        process_single_hop_exact_input, process_single_hop_exact_output,
+    },
     state::{mutate_state, read_state},
     validate_candid_args::{
-        self, validate_burn_position_args, validate_mint_position_args, ValidatedMintPositionArgs,
+        self, validate_burn_position_args, validate_mint_position_args, validate_swap_args,
+        ValidatedMintPositionArgs, MAX_PATH_LENGTH, MIN_PATH_LENGTH,
     },
 };
 
 use candid::{Nat, Principal};
-use ethnum::{I256, U256};
-use ic_cdk::{call, query, update};
+use ethnum::{AsI256, I256, U256};
+use ic_cdk::{query, update};
 use icrc_ledger_types::icrc1::account::Account;
-use num_traits::ToPrimitive;
+use num_traits::Zero;
 
 fn validate_caller_not_anonymous() -> candid::Principal {
     let principal = ic_cdk::caller();
@@ -257,8 +270,195 @@ async fn burn(args: BurnPositionArgs) -> Result<(), BurnPositionError> {
 
 #[update]
 async fn swap(args: SwapArgs) -> Result<(), SwapError> {
-    todo!()
+    let validated_swap_args = validate_swap_args(args);
+    let caller = validate_caller_not_anonymous();
+
+    todo!();
 }
+
+/// Quotes the output amount for an exact input or input amount for an exact output swap.
+/// Returns the quoted amount as a `Nat`. Uses `swap_inner` to simulate swaps without modifying state.
+/// Executes as a query, ensuring no state changes on the Internet Computer.
+#[query]
+pub fn quote(args: QuoteArgs) -> Result<Nat, QuoteError> {
+    let result_amount = match args {
+        // --- Single-Hop Exact Input ---
+        QuoteArgs::QuoteExactInputSingleParams(params) => process_single_hop_exact_input(params)?,
+        // --- Multi-Hop Exact Input ---
+        QuoteArgs::QuoteExactInputParams(params) => process_multi_hop_exact_input(params)?,
+        // --- Single-Hop Exact Output ---
+        QuoteArgs::QuoteExactOutputSingleParams(params) => process_single_hop_exact_output(params)?,
+        // --- Multi-Hop Exact Output ---
+        QuoteArgs::QuoteExactOutput(params) => process_multi_hop_exact_output(params)?,
+    };
+
+    // Convert result to Nat for Candid output
+    Ok(Nat::from(u256_to_big_uint(result_amount)))
+}
+
+//
+//#[query]
+//fn quote_exact(args: QuoteArgs) -> Result<Nat, QuoteError> {
+//    let quote_amount: Result<U256, QuoteError> = match args {
+//        QuoteArgs::QuoteExactInputSingleParams(quote_exact_single_params) => {
+//            let pool_id: PoolId = quote_exact_single_params
+//                .pool_id
+//                .try_into()
+//                .map_err(|_e| QuoteError::PoolNotInitialized)?;
+//
+//            let sqrt_price_limit_x96 = if quote_exact_single_params.zero_for_one {
+//                *MIN_SQRT_RATIO + 1
+//            } else {
+//                *MAX_SQRT_RATIO - 1
+//            };
+//
+//            let amount_specified = big_uint_to_u256(quote_exact_single_params.exact_amount.0)
+//                .map_err(|_| QuoteError::InvalidAmount)?
+//                .as_i256();
+//
+//            let swap_params = SwapParams {
+//                pool_id,
+//                amount_specified: -amount_specified,
+//                zero_for_one: quote_exact_single_params.zero_for_one,
+//                sqrt_price_limit_x96,
+//            };
+//
+//            let result = swap_inner(swap_params)?;
+//
+//            let amount_out = if quote_exact_single_params.zero_for_one {
+//                result.swap_delta.amount1()
+//            } else {
+//                result.swap_delta.amount0()
+//            };
+//
+//            Ok(amount_out.as_u256())
+//        }
+//        QuoteArgs::QuoteExactInputParams(quote_exact_params) => {
+//            let path_length = quote_exact_params.path.len();
+//            if (path_length as u8) < MIN_PATH_LENGTH || (path_length as u8) > MAX_PATH_LENGTH {
+//                return Err(QuoteError::InvalidPathLength);
+//            };
+//
+//            let mut input_token = quote_exact_params.exact_token;
+//
+//            let mut amount_in = big_uint_to_u256(quote_exact_params.exact_amount.0)
+//                .map_err(|_| QuoteError::InvalidAmount)?
+//                .as_i256();
+//
+//            for candid_path in quote_exact_params.path {
+//                let path_key =
+//                    PathKey::try_from(candid_path).map_err(|_| QuoteError::InvalidFee)?;
+//                let swap = path_key.get_pool_and_swap_direction(input_token);
+//
+//                let sqrt_price_limit_x96 = if swap.zero_for_one {
+//                    *MIN_SQRT_RATIO + 1
+//                } else {
+//                    *MAX_SQRT_RATIO - 1
+//                };
+//
+//                let swap_params = SwapParams {
+//                    pool_id: swap.pool_id,
+//                    amount_specified: -amount_in,
+//                    zero_for_one: swap.zero_for_one,
+//                    sqrt_price_limit_x96,
+//                };
+//
+//                let result = swap_inner(swap_params)?;
+//
+//                amount_in = if swap.zero_for_one {
+//                    result.swap_delta.amount1()
+//                } else {
+//                    result.swap_delta.amount0()
+//                };
+//                input_token = path_key.intermediary_token;
+//            }
+//
+//            // amountIn after the loop actually holds the amountOut of the trade
+//            Ok(amount_in.as_u256())
+//        }
+//        QuoteArgs::QuoteExactOutputSingleParams(quote_exact_single_params) => {
+//            let pool_id: PoolId = quote_exact_single_params
+//                .pool_id
+//                .try_into()
+//                .map_err(|_e| QuoteError::PoolNotInitialized)?;
+//
+//            let sqrt_price_limit_x96 = if quote_exact_single_params.zero_for_one {
+//                *MIN_SQRT_RATIO + 1
+//            } else {
+//                *MAX_SQRT_RATIO - 1
+//            };
+//
+//            let amount_specified = big_uint_to_u256(quote_exact_single_params.exact_amount.0)
+//                .map_err(|_| QuoteError::InvalidAmount)?
+//                .as_i256();
+//
+//            let swap_params = SwapParams {
+//                pool_id,
+//                amount_specified,
+//                zero_for_one: quote_exact_single_params.zero_for_one,
+//                sqrt_price_limit_x96,
+//            };
+//
+//            let result = swap_inner(swap_params)?;
+//
+//            let amount_in = if quote_exact_single_params.zero_for_one {
+//                result.swap_delta.amount0()
+//            } else {
+//                result.swap_delta.amount1()
+//            };
+//
+//            Ok((-amount_in).as_u256())
+//        }
+//        QuoteArgs::QuoteExactOutput(quote_exact_params) => {
+//            let path_length = quote_exact_params.path.len();
+//            if (path_length as u8) < MIN_PATH_LENGTH || (path_length as u8) > MAX_PATH_LENGTH {
+//                return Err(QuoteError::InvalidPathLength);
+//            };
+//
+//            let mut output_token = quote_exact_params.exact_token;
+//
+//            let mut amount_out = big_uint_to_u256(quote_exact_params.exact_amount.0)
+//                .map_err(|_| QuoteError::InvalidAmount)?
+//                .as_i256();
+//
+//            for candid_path in quote_exact_params.path.into_iter().rev() {
+//                let path_key =
+//                    PathKey::try_from(candid_path).map_err(|_| QuoteError::InvalidFee)?;
+//                let swap = path_key.get_pool_and_swap_direction(output_token);
+//
+//                let one_for_zero = swap.zero_for_one;
+//
+//                let sqrt_price_limit_x96 = if swap.zero_for_one {
+//                    *MIN_SQRT_RATIO + 1
+//                } else {
+//                    *MAX_SQRT_RATIO - 1
+//                };
+//
+//                let swap_params = SwapParams {
+//                    pool_id: swap.pool_id,
+//                    amount_specified: amount_out,
+//                    zero_for_one: !one_for_zero,
+//                    sqrt_price_limit_x96,
+//                };
+//
+//                let result = swap_inner(swap_params)?;
+//
+//                amount_out = if one_for_zero {
+//                    -result.swap_delta.amount1()
+//                } else {
+//                    -result.swap_delta.amount0()
+//                };
+//
+//                output_token = path_key.intermediary_token;
+//            }
+//
+//            // amountOut after the loop exits actually holds the amountIn of the trade
+//            Ok(amount_out.as_u256())
+//        }
+//    };
+//
+//    Ok(Nat::from(u256_to_big_uint(quote_amount?)))
+//}
 
 /// withdraws tokens if the required amount is positive, updating user balance on success.
 async fn _withdraw(

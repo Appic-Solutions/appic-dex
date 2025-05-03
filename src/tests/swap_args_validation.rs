@@ -1,9 +1,12 @@
 #[cfg(test)]
 mod swap_args_tests {
     use crate::{
-        endpoints::{
-            CandidPathKey, CandidPoolId, ExactInputParams, ExactInputSingleParams,
-            ExactOutputParams, ExactOutputSingleParams, SwapArgs, SwapError,
+        candid_types::{
+            pool::CandidPoolId,
+            swap::{
+                CandidPathKey, ExactInputParams, ExactInputSingleParams, ExactOutputParams,
+                ExactOutputSingleParams, SwapArgs, SwapError,
+            },
         },
         libraries::{
             sqrt_price_math::tests::SQRT_PRICE_1_1, swap_math::tests::SQRT_PRICE_1_2, tick_math,

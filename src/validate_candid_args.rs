@@ -2,9 +2,9 @@ use candid::Principal;
 use ethnum::{I256, U256};
 
 use crate::{
-    endpoints::{
-        BurnPositionArgs, BurnPositionError, MintPositionArgs, MintPositionError, SwapArgs,
-        SwapError,
+    candid_types::{
+        position::{BurnPositionArgs, BurnPositionError, MintPositionArgs, MintPositionError},
+        swap::{SwapArgs, SwapError},
     },
     libraries::{
         constants::{MAX_TICK, MIN_TICK},

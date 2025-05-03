@@ -11,6 +11,7 @@ pub struct PathKey {
 #[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub struct Swap {
     pub pool_id: PoolId,
+    // in case of exactOutput this will be oneForZero
     pub zero_for_one: bool,
 }
 

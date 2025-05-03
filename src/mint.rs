@@ -4,7 +4,7 @@ use num_traits::ToPrimitive;
 
 use crate::{
     balances::types::{UserBalance, UserBalanceKey},
-    endpoints::MintPositionError,
+    candid_types::position::MintPositionError,
     libraries::{
         balance_delta::BalanceDelta, liquidity_amounts, slippage_check::validate_max_in,
         tick_math::TickMath,

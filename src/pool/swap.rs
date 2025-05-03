@@ -24,7 +24,6 @@ use super::types::{PoolId, PoolState, PoolTickSpacing};
 pub struct SwapParams {
     pub pool_id: PoolId,
     pub amount_specified: I256,
-    pub tick_spacing: PoolTickSpacing,
     pub zero_for_one: bool,
     pub sqrt_price_limit_x96: U256,
 }
@@ -71,15 +70,16 @@ pub struct SwapResult {
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct SwapSuccess {
-    swap_delta: BalanceDelta,
-    amount_to_protocol: U256,
-    swap_fee: u32,
-    buffer_state: SwapBufferState,
+    pub swap_delta: BalanceDelta,
+    pub amount_to_protocol: U256,
+    pub swap_fee: u32,
+    pub buffer_state: SwapBufferState,
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum InnerSwapError {
     PoolNotInitialized,
+    IlliquidPool,
     InvalidFeeForExactOutput,
     PriceLimitAlreadyExceeded,
     PriceLimitOutOfBounds,
@@ -88,9 +88,10 @@ pub enum InnerSwapError {
 
 /// Executes a swap against the pool, returning deltas and updated state.
 /// Uses `SwapBufferState` to buffer changes, applied only on success to mimic Solidity's revert behavior on ICP.
-pub fn swap(params: SwapParams) -> Result<SwapSuccess, InnerSwapError> {
+pub fn swap_inner(params: SwapParams) -> Result<SwapSuccess, InnerSwapError> {
     let pool_state_initial =
         read_state(|s| s.get_pool(&params.pool_id)).ok_or(InnerSwapError::PoolNotInitialized)?;
+    let tick_spacing = pool_state_initial.tick_spacing;
 
     let protocol_fee = pool_state_initial.fee_protocol;
     let swap_fee = calculate_swap_fee(protocol_fee, params.pool_id.fee.0);
@@ -155,7 +156,7 @@ pub fn swap(params: SwapParams) -> Result<SwapSuccess, InnerSwapError> {
                 pool_id: params.pool_id.clone(),
                 tick: swap_result.tick,
             },
-            params.tick_spacing.0,
+            tick_spacing.0,
             params.zero_for_one,
         );
         step.tick_next = clamp_tick(tick_next);
@@ -302,6 +303,17 @@ pub fn swap(params: SwapParams) -> Result<SwapSuccess, InnerSwapError> {
         remaining_amount,
         calculated_amount,
     );
+
+    // check if pool is illiquid
+    let actual_amount_specified = if params.zero_for_one == (params.amount_specified < 0) {
+        swap_delta.amount0()
+    } else {
+        swap_delta.amount1()
+    };
+
+    if actual_amount_specified != params.amount_specified {
+        return Err(InnerSwapError::IlliquidPool);
+    }
 
     Ok(SwapSuccess {
         swap_delta,

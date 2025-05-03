@@ -3,10 +3,10 @@ use ethnum::I256;
 
 use crate::{
     balances::types::{UserBalance, UserBalanceKey},
-    endpoints::BurnPositionError,
+    candid_types::position::{BurnPositionError, MintPositionError},
     libraries::{balance_delta::BalanceDelta, slippage_check::validate_min_out},
     pool::{
-        modify_liquidity::{ModifyLiquidityError, ModifyLiquidityParams, modify_liquidity},
+        modify_liquidity::{modify_liquidity, ModifyLiquidityError, ModifyLiquidityParams},
         types::PoolId,
     },
     state::{mutate_state, read_state},

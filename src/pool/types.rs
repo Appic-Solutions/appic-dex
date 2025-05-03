@@ -15,7 +15,7 @@ impl TryFrom<Nat> for PoolFee {
     }
 }
 
-#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Debug, Ord)]
+#[derive(Encode, Decode, Clone, Copy, PartialEq, Eq, PartialOrd, Debug, Ord)]
 pub struct PoolTickSpacing(#[n(0)] pub i32);
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
