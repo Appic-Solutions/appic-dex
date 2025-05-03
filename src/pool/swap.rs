@@ -78,7 +78,7 @@ pub struct SwapSuccess {
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
-pub enum SwapError {
+pub enum InnerSwapError {
     PoolNotInitialized,
     InvalidFeeForExactOutput,
     PriceLimitAlreadyExceeded,
@@ -88,16 +88,16 @@ pub enum SwapError {
 
 /// Executes a swap against the pool, returning deltas and updated state.
 /// Uses `SwapBufferState` to buffer changes, applied only on success to mimic Solidity's revert behavior on ICP.
-pub fn swap(params: SwapParams) -> Result<SwapSuccess, SwapError> {
+pub fn swap(params: SwapParams) -> Result<SwapSuccess, InnerSwapError> {
     let pool_state_initial =
-        read_state(|s| s.get_pool(&params.pool_id)).ok_or(SwapError::PoolNotInitialized)?;
+        read_state(|s| s.get_pool(&params.pool_id)).ok_or(InnerSwapError::PoolNotInitialized)?;
 
     let protocol_fee = pool_state_initial.fee_protocol;
     let swap_fee = calculate_swap_fee(protocol_fee, params.pool_id.fee.0);
 
     // A 100% fee (MAX_SWAP_FEE) consumes all input, making exact output swaps impossible.
     if swap_fee >= MAX_SWAP_FEE && params.amount_specified > 0 {
-        return Err(SwapError::InvalidFeeForExactOutput);
+        return Err(InnerSwapError::InvalidFeeForExactOutput);
     }
 
     // protocol fee after the swap, initially set to 0
@@ -177,7 +177,7 @@ pub fn swap(params: SwapParams) -> Result<SwapSuccess, SwapError> {
             remaining_amount,
             swap_fee,
         )
-        .map_err(|_| SwapError::CalculationOverflow)?;
+        .map_err(|_| InnerSwapError::CalculationOverflow)?;
 
         // Update step and swap result.
         swap_result.sqrt_price_x96 = next_sqrt_price;
@@ -209,11 +209,11 @@ pub fn swap(params: SwapParams) -> Result<SwapSuccess, SwapError> {
         if swap_result.liquidity > 0 {
             let fee_growth_delta =
                 mul_div(step.fee_amount, *Q128, U256::from(swap_result.liquidity))
-                    .map_err(|_| SwapError::CalculationOverflow)?;
+                    .map_err(|_| InnerSwapError::CalculationOverflow)?;
             step.fee_growth_global_x128 = step
                 .fee_growth_global_x128
                 .checked_add(fee_growth_delta)
-                .ok_or(SwapError::CalculationOverflow)?;
+                .ok_or(InnerSwapError::CalculationOverflow)?;
         }
 
         // Shift tick if we reached the next price, and preemptively decrement for zeroForOne swaps to tickNext - 1.
@@ -273,7 +273,7 @@ pub fn swap(params: SwapParams) -> Result<SwapSuccess, SwapError> {
 
                 swap_result.liquidity =
                     liquidity_math::add_delta(swap_result.liquidity, liquidity_net)
-                        .map_err(|_| SwapError::CalculationOverflow)?;
+                        .map_err(|_| InnerSwapError::CalculationOverflow)?;
             }
             swap_result.tick = if params.zero_for_one {
                 step.tick_next - 1
@@ -316,20 +316,20 @@ fn validate_price_limits(
     zero_for_one: bool,
     sqrt_price_limit_x96: U256,
     sqrt_price_current_x96: U256,
-) -> Result<(), SwapError> {
+) -> Result<(), InnerSwapError> {
     if zero_for_one {
         if sqrt_price_limit_x96 >= sqrt_price_current_x96 {
-            return Err(SwapError::PriceLimitAlreadyExceeded);
+            return Err(InnerSwapError::PriceLimitAlreadyExceeded);
         }
         if sqrt_price_limit_x96 <= *MIN_SQRT_RATIO {
-            return Err(SwapError::PriceLimitOutOfBounds);
+            return Err(InnerSwapError::PriceLimitOutOfBounds);
         }
     } else {
         if sqrt_price_limit_x96 <= sqrt_price_current_x96 {
-            return Err(SwapError::PriceLimitAlreadyExceeded);
+            return Err(InnerSwapError::PriceLimitAlreadyExceeded);
         }
         if sqrt_price_limit_x96 >= *MAX_SQRT_RATIO {
-            return Err(SwapError::PriceLimitOutOfBounds);
+            return Err(InnerSwapError::PriceLimitOutOfBounds);
         }
     }
     Ok(())
@@ -352,18 +352,18 @@ fn update_amounts(
     remaining_amount: &mut I256,
     calculated_amount: &mut I256,
     step: &StepComputations,
-) -> Result<(), SwapError> {
+) -> Result<(), InnerSwapError> {
     if is_exact_output {
         *remaining_amount = remaining_amount.wrapping_sub(step.amount_out.as_i256());
         *calculated_amount = calculated_amount
             .checked_sub((step.amount_in + step.fee_amount).as_i256())
-            .ok_or(SwapError::CalculationOverflow)?;
+            .ok_or(InnerSwapError::CalculationOverflow)?;
     } else {
         *remaining_amount =
             remaining_amount.wrapping_add((step.amount_in + step.fee_amount).as_i256());
         *calculated_amount = calculated_amount
             .checked_add(step.amount_out.as_i256())
-            .ok_or(SwapError::CalculationOverflow)?;
+            .ok_or(InnerSwapError::CalculationOverflow)?;
     }
     Ok(())
 }

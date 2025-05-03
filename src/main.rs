@@ -6,11 +6,11 @@ use appic_dex::{
     burn::execute_burn_position,
     endpoints::{
         BurnPositionArgs, BurnPositionError, CreatePoolArgs, CreatePoolError, MintPositionArgs,
-        MintPositionError, WithdrawalError,
+        MintPositionError, SwapArgs, SwapError, WithdrawalError,
     },
     icrc_client::{
-        LedgerClient, LedgerTransferError,
         memo::{DepositMemo, WithdrawalMemo},
+        LedgerClient, LedgerTransferError,
     },
     libraries::{
         balance_delta::{self, BalanceDelta},
@@ -20,10 +20,10 @@ use appic_dex::{
         tick_math::{self, TickMath},
     },
     mint::execute_mint_position,
-    pool::modify_liquidity::{self, ModifyLiquidityError, ModifyLiquidityParams, modify_liquidity},
+    pool::modify_liquidity::{self, modify_liquidity, ModifyLiquidityError, ModifyLiquidityParams},
     state::{mutate_state, read_state},
     validate_candid_args::{
-        self, ValidatedMintPositionArgs, validate_burn_position_args, validate_mint_position_args,
+        self, validate_burn_position_args, validate_mint_position_args, ValidatedMintPositionArgs,
     },
 };
 
@@ -253,6 +253,11 @@ async fn burn(args: BurnPositionArgs) -> Result<(), BurnPositionError> {
     .map_err(|e| BurnPositionError::BurntPositionWithdrawalFailed(e.into()));
 
     Ok(())
+}
+
+#[update]
+async fn swap(args: SwapArgs) -> Result<(), SwapError> {
+    todo!()
 }
 
 /// withdraws tokens if the required amount is positive, updating user balance on success.

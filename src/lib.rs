@@ -13,3 +13,6 @@ pub mod state;
 pub mod swap;
 pub mod tick;
 pub mod validate_candid_args;
+
+#[cfg(test)]
+pub mod tests;
