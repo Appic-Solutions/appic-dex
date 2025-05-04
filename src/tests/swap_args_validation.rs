@@ -174,7 +174,7 @@ mod swap_args_tests {
         add_pools_to_state();
         let args = SwapArgs::ExactInput(ExactInputParams {
             token_in: Principal::from_slice(&[1]),
-            path: vec![valid_path_key(Principal::from_slice(&[2]), 3000)],
+            path: vec![],
             amount_in: Nat::from(1000u64),
             amount_out_minimum: Nat::from(500u64),
         });
@@ -183,7 +183,7 @@ mod swap_args_tests {
             validate_swap_args(args),
             Err(SwapError::PathLengthTooSmall {
                 minimum: MIN_PATH_LENGTH,
-                received: 1,
+                received: 0,
             })
         );
     }

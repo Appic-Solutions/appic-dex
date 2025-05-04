@@ -5,6 +5,7 @@ use appic_dex::{
     balances::types::{UserBalance, UserBalanceKey},
     burn::execute_burn_position,
     candid_types::{
+        pool::{CreatePoolArgs, CreatePoolError},
         position::{BurnPositionArgs, BurnPositionError, MintPositionArgs, MintPositionError},
         quote::{QuoteArgs, QuoteError},
         swap::{SwapArgs, SwapError},
@@ -16,24 +17,27 @@ use appic_dex::{
     },
     libraries::{
         balance_delta::{self, BalanceDelta},
-        constants::{MAX_SQRT_RATIO, MIN_SQRT_RATIO},
+        constants::{DEFAULT_PROTOCOL_FEE, MAX_SQRT_RATIO, MIN_SQRT_RATIO},
         liquidity_amounts,
         path_key::PathKey,
         safe_cast::{big_uint_to_u256, u256_to_big_uint},
         slippage_check::BalanceDeltaValidationError,
+        sqrt_price_math,
         tick_math::{self, TickMath},
     },
     mint::execute_mint_position,
     pool::{
+        create_pool::create_pool_inner,
         modify_liquidity::{self, modify_liquidity, ModifyLiquidityError, ModifyLiquidityParams},
         swap::{swap_inner, SwapParams},
-        types::{PoolId, PoolTickSpacing},
+        types::{PoolFee, PoolId, PoolState, PoolTickSpacing},
     },
     quote::{
         process_multi_hop_exact_input, process_multi_hop_exact_output,
         process_single_hop_exact_input, process_single_hop_exact_output,
     },
     state::{mutate_state, read_state},
+    tick::tick_spacing_to_max_liquidity_per_tick,
     validate_candid_args::{
         self, validate_burn_position_args, validate_mint_position_args, validate_swap_args,
         ValidatedMintPositionArgs, MAX_PATH_LENGTH, MIN_PATH_LENGTH,
@@ -54,58 +58,12 @@ fn validate_caller_not_anonymous() -> candid::Principal {
     principal
 }
 
-//#[update]
-//pub fn create_pool(
-//    CreatePoolArgs {
-//        token_a,
-//        token_b,
-//        fee,
-//        sqrt_price_x96,
-//    }: CreatePoolArgs,
-//) -> Result<(), CreatePoolError> {
-//    // sort token_a and b, token 0 is always the smaller token
-//    let (token0, token1) = if token_a < token_b {
-//        (token_a, token_b)
-//    } else {
-//        (token_b, token_a)
-//    };
-//
-//    let fee = PoolFee::try_from(fee).map_err(|_e| CreatePoolError::InvalidFeeAmount)?;
-//
-//    let pool_id = PoolId {
-//        token0,
-//        token1,
-//        fee: fee.clone(),
-//    };
-//
-//    if read_state(|s| s.get_pool(&pool_id)).is_some() {
-//        return Err(CreatePoolError::PoolAlreadyExists);
-//    }
-//    let tick_spacing =
-//        read_state(|s| s.get_tick_spacing(&fee)).ok_or(CreatePoolError::InvalidFeeAmount)?;
-//
-//    let sqrt_price_x96 = U256::from_str_radix(&sqrt_price_x96.0.to_str_radix(10), 10)
-//        .map_err(|_e| CreatePoolError::InvalidSqrtPriceX96)?;
-//
-//    let tick = TickMath::get_tick_at_sqrt_ratio(sqrt_price_x96)
-//        .map_err(|_e| CreatePoolError::InvalidSqrtPriceX96)?;
-//
-//    let max_liquidity_per_tick = tick::tick_spacing_to_max_liquidity_per_tick(tick_spacing.0);
-//    let pool_state = PoolState {
-//        sqrt_price_x96,
-//        tick,
-//        fee_growth_global_0_x128: U256::ZERO,
-//        fee_growth_global_1_x128: U256::ZERO,
-//        liquidity: 0,
-//        tick_spacing,
-//        max_liquidity_per_tick,
-//        fee_protocol: todo!(),
-//    };
-//    mutate_state(|s| s.set_pool(pool_id, pool_state));
-//
-//    return Ok(());
-//}
-//
+#[update]
+async fn create_pool(args: CreatePoolArgs) -> Result<(), CreatePoolError> {
+    // TODO: async Token Checks
+    let _ = create_pool_inner(args)?;
+    Ok(())
+}
 
 #[update]
 async fn mint_position(args: MintPositionArgs) -> Result<(), MintPositionError> {
@@ -281,7 +239,7 @@ async fn swap(args: SwapArgs) -> Result<(), SwapError> {
 /// Executes as a query, ensuring no state changes on the Internet Computer.
 #[query]
 pub fn quote(args: QuoteArgs) -> Result<Nat, QuoteError> {
-    let result_amount = match args {
+    let quote_amount = match args {
         // --- Single-Hop Exact Input ---
         QuoteArgs::QuoteExactInputSingleParams(params) => process_single_hop_exact_input(params)?,
         // --- Multi-Hop Exact Input ---
@@ -293,7 +251,7 @@ pub fn quote(args: QuoteArgs) -> Result<Nat, QuoteError> {
     };
 
     // Convert result to Nat for Candid output
-    Ok(Nat::from(u256_to_big_uint(result_amount)))
+    Ok(Nat::from(u256_to_big_uint(quote_amount)))
 }
 
 //

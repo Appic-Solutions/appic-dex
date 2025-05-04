@@ -40,3 +40,15 @@ impl TryFrom<CandidPoolId> for PoolId {
         })
     }
 }
+
+impl From<PoolId> for CandidPoolId {
+    fn from(value: PoolId) -> CandidPoolId {
+        let fee: Nat = value.fee.0.into();
+
+        CandidPoolId {
+            token0: value.token0,
+            token1: value.token1,
+            fee,
+        }
+    }
+}

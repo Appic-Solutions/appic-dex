@@ -111,7 +111,7 @@ pub fn process_multi_hop_exact_output(params: QuoteExactParams) -> Result<U256, 
 
         // Set swap parameters
         let one_for_zero = swap.zero_for_one;
-        let sqrt_price_limit_x96 = get_sqrt_price_limit(swap.zero_for_one);
+        let sqrt_price_limit_x96 = get_sqrt_price_limit(!one_for_zero);
         let swap_params = SwapParams {
             pool_id: swap.pool_id,
             amount_specified: output_amount,
@@ -123,7 +123,7 @@ pub fn process_multi_hop_exact_output(params: QuoteExactParams) -> Result<U256, 
         let swap_result = swap_inner(swap_params)?;
 
         // Update amount and token for next hop
-        output_amount = select_amount(swap_result.swap_delta, one_for_zero, true);
+        output_amount = select_amount(swap_result.swap_delta, !one_for_zero, true);
         output_amount = -output_amount;
         output_token = path_key.intermediary_token;
     }
@@ -156,8 +156,8 @@ fn get_sqrt_price_limit(zero_for_one: bool) -> U256 {
 }
 
 /// Selects the appropriate amount from swap delta based on direction and input/output.
-fn select_amount(swap_delta: BalanceDelta, zero_for_one: bool, is_input: bool) -> I256 {
-    match (zero_for_one, is_input) {
+fn select_amount(swap_delta: BalanceDelta, zero_for_one: bool, is_output: bool) -> I256 {
+    match (zero_for_one, is_output) {
         (true, true) => swap_delta.amount0(),
         (true, false) => swap_delta.amount1(),
         (false, true) => swap_delta.amount1(),

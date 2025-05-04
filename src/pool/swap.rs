@@ -18,7 +18,7 @@ use crate::{
     },
 };
 
-use super::types::{PoolId, PoolState, PoolTickSpacing};
+use super::types::{PoolId, PoolState};
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct SwapParams {

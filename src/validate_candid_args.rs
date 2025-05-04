@@ -203,8 +203,8 @@ pub enum ValidatedSwapArgs {
 pub const MAX_PATH_LENGTH: u8 = 4;
 
 // in multi hop swaps the minumm number of hops(swaps) should be >= MIN_PATH_LENGTH
-// if a swap has less than 2 hops, the single hop swap type should be selected
-pub const MIN_PATH_LENGTH: u8 = 2;
+// if a swap has less than 1 hops, the swap is invalid
+pub const MIN_PATH_LENGTH: u8 = 1;
 
 pub fn validate_swap_args(args: SwapArgs) -> Result<ValidatedSwapArgs, SwapError> {
     match args {

@@ -13,6 +13,7 @@ lazy_static! {
     pub static ref MAX_SQRT_RATIO: U256 =
         U256::from_str_radix("1461446703485210103287273052203988822378723970342", 10).unwrap();
 
+    pub static ref DEFAULT_PROTOCOL_FEE: u16 = 0;
 }
 
 pub const MIN_TICK: i32 = -887272;
