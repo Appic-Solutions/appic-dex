@@ -17,6 +17,7 @@ use appic_dex::{
         LedgerClient, LedgerTransferError,
     },
     libraries::{
+        amount_delta,
         balance_delta::{self, BalanceDelta},
         constants::{DEFAULT_PROTOCOL_FEE, MAX_SQRT_RATIO, MIN_SQRT_RATIO},
         liquidity_amounts,
@@ -206,10 +207,10 @@ async fn swap(args: SwapArgs) -> Result<(), SwapError> {
 
     let swap_result = match &validated_swap_args {
         ValidatedSwapArgs::ExactInputSingle {
-            pool_id,
-            zero_for_one,
+            pool_id: _,
+            zero_for_one: _,
             amount_in,
-            amount_out_minimum,
+            amount_out_minimum: _,
             from_subaccount,
             token_in,
             token_out,
@@ -221,7 +222,7 @@ async fn swap(args: SwapArgs) -> Result<(), SwapError> {
             // deposit token_in with the amount_in
             let _ = _deposit(
                 caller,
-                token_in,
+                *token_in,
                 &user_address,
                 amount_in.as_u256(),
                 &mut DepositMemo::SwapIn {
@@ -232,15 +233,15 @@ async fn swap(args: SwapArgs) -> Result<(), SwapError> {
             .await
             .map_err(|e| SwapError::DepositError(e.into()));
 
-            let amount_deposited = amount_in;
+            amount_deposited = amount_in.as_u256();
 
             // trigger swap after deposit
-            execute_swap(&validated_swap_args, token_in, token_out, caller)
+            execute_swap(&validated_swap_args, *token_in, *token_out, caller)
         }
         ValidatedSwapArgs::ExactInput {
-            path,
+            path: _,
             amount_in,
-            amount_out_minimum,
+            amount_out_minimum: _,
             from_subaccount,
             token_in,
             token_out,
@@ -252,7 +253,7 @@ async fn swap(args: SwapArgs) -> Result<(), SwapError> {
             // deposit token_in with the amount_in
             let _ = _deposit(
                 caller,
-                token_in,
+                *token_in,
                 &user_address,
                 amount_in.as_u256(),
                 &mut DepositMemo::SwapIn {
@@ -263,15 +264,15 @@ async fn swap(args: SwapArgs) -> Result<(), SwapError> {
             .await
             .map_err(|e| SwapError::DepositError(e.into()));
 
-            let amount_deposited = amount_in;
+            amount_deposited = amount_in.as_u256();
 
             // trigger swap after deposit
-            execute_swap(&validated_swap_args, token_in, token_out, caller)
+            execute_swap(&validated_swap_args, *token_in, *token_out, caller)
         }
         ValidatedSwapArgs::ExactOutputSingle {
-            pool_id,
-            zero_for_one,
-            amount_out,
+            pool_id: _,
+            zero_for_one: _,
+            amount_out: _,
             amount_in_maximum,
             from_subaccount,
             token_in,
@@ -284,7 +285,7 @@ async fn swap(args: SwapArgs) -> Result<(), SwapError> {
             // deposit token_in with the amount_in
             let _ = _deposit(
                 caller,
-                token_in,
+                *token_in,
                 &user_address,
                 amount_in_maximum.as_u256(),
                 &mut DepositMemo::SwapIn {
@@ -295,14 +296,14 @@ async fn swap(args: SwapArgs) -> Result<(), SwapError> {
             .await
             .map_err(|e| SwapError::DepositError(e.into()));
 
-            let amount_deposited = amount_in_maximum;
+            amount_deposited = amount_in_maximum.as_u256();
 
             // trigger swap after deposit
-            execute_swap(&validated_swap_args, token_in, token_out, caller)
+            execute_swap(&validated_swap_args, *token_in, *token_out, caller)
         }
         ValidatedSwapArgs::ExactOutput {
-            path,
-            amount_out,
+            path: _,
+            amount_out: _,
             amount_in_maximum,
             from_subaccount,
             token_in,
@@ -315,7 +316,7 @@ async fn swap(args: SwapArgs) -> Result<(), SwapError> {
             // deposit token_in with the amount_in
             let _ = _deposit(
                 caller,
-                token_in,
+                *token_in,
                 &user_address,
                 amount_in_maximum.as_u256(),
                 &mut DepositMemo::SwapIn {
@@ -326,10 +327,10 @@ async fn swap(args: SwapArgs) -> Result<(), SwapError> {
             .await
             .map_err(|e| SwapError::DepositError(e.into()));
 
-            let amount_deposited = amount_in_maximum;
+            amount_deposited = amount_in_maximum.as_u256();
 
             // trigger swap after deposit
-            execute_swap(&validated_swap_args, token_in, token_out, caller)
+            execute_swap(&validated_swap_args, *token_in, *token_out, caller)
         }
     };
 

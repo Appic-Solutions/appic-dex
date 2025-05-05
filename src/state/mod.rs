@@ -18,11 +18,12 @@ use crate::{
     tick::types::{BitmapWord, TickBitmapKey, TickInfo, TickKey},
 };
 
+use candid::Principal;
 use ethnum::U256;
 use ic_stable_structures::BTreeMap;
 use memory_manager::{
-    pools_memory_id, positions_memory_id, tick_bitmaps_memory_id, tick_spacings_memory_id,
-    ticks_memory_id, user_balances_memory_id, StableMemory,
+    pools_memory_id, positions_memory_id, protocol_balance_memory_id, tick_bitmaps_memory_id,
+    tick_spacings_memory_id, ticks_memory_id, user_balances_memory_id, StableMemory,
 };
 use std::cell::RefCell;
 
@@ -33,6 +34,7 @@ thread_local! {
     pub static STATE: RefCell<Option<State>> = RefCell::new(Some(State {
         pools: BTreeMap::init(pools_memory_id()),
         user_balances: BTreeMap::init(user_balances_memory_id()),
+        protocol_balance:BTreeMap::init(protocol_balance_memory_id()),
         positions: BTreeMap::init(positions_memory_id()),
         ticks: BTreeMap::init(ticks_memory_id()),
         tick_bitmaps: BTreeMap::init(tick_bitmaps_memory_id()),
@@ -43,6 +45,7 @@ thread_local! {
 pub struct State {
     pools: BTreeMap<PoolId, PoolState, StableMemory>,
     user_balances: BTreeMap<UserBalanceKey, UserBalance, StableMemory>,
+    protocol_balance: BTreeMap<Principal, UserBalance, StableMemory>, // protocol accumulated from protocol-fee
     positions: BTreeMap<PositionKey, PositionInfo, StableMemory>,
     ticks: BTreeMap<TickKey, TickInfo, StableMemory>,
     tick_bitmaps: BTreeMap<TickBitmapKey, BitmapWord, StableMemory>,
@@ -112,6 +115,16 @@ impl State {
 
     pub fn update_user_balance(&mut self, key: UserBalanceKey, value: UserBalance) {
         self.user_balances.insert(key, value);
+    }
+
+    pub fn get_protocol_fee_for_token(&mut self, token: &Principal) -> UserBalance {
+        self.protocol_balance
+            .get(token)
+            .unwrap_or(UserBalance(U256::ZERO))
+    }
+
+    pub fn update_protocol_fee_for_token(&mut self, token: Principal, value: UserBalance) {
+        self.protocol_balance.insert(token, value);
     }
 
     pub fn apply_modify_liquidity_buffer_state(

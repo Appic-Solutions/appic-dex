@@ -1,5 +1,5 @@
 use candid::Principal;
-use ethnum::I256;
+use ethnum::{I256, U256};
 
 use crate::{
     balances::types::{UserBalance, UserBalanceKey},
@@ -52,6 +52,8 @@ pub fn execute_swap(
             amount_in,
             amount_out_minimum,
             from_subaccount: _,
+            token_in: _,
+            token_out: _,
         } => {
             // Validate balance
             validate_balance(token_in_balance_before, *amount_in)?;
@@ -81,6 +83,8 @@ pub fn execute_swap(
             amount_in,
             amount_out_minimum,
             from_subaccount: _,
+            token_in: _,
+            token_out: _,
         } => {
             // Validate balance
             validate_balance(token_in_balance_before, *amount_in)?;
@@ -118,6 +122,8 @@ pub fn execute_swap(
             amount_out,
             amount_in_maximum,
             from_subaccount: _,
+            token_in: _,
+            token_out: _,
         } => {
             // Validate balance
             validate_balance(token_in_balance_before, *amount_in_maximum)?;
@@ -147,6 +153,8 @@ pub fn execute_swap(
             amount_out,
             amount_in_maximum,
             from_subaccount: _,
+            token_in: _,
+            token_out: _,
         } => {
             // Validate balance
             validate_balance(token_in_balance_before, *amount_in_maximum)?;
@@ -276,6 +284,14 @@ fn update_balances_and_states(
         s.update_user_balance(token_out_key, token_out_balance_after);
         for swap_success in &swap_result.swap_success_list {
             s.apply_swap_buffer_state(swap_success.buffer_state.clone());
+
+            // add to accumulated prtocol fee
+            let fee_accumulated = s
+                .get_protocol_fee_for_token(&swap_success.fee_token)
+                .0
+                .checked_add(swap_success.amount_to_protocol)
+                .unwrap_or(U256::MAX);
+            s.update_protocol_fee_for_token(swap_success.fee_token, UserBalance(fee_accumulated));
         }
     });
 

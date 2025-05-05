@@ -1,3 +1,4 @@
+use candid::Principal;
 use ethnum::{I256, U256};
 
 use crate::{
@@ -72,6 +73,7 @@ pub struct SwapResult {
 pub struct SwapSuccess {
     pub swap_delta: BalanceDelta,
     pub amount_to_protocol: U256,
+    pub fee_token: Principal,
     pub swap_fee: u32,
     pub buffer_state: SwapBufferState,
 }
@@ -108,6 +110,12 @@ pub fn swap_inner(params: SwapParams) -> Result<SwapSuccess, InnerSwapError> {
         shifted_ticks: vec![],
     };
 
+    let fee_token = if params.zero_for_one {
+        params.pool_id.token0
+    } else {
+        params.pool_id.token1
+    };
+
     // swapFee is the pool's fee in pips (LP fee + protocol fee)
     // when the amount swapped is 0, there is no protocolFee applied and the fee amount paid to the protocol is set to 0
     if params.amount_specified == 0 {
@@ -116,6 +124,7 @@ pub fn swap_inner(params: SwapParams) -> Result<SwapSuccess, InnerSwapError> {
             amount_to_protocol,
             swap_fee,
             buffer_state,
+            fee_token,
         });
     };
 
@@ -320,6 +329,7 @@ pub fn swap_inner(params: SwapParams) -> Result<SwapSuccess, InnerSwapError> {
         amount_to_protocol,
         swap_fee,
         buffer_state,
+        fee_token,
     })
 }
 
