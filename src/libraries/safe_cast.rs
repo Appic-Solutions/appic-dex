@@ -1,3 +1,4 @@
+use candid::Nat;
 use ethnum::{I256, U256};
 use num_bigint::BigUint;
 
@@ -27,4 +28,8 @@ pub fn big_uint_to_i256(biguint: BigUint) -> Result<I256, String> {
 
 pub fn u256_to_big_uint(value: U256) -> BigUint {
     BigUint::from_bytes_be(&value.to_be_bytes())
+}
+
+pub fn u256_to_nat(value: U256) -> Nat {
+    Nat::from(BigUint::from_bytes_be(&value.to_be_bytes()))
 }

@@ -8,7 +8,7 @@ use appic_dex::{
         pool::{self, CreatePoolArgs, CreatePoolError},
         position::{BurnPositionArgs, BurnPositionError, MintPositionArgs, MintPositionError},
         quote::{QuoteArgs, QuoteError},
-        swap::{SwapArgs, SwapError, SwapFailedReason},
+        swap::{self, CandidSwapSuccess, SwapArgs, SwapError, SwapFailedReason},
         DepositError, WithdrawalError,
     },
     guard::{PrincipalGuard, PrincipalGuardError},
@@ -22,7 +22,7 @@ use appic_dex::{
         constants::{DEFAULT_PROTOCOL_FEE, MAX_SQRT_RATIO, MIN_SQRT_RATIO},
         liquidity_amounts,
         path_key::{PathKey, Swap},
-        safe_cast::{big_uint_to_u256, u256_to_big_uint},
+        safe_cast::{big_uint_to_u256, u256_to_big_uint, u256_to_nat},
         slippage_check::BalanceDeltaValidationError,
         sqrt_price_math,
         tick_math::{self, TickMath},
@@ -154,21 +154,12 @@ async fn burn(args: BurnPositionArgs) -> Result<(), BurnPositionError> {
     let user_balance_after_burn =
         execute_burn_position(caller, pool_id, token0, token1, validated_args)?;
 
-    let token0_fee = LedgerClient::new(token0).icrc_fee().await.map_err(|_e| {
-        BurnPositionError::BurntPositionWithdrawalFailed(WithdrawalError::FeeUnknown)
-    })?;
-
-    let token1_fee = LedgerClient::new(token1).icrc_fee().await.map_err(|_e| {
-        BurnPositionError::BurntPositionWithdrawalFailed(WithdrawalError::FeeUnknown)
-    })?;
-
     let to_account = Account::from(caller);
 
     let _ = _withdraw(
         caller,
         token0,
         user_balance_after_burn.amount0().as_u256(),
-        token0_fee,
         &to_account,
         &mut WithdrawalMemo::BurnPotions {
             receiver: caller,
@@ -182,7 +173,6 @@ async fn burn(args: BurnPositionArgs) -> Result<(), BurnPositionError> {
         caller,
         token1,
         user_balance_after_burn.amount1().as_u256(),
-        token1_fee,
         &to_account,
         &mut WithdrawalMemo::BurnPotions {
             receiver: caller,
@@ -196,154 +186,82 @@ async fn burn(args: BurnPositionArgs) -> Result<(), BurnPositionError> {
 }
 
 #[update]
-async fn swap(args: SwapArgs) -> Result<(), SwapError> {
+/// Executes a swap by depositing input tokens, swapping, and withdrawing output tokens.
+/// Refunds the deposited amount on failure. Returns the input and output amounts on success.
+async fn swap(args: SwapArgs) -> Result<CandidSwapSuccess, SwapError> {
+    // Validate Inputs
     let validated_swap_args = validate_swap_args(args)?;
     let caller = validate_caller_not_anonymous();
 
-    // Prepare account for deposits
+    // Prepare User Account
     let mut user_address: Account = caller.into();
-
-    let mut amount_deposited = U256::ZERO;
-
-    let swap_result = match &validated_swap_args {
-        ValidatedSwapArgs::ExactInputSingle {
-            pool_id: _,
-            zero_for_one: _,
-            amount_in,
-            amount_out_minimum: _,
-            from_subaccount,
-            token_in,
-            token_out,
-        } => {
-            if let Some(subaccount) = from_subaccount {
-                user_address.subaccount = Some(*subaccount);
-            }
-
-            // deposit token_in with the amount_in
-            let _ = _deposit(
-                caller,
-                *token_in,
-                &user_address,
-                amount_in.as_u256(),
-                &mut DepositMemo::SwapIn {
-                    sender: caller,
-                    amount: U256::ZERO,
-                },
-            )
-            .await
-            .map_err(|e| SwapError::DepositError(e.into()));
-
-            amount_deposited = amount_in.as_u256();
-
-            // trigger swap after deposit
-            execute_swap(&validated_swap_args, *token_in, *token_out, caller)
-        }
-        ValidatedSwapArgs::ExactInput {
-            path: _,
-            amount_in,
-            amount_out_minimum: _,
-            from_subaccount,
-            token_in,
-            token_out,
-        } => {
-            if let Some(subaccount) = from_subaccount {
-                user_address.subaccount = Some(*subaccount);
-            }
-
-            // deposit token_in with the amount_in
-            let _ = _deposit(
-                caller,
-                *token_in,
-                &user_address,
-                amount_in.as_u256(),
-                &mut DepositMemo::SwapIn {
-                    sender: caller,
-                    amount: U256::ZERO,
-                },
-            )
-            .await
-            .map_err(|e| SwapError::DepositError(e.into()));
-
-            amount_deposited = amount_in.as_u256();
-
-            // trigger swap after deposit
-            execute_swap(&validated_swap_args, *token_in, *token_out, caller)
-        }
-        ValidatedSwapArgs::ExactOutputSingle {
-            pool_id: _,
-            zero_for_one: _,
-            amount_out: _,
-            amount_in_maximum,
-            from_subaccount,
-            token_in,
-            token_out,
-        } => {
-            if let Some(subaccount) = from_subaccount {
-                user_address.subaccount = Some(*subaccount);
-            }
-
-            // deposit token_in with the amount_in
-            let _ = _deposit(
-                caller,
-                *token_in,
-                &user_address,
-                amount_in_maximum.as_u256(),
-                &mut DepositMemo::SwapIn {
-                    sender: caller,
-                    amount: U256::ZERO,
-                },
-            )
-            .await
-            .map_err(|e| SwapError::DepositError(e.into()));
-
-            amount_deposited = amount_in_maximum.as_u256();
-
-            // trigger swap after deposit
-            execute_swap(&validated_swap_args, *token_in, *token_out, caller)
-        }
-        ValidatedSwapArgs::ExactOutput {
-            path: _,
-            amount_out: _,
-            amount_in_maximum,
-            from_subaccount,
-            token_in,
-            token_out,
-        } => {
-            if let Some(subaccount) = from_subaccount {
-                user_address.subaccount = Some(*subaccount);
-            }
-
-            // deposit token_in with the amount_in
-            let _ = _deposit(
-                caller,
-                *token_in,
-                &user_address,
-                amount_in_maximum.as_u256(),
-                &mut DepositMemo::SwapIn {
-                    sender: caller,
-                    amount: U256::ZERO,
-                },
-            )
-            .await
-            .map_err(|e| SwapError::DepositError(e.into()));
-
-            amount_deposited = amount_in_maximum.as_u256();
-
-            // trigger swap after deposit
-            execute_swap(&validated_swap_args, *token_in, *token_out, caller)
-        }
-    };
-
-    match swap_result {
-        Ok(swap_delta) => {
-            // successful swap, the amount_out should be withdrawn
-        }
-        Err(err) => {
-            // swap failed, the refund process should be triggered
-        }
+    if let Some(subaccount) = validated_swap_args.from_subaccount() {
+        user_address.subaccount = Some(subaccount);
     }
 
-    todo!();
+    // Perform Deposit
+    let deposit_amount = validated_swap_args.deposit_amount();
+
+    let token_in = validated_swap_args.token_in();
+    let token_out = validated_swap_args.token_out();
+
+    let _ = _deposit(
+        caller,
+        token_in,
+        &user_address,
+        deposit_amount.as_u256(),
+        &mut DepositMemo::SwapIn {
+            sender: caller,
+            amount: U256::ZERO,
+        },
+    )
+    .await
+    .map_err(|e| SwapError::DepositError(e));
+
+    // Execute Swap
+    let swap_result = execute_swap(&validated_swap_args, token_in, token_out, caller);
+
+    // Handle Swap Result
+    match swap_result {
+        Ok(swap_delta) => {
+            // Withdraw output tokens
+            _withdraw(
+                caller,
+                token_out,
+                swap_delta.1.as_u256(),
+                &user_address,
+                &mut WithdrawalMemo::SwapOut {
+                    receiver: caller,
+                    amount: U256::ZERO,
+                },
+            )
+            .await
+            .map_err(|e| SwapError::FailedToWithdraw {
+                reason: e,
+                amount_in: u256_to_nat(swap_delta.0.as_u256()),
+                amount_out: u256_to_nat(swap_delta.1.as_u256()),
+            })?;
+
+            return Ok(CandidSwapSuccess {
+                amount_in: u256_to_nat(swap_delta.0.as_u256()),
+                amount_out: u256_to_nat(swap_delta.1.as_u256()),
+            });
+        }
+        Err(err) => {
+            // Refund deposited tokens
+            _refund(caller, token_in, deposit_amount.as_u256(), &user_address)
+                .await
+                .map_err(|e| SwapError::SwapFailedRefunded {
+                    failed_reason: err.clone(),
+                    refund_error: Some(e),
+                })?;
+
+            return Err(SwapError::SwapFailedRefunded {
+                failed_reason: err,
+                refund_error: None,
+            });
+        }
+    }
 }
 
 /// Quotes the output amount for an exact input or input amount for an exact output swap.
@@ -352,13 +270,13 @@ async fn swap(args: SwapArgs) -> Result<(), SwapError> {
 #[query]
 pub fn quote(args: QuoteArgs) -> Result<Nat, QuoteError> {
     let quote_amount = match args {
-        // --- Single-Hop Exact Input ---
+        //  Single-Hop Exact Input
         QuoteArgs::QuoteExactInputSingleParams(params) => process_single_hop_exact_input(params)?,
-        // --- Multi-Hop Exact Input ---
+        //  Multi-Hop Exact Input
         QuoteArgs::QuoteExactInputParams(params) => process_multi_hop_exact_input(params)?,
-        // --- Single-Hop Exact Output ---
+        //  Single-Hop Exact Output
         QuoteArgs::QuoteExactOutputSingleParams(params) => process_single_hop_exact_output(params)?,
-        // --- Multi-Hop Exact Output ---
+        //  Multi-Hop Exact Output
         QuoteArgs::QuoteExactOutput(params) => process_multi_hop_exact_output(params)?,
     };
 
@@ -373,16 +291,10 @@ async fn _refund(
     amount: U256,
     to: &Account,
 ) -> Result<(), WithdrawalError> {
-    let token_fee = LedgerClient::new(token)
-        .icrc_fee()
-        .await
-        .map_err(|_e| LedgerTransferError::FeeUnknown)?;
-
     _withdraw(
         caller,
         token,
         amount,
-        token_fee,
         to,
         &mut WithdrawalMemo::Refund {
             receiver: to.owner,
@@ -397,10 +309,15 @@ async fn _withdraw(
     caller: Principal,
     token: Principal,
     amount: U256,
-    icrc_fee: Nat,
     to: &Account,
     memo: &mut WithdrawalMemo,
 ) -> Result<(), WithdrawalError> {
+    let ledger_client = LedgerClient::new(token);
+    let icrc_fee = ledger_client
+        .icrc_fee()
+        .await
+        .map_err(|_| WithdrawalError::FeeUnknown)?;
+
     let user_balance = get_user_balance(caller, token);
 
     let transfer_fee: U256 =

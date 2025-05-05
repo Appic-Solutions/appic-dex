@@ -215,6 +215,55 @@ pub enum ValidatedSwapArgs {
     },
 }
 
+impl ValidatedSwapArgs {
+    pub fn deposit_amount(&self) -> I256 {
+        match self {
+            ValidatedSwapArgs::ExactInputSingle { amount_in, .. } => *amount_in,
+            ValidatedSwapArgs::ExactInput { amount_in, .. } => *amount_in,
+            ValidatedSwapArgs::ExactOutputSingle {
+                amount_in_maximum, ..
+            } => *amount_in_maximum,
+            ValidatedSwapArgs::ExactOutput {
+                amount_in_maximum, ..
+            } => *amount_in_maximum,
+        }
+    }
+    pub fn token_in(&self) -> Principal {
+        match self {
+            ValidatedSwapArgs::ExactInputSingle { token_in, .. } => *token_in,
+            ValidatedSwapArgs::ExactInput { token_in, .. } => *token_in,
+            ValidatedSwapArgs::ExactOutputSingle { token_in, .. } => *token_in,
+            ValidatedSwapArgs::ExactOutput { token_in, .. } => *token_in,
+        }
+    }
+
+    pub fn token_out(&self) -> Principal {
+        match self {
+            ValidatedSwapArgs::ExactInputSingle { token_out, .. } => *token_out,
+            ValidatedSwapArgs::ExactInput { token_out, .. } => *token_out,
+            ValidatedSwapArgs::ExactOutputSingle { token_out, .. } => *token_out,
+            ValidatedSwapArgs::ExactOutput { token_out, .. } => *token_out,
+        }
+    }
+
+    pub fn from_subaccount(&self) -> Option<Subaccount> {
+        match self {
+            ValidatedSwapArgs::ExactInputSingle {
+                from_subaccount, ..
+            } => *from_subaccount,
+            ValidatedSwapArgs::ExactInput {
+                from_subaccount, ..
+            } => *from_subaccount,
+            ValidatedSwapArgs::ExactOutputSingle {
+                from_subaccount, ..
+            } => *from_subaccount,
+            ValidatedSwapArgs::ExactOutput {
+                from_subaccount, ..
+            } => *from_subaccount,
+        }
+    }
+}
+
 // in multi hop swaps the maximum number of hops(swaps) should be <= MAX_PATH_LENGTH
 pub const MAX_PATH_LENGTH: u8 = 4;
 
