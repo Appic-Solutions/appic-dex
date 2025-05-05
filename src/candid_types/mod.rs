@@ -16,7 +16,7 @@ pub mod swap;
 #[derive(CandidType, Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
 pub enum DepositError {
     AmountTooLow { min_withdrawal_amount: Nat },
-    InsufficientFunds { balance: Nat },
+    InsufficientFunds { balance: Nat }, // not enough balance in user wallet
     InsufficientAllowance { allowance: Nat },
     TemporarilyUnavailable(String),
     InvalidDestination(String),
@@ -25,7 +25,7 @@ pub enum DepositError {
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize, PartialEq, Eq)]
 pub enum WithdrawalError {
     AmountTooLow { min_withdrawal_amount: Nat },
-    InsufficientFunds { balance: Nat },
+    InsufficientBalance { balance: Nat }, // user has insufficient balance
     InsufficientAllowance { allowance: Nat },
     TemporarilyUnavailable(String),
     InvalidDestination(String),
@@ -38,8 +38,8 @@ impl From<LedgerTransferError> for WithdrawalError {
             LedgerTransferError::TemporarilyUnavailable { message, .. } => {
                 Self::TemporarilyUnavailable(message)
             }
-            LedgerTransferError::InsufficientFunds { balance, .. } => {
-                Self::InsufficientFunds { balance }
+            LedgerTransferError::InsufficientFunds { .. } => {
+                panic!("Bug: Canister should always hold enough for withdrawal")
             }
             LedgerTransferError::InsufficientAllowance { allowance, .. } => {
                 Self::InsufficientAllowance { allowance }
@@ -51,7 +51,7 @@ impl From<LedgerTransferError> for WithdrawalError {
                 ledger,
             } => {
                 panic!(
-                    "BUG: deposit amount {failed_amount} on the {ledger:?} should always be higher than the ledger transaction fee {minimum_amount}"
+                    "BUG: withdrawal amount {failed_amount} on the {ledger:?} should always be higher than the ledger transaction fee {minimum_amount}"
                 )
             }
         }

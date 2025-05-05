@@ -106,6 +106,8 @@ mod swap_args_tests {
                 amount_in,
                 amount_out_minimum,
                 from_subaccount: _,
+                token_out,
+                token_in,
             } => {
                 assert_eq!(pool_id, valid_pool_id().try_into().unwrap());
                 assert!(zero_for_one);
@@ -155,6 +157,8 @@ mod swap_args_tests {
                 amount_in,
                 amount_out_minimum,
                 from_subaccount: _,
+                token_in,
+                token_out,
             } => {
                 assert_eq!(path.len(), 2);
                 assert_eq!(amount_in, I256::from(1000u64));
@@ -240,6 +244,8 @@ mod swap_args_tests {
                 amount_out,
                 amount_in_maximum,
                 from_subaccount: _,
+                token_out,
+                token_in,
             } => {
                 assert_eq!(pool_id, valid_pool_id().try_into().unwrap());
                 assert!(!zero_for_one);
@@ -289,6 +295,8 @@ mod swap_args_tests {
                 amount_out,
                 amount_in_maximum,
                 from_subaccount: _,
+                token_in,
+                token_out,
             } => {
                 assert_eq!(path.len(), 2);
                 assert_eq!(amount_out, I256::from(500u64));

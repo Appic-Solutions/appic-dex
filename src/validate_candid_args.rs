@@ -17,6 +17,7 @@ use crate::{
     pool::types::{PoolId, PoolTickSpacing},
     position::types::{PositionInfo, PositionKey},
     state::read_state,
+    swap::get_token_in_out,
 };
 
 pub struct ValidatedMintPositionArgs {
@@ -182,6 +183,8 @@ pub enum ValidatedSwapArgs {
         amount_in: I256,
         amount_out_minimum: I256,
         from_subaccount: Option<Subaccount>,
+        token_in: Principal,
+        token_out: Principal,
     },
     ExactInput {
         // order should be preserved
@@ -189,6 +192,8 @@ pub enum ValidatedSwapArgs {
         amount_in: I256,
         amount_out_minimum: I256,
         from_subaccount: Option<Subaccount>,
+        token_in: Principal,
+        token_out: Principal,
     },
     ExactOutputSingle {
         pool_id: PoolId,
@@ -196,6 +201,8 @@ pub enum ValidatedSwapArgs {
         amount_out: I256,
         amount_in_maximum: I256,
         from_subaccount: Option<Subaccount>,
+        token_in: Principal,
+        token_out: Principal,
     },
     ExactOutput {
         // order should be preserved
@@ -203,6 +210,8 @@ pub enum ValidatedSwapArgs {
         amount_out: I256,
         amount_in_maximum: I256,
         from_subaccount: Option<Subaccount>,
+        token_in: Principal,
+        token_out: Principal,
     },
 }
 
@@ -233,12 +242,17 @@ pub fn validate_swap_args(args: SwapArgs) -> Result<ValidatedSwapArgs, SwapError
                 big_uint_to_i256(exact_input_single_params.amount_out_minimum.0)
                     .map_err(|_| SwapError::InvalidAmountOutMinimum)?;
 
+            let (token_in, token_out) =
+                get_token_in_out(&pool_id, exact_input_single_params.zero_for_one);
+
             Ok(ValidatedSwapArgs::ExactInputSingle {
                 pool_id,
                 zero_for_one: exact_input_single_params.zero_for_one,
                 amount_in,
                 amount_out_minimum,
                 from_subaccount: exact_input_single_params.from_subaccount,
+                token_in,
+                token_out,
             })
         }
         SwapArgs::ExactInput(exact_input_params) => {
@@ -262,6 +276,8 @@ pub fn validate_swap_args(args: SwapArgs) -> Result<ValidatedSwapArgs, SwapError
                 swap_path.push(path_key.get_pool_and_swap_direction(token_in));
                 token_in = path_key.intermediary_token;
             }
+            // after the iteration token_in will be token_out
+            let token_out = token_in;
 
             // there should not be a duplication in swap path, meaning users can not swap using the
             // same pool twice or more in a single swap transaction.
@@ -289,6 +305,8 @@ pub fn validate_swap_args(args: SwapArgs) -> Result<ValidatedSwapArgs, SwapError
                 amount_in,
                 amount_out_minimum,
                 from_subaccount: exact_input_params.from_subaccount,
+                token_in: exact_input_params.token_in,
+                token_out,
             })
         }
         SwapArgs::ExactOutputSingle(exact_output_single_params) => {
@@ -309,12 +327,17 @@ pub fn validate_swap_args(args: SwapArgs) -> Result<ValidatedSwapArgs, SwapError
                 big_uint_to_i256(exact_output_single_params.amount_in_maximum.0)
                     .map_err(|_| SwapError::InvalidAmountInMaximum)?;
 
+            let (token_in, token_out) =
+                get_token_in_out(&pool_id, exact_output_single_params.zero_for_one);
+
             Ok(ValidatedSwapArgs::ExactOutputSingle {
                 pool_id,
                 zero_for_one: exact_output_single_params.zero_for_one,
                 amount_out,
                 amount_in_maximum,
                 from_subaccount: exact_output_single_params.from_subaccount,
+                token_in,
+                token_out,
             })
         }
         SwapArgs::ExactOutput(exact_output_params) => {
@@ -339,6 +362,8 @@ pub fn validate_swap_args(args: SwapArgs) -> Result<ValidatedSwapArgs, SwapError
                 swap_path.push(path_key.get_pool_and_swap_direction(token_out));
                 token_out = path_key.intermediary_token;
             }
+            // after the last iteration token in will be token_out
+            let token_in = token_out;
 
             // reverse the swap path
             // since we generated swap path using a reversed direction
@@ -368,6 +393,8 @@ pub fn validate_swap_args(args: SwapArgs) -> Result<ValidatedSwapArgs, SwapError
                 amount_out,
                 amount_in_maximum,
                 from_subaccount: exact_output_params.from_subaccount,
+                token_out,
+                token_in,
             })
         }
     }

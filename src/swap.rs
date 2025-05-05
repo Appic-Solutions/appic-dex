@@ -24,7 +24,7 @@ pub struct SwapSuccessfulResult {
 /// Returns the positive input amount and output amount as (amount_in, amount_out).
 /// Fails if balance, slippage, or swap conditions are not met.
 pub fn execute_swap(
-    validated_swap_args: ValidatedSwapArgs,
+    validated_swap_args: &ValidatedSwapArgs,
     token_in: Principal,
     token_out: Principal,
     caller: Principal,
@@ -54,20 +54,20 @@ pub fn execute_swap(
             from_subaccount: _,
         } => {
             // Validate balance
-            validate_balance(token_in_balance_before, amount_in)?;
+            validate_balance(token_in_balance_before, *amount_in)?;
 
             // Build swap parameters
-            let swap_params = build_swap_params(pool_id, -amount_in, zero_for_one);
+            let swap_params = build_swap_params(pool_id.clone(), -amount_in, *zero_for_one);
 
             // Execute swap
             let hop_result = swap_inner(swap_params).map_err(SwapFailedReason::from)?;
 
             // Calculate amounts
-            let amount_out = select_amount(hop_result.swap_delta, zero_for_one, false);
+            let amount_out = select_amount(hop_result.swap_delta, *zero_for_one, false);
             let amount_in = -amount_in;
 
             // Check slippage
-            check_exact_input_slippage(amount_out, amount_out_minimum)?;
+            check_exact_input_slippage(amount_out, *amount_out_minimum)?;
 
             SwapSuccessfulResult {
                 amount_in,
@@ -83,15 +83,15 @@ pub fn execute_swap(
             from_subaccount: _,
         } => {
             // Validate balance
-            validate_balance(token_in_balance_before, amount_in)?;
+            validate_balance(token_in_balance_before, *amount_in)?;
 
-            let mut current_amount = amount_in;
+            let mut current_amount = *amount_in;
             let mut swap_success_list = Vec::new();
 
             // Process each hop
             for swap in path {
                 let swap_params =
-                    build_swap_params(swap.pool_id, -current_amount, swap.zero_for_one);
+                    build_swap_params(swap.pool_id.clone(), -current_amount, swap.zero_for_one);
 
                 let hop_result = swap_inner(swap_params).map_err(SwapFailedReason::from)?;
                 current_amount = select_amount(hop_result.swap_delta, swap.zero_for_one, false);
@@ -103,7 +103,7 @@ pub fn execute_swap(
             let amount_in = -amount_in;
 
             // Check slippage
-            check_exact_input_slippage(amount_out, amount_out_minimum)?;
+            check_exact_input_slippage(amount_out, *amount_out_minimum)?;
 
             SwapSuccessfulResult {
                 amount_in,
@@ -120,24 +120,24 @@ pub fn execute_swap(
             from_subaccount: _,
         } => {
             // Validate balance
-            validate_balance(token_in_balance_before, amount_in_maximum)?;
+            validate_balance(token_in_balance_before, *amount_in_maximum)?;
 
             // Build swap parameters
-            let swap_params = build_swap_params(pool_id, amount_out, zero_for_one);
+            let swap_params = build_swap_params(pool_id.clone(), *amount_out, *zero_for_one);
 
             // Execute swap
             let hop_result = swap_inner(swap_params).map_err(SwapFailedReason::from)?;
 
             // Calculate amounts
             let amount_out = amount_out;
-            let amount_in = -select_amount(hop_result.swap_delta, zero_for_one, true);
+            let amount_in = -select_amount(hop_result.swap_delta, *zero_for_one, true);
 
             // Check slippage
             check_exact_output_slippage(amount_in, -amount_in_maximum)?;
 
             SwapSuccessfulResult {
                 amount_in,
-                amount_out,
+                amount_out: *amount_out,
                 swap_success_list: vec![hop_result],
             }
         }
@@ -149,15 +149,16 @@ pub fn execute_swap(
             from_subaccount: _,
         } => {
             // Validate balance
-            validate_balance(token_in_balance_before, amount_in_maximum)?;
+            validate_balance(token_in_balance_before, *amount_in_maximum)?;
 
-            let mut current_amount = amount_out;
+            let mut current_amount = *amount_out;
             let mut swap_success_list = Vec::new();
 
             // Process each hop in reverse
             for swap in path.into_iter().rev() {
                 let swap_direction = !swap.zero_for_one; // Reverse direction for exact output
-                let swap_params = build_swap_params(swap.pool_id, current_amount, swap_direction);
+                let swap_params =
+                    build_swap_params(swap.pool_id.clone(), current_amount, swap_direction);
 
                 let hop_result = swap_inner(swap_params).map_err(SwapFailedReason::from)?;
                 current_amount = select_amount(hop_result.swap_delta, swap_direction, true);
@@ -173,7 +174,7 @@ pub fn execute_swap(
 
             SwapSuccessfulResult {
                 amount_in,
-                amount_out,
+                amount_out: *amount_out,
                 swap_success_list,
             }
         }
@@ -282,7 +283,7 @@ fn update_balances_and_states(
 }
 
 /// Selects the appropriate token for (token_in, token_out) based on direction.
-pub fn get_token_in_out(pool_id: PoolId, zero_for_one: bool) -> (Principal, Principal) {
+pub fn get_token_in_out(pool_id: &PoolId, zero_for_one: bool) -> (Principal, Principal) {
     if zero_for_one {
         (pool_id.token0, pool_id.token1)
     } else {
