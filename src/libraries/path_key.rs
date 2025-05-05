@@ -8,7 +8,7 @@ pub struct PathKey {
     pub fee: PoolFee,
 }
 
-#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct Swap {
     pub pool_id: PoolId,
     // in case of exactOutput this will be oneForZero

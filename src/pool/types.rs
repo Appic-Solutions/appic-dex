@@ -2,7 +2,7 @@ use candid::{Nat, Principal};
 use ethnum::U256;
 use minicbor::{Decode, Encode};
 
-#[derive(Encode, Decode, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[derive(Encode, Decode, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 pub struct PoolFee(#[n(0)] pub u32);
 
 impl TryFrom<Nat> for PoolFee {
@@ -18,7 +18,7 @@ impl TryFrom<Nat> for PoolFee {
 #[derive(Encode, Decode, Clone, Copy, PartialEq, Eq, PartialOrd, Debug, Ord)]
 pub struct PoolTickSpacing(#[n(0)] pub i32);
 
-#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 pub struct PoolId {
     #[cbor(n(0), with = "crate::cbor::principal")]
     pub token0: Principal, // Token0 identifier

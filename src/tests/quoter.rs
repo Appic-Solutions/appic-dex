@@ -43,7 +43,6 @@ pub mod quoter {
         };
 
         let amount_out = process_single_hop_exact_input(params).unwrap();
-
         assert_eq!(amount_out, expected_amount_out);
     }
 

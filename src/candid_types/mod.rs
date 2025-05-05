@@ -13,7 +13,7 @@ pub mod position;
 pub mod quote;
 pub mod swap;
 
-#[derive(CandidType, Deserialize, Serialize, Clone, Debug, PartialEq)]
+#[derive(CandidType, Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
 pub enum DepositError {
     AmountTooLow { min_withdrawal_amount: Nat },
     InsufficientFunds { balance: Nat },
@@ -22,7 +22,7 @@ pub enum DepositError {
     InvalidDestination(String),
 }
 
-#[derive(Debug, Clone, CandidType, Deserialize, Serialize)]
+#[derive(Debug, Clone, CandidType, Deserialize, Serialize, PartialEq, Eq)]
 pub enum WithdrawalError {
     AmountTooLow { min_withdrawal_amount: Nat },
     InsufficientFunds { balance: Nat },
@@ -44,6 +44,7 @@ impl From<LedgerTransferError> for WithdrawalError {
             LedgerTransferError::InsufficientAllowance { allowance, .. } => {
                 Self::InsufficientAllowance { allowance }
             }
+            LedgerTransferError::FeeUnknown => Self::FeeUnknown,
             LedgerTransferError::AmountTooLow {
                 minimum_amount,
                 failed_amount,
@@ -69,6 +70,7 @@ impl From<LedgerTransferError> for DepositError {
             LedgerTransferError::InsufficientAllowance { allowance, .. } => {
                 Self::InsufficientAllowance { allowance }
             }
+            LedgerTransferError::FeeUnknown => panic!("Bug: Fee is not required for deposit"),
             LedgerTransferError::AmountTooLow {
                 minimum_amount,
                 failed_amount,

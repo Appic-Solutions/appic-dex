@@ -35,6 +35,7 @@ pub fn process_single_hop_exact_input(params: QuoteExactSingleParams) -> Result<
     };
 
     let swap_result = swap_inner(swap_params)?;
+    println!("{:?}", swap_result);
 
     let amount_out = select_amount(swap_result.swap_delta, swap_direction, false);
     Ok(amount_out.as_u256())
@@ -90,6 +91,8 @@ pub fn process_single_hop_exact_output(params: QuoteExactSingleParams) -> Result
     };
 
     let swap_result = swap_inner(swap_params)?;
+
+    println!("{:?}", swap_result);
 
     let amount_in = select_amount(swap_result.swap_delta, swap_direction, true);
     Ok((-amount_in).as_u256())
@@ -147,7 +150,7 @@ fn convert_amount_to_i256(amount: Nat) -> Result<I256, QuoteError> {
 }
 
 /// Determines the sqrt price limit based on swap direction.
-fn get_sqrt_price_limit(zero_for_one: bool) -> U256 {
+pub fn get_sqrt_price_limit(zero_for_one: bool) -> U256 {
     if zero_for_one {
         *MIN_SQRT_RATIO + 1
     } else {
@@ -156,7 +159,7 @@ fn get_sqrt_price_limit(zero_for_one: bool) -> U256 {
 }
 
 /// Selects the appropriate amount from swap delta based on direction and input/output.
-fn select_amount(swap_delta: BalanceDelta, zero_for_one: bool, is_output: bool) -> I256 {
+pub fn select_amount(swap_delta: BalanceDelta, zero_for_one: bool, is_output: bool) -> I256 {
     match (zero_for_one, is_output) {
         (true, true) => swap_delta.amount0(),
         (true, false) => swap_delta.amount1(),

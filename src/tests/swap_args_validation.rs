@@ -19,7 +19,7 @@ mod swap_args_tests {
     };
 
     use candid::{Nat, Principal};
-    use ethnum::U256;
+    use ethnum::{I256, U256};
     use std::convert::TryInto;
 
     // Helper to create a valid CandidPoolId
@@ -95,6 +95,7 @@ mod swap_args_tests {
             zero_for_one: true,
             amount_in: Nat::from(1000u64),
             amount_out_minimum: Nat::from(500u64),
+            from_subaccount: None,
         });
 
         let result = validate_swap_args(args).unwrap();
@@ -104,11 +105,12 @@ mod swap_args_tests {
                 zero_for_one,
                 amount_in,
                 amount_out_minimum,
+                from_subaccount: _,
             } => {
                 assert_eq!(pool_id, valid_pool_id().try_into().unwrap());
                 assert!(zero_for_one);
-                assert_eq!(amount_in, U256::from(1000u64));
-                assert_eq!(amount_out_minimum, U256::from(500u64));
+                assert_eq!(amount_in, I256::from(1000u64));
+                assert_eq!(amount_out_minimum, I256::from(500u64));
             }
             _ => panic!("Expected ExactInputSingle"),
         }
@@ -125,6 +127,7 @@ mod swap_args_tests {
             zero_for_one: true,
             amount_in: Nat::from(1000u64),
             amount_out_minimum: Nat::from(500u64),
+            from_subaccount: None,
         });
 
         assert_eq!(validate_swap_args(args), Err(SwapError::PoolNotInitialized));
@@ -142,6 +145,7 @@ mod swap_args_tests {
             path: vec![valid_path_key(token_b, 3000), valid_path_key(token_c, 3000)],
             amount_in: Nat::from(1000u64),
             amount_out_minimum: Nat::from(500u64),
+            from_subaccount: None,
         });
 
         let result = validate_swap_args(args).unwrap();
@@ -150,10 +154,11 @@ mod swap_args_tests {
                 path,
                 amount_in,
                 amount_out_minimum,
+                from_subaccount: _,
             } => {
                 assert_eq!(path.len(), 2);
-                assert_eq!(amount_in, U256::from(1000u64));
-                assert_eq!(amount_out_minimum, U256::from(500u64));
+                assert_eq!(amount_in, I256::from(1000u64));
+                assert_eq!(amount_out_minimum, I256::from(500u64));
                 assert_eq!(path[0].pool_id, valid_pool_id().try_into().unwrap());
                 assert!(path[0].zero_for_one);
                 assert_eq!(
@@ -177,6 +182,7 @@ mod swap_args_tests {
             path: vec![],
             amount_in: Nat::from(1000u64),
             amount_out_minimum: Nat::from(500u64),
+            from_subaccount: None,
         });
 
         assert_eq!(
@@ -202,6 +208,7 @@ mod swap_args_tests {
             ],
             amount_in: Nat::from(1000u64),
             amount_out_minimum: Nat::from(500u64),
+            from_subaccount: None,
         });
 
         assert_eq!(
@@ -222,6 +229,7 @@ mod swap_args_tests {
             zero_for_one: false,
             amount_out: Nat::from(500u64),
             amount_in_maximum: Nat::from(1000u64),
+            from_subaccount: None,
         });
 
         let result = validate_swap_args(args).unwrap();
@@ -231,11 +239,12 @@ mod swap_args_tests {
                 zero_for_one,
                 amount_out,
                 amount_in_maximum,
+                from_subaccount: _,
             } => {
                 assert_eq!(pool_id, valid_pool_id().try_into().unwrap());
                 assert!(!zero_for_one);
-                assert_eq!(amount_out, U256::from(500u64));
-                assert_eq!(amount_in_maximum, U256::from(1000u64));
+                assert_eq!(amount_out, I256::from(500u64));
+                assert_eq!(amount_in_maximum, I256::from(1000u64));
             }
             _ => panic!("Expected ExactOutputSingle"),
         }
@@ -251,6 +260,7 @@ mod swap_args_tests {
             },
             zero_for_one: false,
             amount_out: Nat::from(500u64),
+            from_subaccount: None,
             amount_in_maximum: Nat::from(1000u64),
         });
 
@@ -269,6 +279,7 @@ mod swap_args_tests {
             path: vec![valid_path_key(token_a, 3000), valid_path_key(token_b, 3000)],
             amount_out: Nat::from(500u64),
             amount_in_maximum: Nat::from(1000u64),
+            from_subaccount: None,
         });
 
         let result = validate_swap_args(args).unwrap();
@@ -277,10 +288,11 @@ mod swap_args_tests {
                 path,
                 amount_out,
                 amount_in_maximum,
+                from_subaccount: _,
             } => {
                 assert_eq!(path.len(), 2);
-                assert_eq!(amount_out, U256::from(500u64));
-                assert_eq!(amount_in_maximum, U256::from(1000u64));
+                assert_eq!(amount_out, I256::from(500u64));
+                assert_eq!(amount_in_maximum, I256::from(1000u64));
                 assert_eq!(
                     path[1].pool_id,
                     PoolId {
@@ -313,6 +325,7 @@ mod swap_args_tests {
             ],
             amount_out: Nat::from(500u64),
             amount_in_maximum: Nat::from(1000u64),
+            from_subaccount: None,
         });
 
         assert_eq!(validate_swap_args(args), Err(SwapError::InvalidPoolFee));

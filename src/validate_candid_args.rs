@@ -1,5 +1,8 @@
+use std::collections::HashSet;
+
 use candid::Principal;
 use ethnum::{I256, U256};
+use icrc_ledger_types::icrc1::account::Subaccount;
 
 use crate::{
     candid_types::{
@@ -9,7 +12,7 @@ use crate::{
     libraries::{
         constants::{MAX_TICK, MIN_TICK},
         path_key::{PathKey, Swap},
-        safe_cast::big_uint_to_u256,
+        safe_cast::{big_uint_to_i256, big_uint_to_u256},
     },
     pool::types::{PoolId, PoolTickSpacing},
     position::types::{PositionInfo, PositionKey},
@@ -176,26 +179,30 @@ pub enum ValidatedSwapArgs {
     ExactInputSingle {
         pool_id: PoolId,
         zero_for_one: bool,
-        amount_in: U256,
-        amount_out_minimum: U256,
+        amount_in: I256,
+        amount_out_minimum: I256,
+        from_subaccount: Option<Subaccount>,
     },
     ExactInput {
         // order should be preserved
         path: Vec<Swap>,
-        amount_in: U256,
-        amount_out_minimum: U256,
+        amount_in: I256,
+        amount_out_minimum: I256,
+        from_subaccount: Option<Subaccount>,
     },
     ExactOutputSingle {
         pool_id: PoolId,
         zero_for_one: bool,
-        amount_out: U256,
-        amount_in_maximum: U256,
+        amount_out: I256,
+        amount_in_maximum: I256,
+        from_subaccount: Option<Subaccount>,
     },
     ExactOutput {
         // order should be preserved
         path: Vec<Swap>,
-        amount_out: U256,
-        amount_in_maximum: U256,
+        amount_out: I256,
+        amount_in_maximum: I256,
+        from_subaccount: Option<Subaccount>,
     },
 }
 
@@ -220,16 +227,18 @@ pub fn validate_swap_args(args: SwapArgs) -> Result<ValidatedSwapArgs, SwapError
                 return Err(SwapError::NoInRangeLiquidity);
             }
 
-            let amount_in: U256 = big_uint_to_u256(exact_input_single_params.amount_in.0)
+            let amount_in: I256 = big_uint_to_i256(exact_input_single_params.amount_in.0)
                 .map_err(|_| SwapError::InvalidAmountIn)?;
             let amount_out_minimum =
-                big_uint_to_u256(exact_input_single_params.amount_out_minimum.0)
+                big_uint_to_i256(exact_input_single_params.amount_out_minimum.0)
                     .map_err(|_| SwapError::InvalidAmountOutMinimum)?;
+
             Ok(ValidatedSwapArgs::ExactInputSingle {
                 pool_id,
                 zero_for_one: exact_input_single_params.zero_for_one,
                 amount_in,
                 amount_out_minimum,
+                from_subaccount: exact_input_single_params.from_subaccount,
             })
         }
         SwapArgs::ExactInput(exact_input_params) => {
@@ -254,6 +263,12 @@ pub fn validate_swap_args(args: SwapArgs) -> Result<ValidatedSwapArgs, SwapError
                 token_in = path_key.intermediary_token;
             }
 
+            // there should not be a duplication in swap path, meaning users can not swap using the
+            // same pool twice or more in a single swap transaction.
+            if !all_unique(&swap_path) {
+                return Err(SwapError::PathDuplicated);
+            }
+
             // check pools
             for swap in swap_path.iter() {
                 let pool = read_state(|s| s.get_pool(&swap.pool_id))
@@ -264,14 +279,16 @@ pub fn validate_swap_args(args: SwapArgs) -> Result<ValidatedSwapArgs, SwapError
                 }
             }
 
-            let amount_in: U256 = big_uint_to_u256(exact_input_params.amount_in.0)
+            let amount_in = big_uint_to_i256(exact_input_params.amount_in.0)
                 .map_err(|_| SwapError::InvalidAmountIn)?;
-            let amount_out_minimum = big_uint_to_u256(exact_input_params.amount_out_minimum.0)
+            let amount_out_minimum = big_uint_to_i256(exact_input_params.amount_out_minimum.0)
                 .map_err(|_| SwapError::InvalidAmountOutMinimum)?;
+
             Ok(ValidatedSwapArgs::ExactInput {
                 path: swap_path,
                 amount_in,
                 amount_out_minimum,
+                from_subaccount: exact_input_params.from_subaccount,
             })
         }
         SwapArgs::ExactOutputSingle(exact_output_single_params) => {
@@ -286,16 +303,18 @@ pub fn validate_swap_args(args: SwapArgs) -> Result<ValidatedSwapArgs, SwapError
                 return Err(SwapError::NoInRangeLiquidity);
             }
 
-            let amount_out: U256 = big_uint_to_u256(exact_output_single_params.amount_out.0)
+            let amount_out = big_uint_to_i256(exact_output_single_params.amount_out.0)
                 .map_err(|_| SwapError::InvalidAmountIn)?;
             let amount_in_maximum =
-                big_uint_to_u256(exact_output_single_params.amount_in_maximum.0)
+                big_uint_to_i256(exact_output_single_params.amount_in_maximum.0)
                     .map_err(|_| SwapError::InvalidAmountInMaximum)?;
+
             Ok(ValidatedSwapArgs::ExactOutputSingle {
                 pool_id,
                 zero_for_one: exact_output_single_params.zero_for_one,
                 amount_out,
                 amount_in_maximum,
+                from_subaccount: exact_output_single_params.from_subaccount,
             })
         }
         SwapArgs::ExactOutput(exact_output_params) => {
@@ -325,6 +344,10 @@ pub fn validate_swap_args(args: SwapArgs) -> Result<ValidatedSwapArgs, SwapError
             // since we generated swap path using a reversed direction
             swap_path.reverse();
 
+            if !all_unique(&swap_path) {
+                return Err(SwapError::PathDuplicated);
+            }
+
             // check pools
             for swap in swap_path.iter() {
                 let pool = read_state(|s| s.get_pool(&swap.pool_id))
@@ -335,15 +358,22 @@ pub fn validate_swap_args(args: SwapArgs) -> Result<ValidatedSwapArgs, SwapError
                 }
             }
 
-            let amount_out: U256 = big_uint_to_u256(exact_output_params.amount_out.0)
+            let amount_out = big_uint_to_i256(exact_output_params.amount_out.0)
                 .map_err(|_| SwapError::InvalidAmountOut)?;
-            let amount_in_maximum = big_uint_to_u256(exact_output_params.amount_in_maximum.0)
+            let amount_in_maximum = big_uint_to_i256(exact_output_params.amount_in_maximum.0)
                 .map_err(|_| SwapError::InvalidAmountInMaximum)?;
+
             Ok(ValidatedSwapArgs::ExactOutput {
                 path: swap_path,
                 amount_out,
                 amount_in_maximum,
+                from_subaccount: exact_output_params.from_subaccount,
             })
         }
     }
+}
+
+fn all_unique<T: Eq + std::hash::Hash>(vec: &[T]) -> bool {
+    let set: HashSet<_> = vec.iter().collect();
+    set.len() == vec.len()
 }

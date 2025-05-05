@@ -40,6 +40,7 @@ pub enum LedgerTransferError {
         failed_amount: Nat,
         ledger: Principal,
     },
+    FeeUnknown,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

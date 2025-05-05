@@ -1,3 +1,5 @@
+use crate::pool::swap::InnerSwapError;
+
 use super::{pool::CandidPoolId, *};
 
 // SWAP TYPES
@@ -31,6 +33,7 @@ pub struct ExactInputSingleParams {
     pub zero_for_one: bool,
     pub amount_in: Nat,
     pub amount_out_minimum: Nat,
+    pub from_subaccount: Option<Subaccount>,
 }
 
 /// Parameters for a multi-hop exact-input swap
@@ -40,6 +43,7 @@ pub struct ExactInputParams {
     pub path: Vec<CandidPathKey>,
     pub amount_in: Nat,
     pub amount_out_minimum: Nat,
+    pub from_subaccount: Option<Subaccount>,
 }
 
 /// Parameters for a single-hop exact-output swap
@@ -49,6 +53,7 @@ pub struct ExactOutputSingleParams {
     pub zero_for_one: bool,
     pub amount_out: Nat,
     pub amount_in_maximum: Nat,
+    pub from_subaccount: Option<Subaccount>,
 }
 
 /// notice Parameters for a multi-hop exact-output swap
@@ -58,6 +63,7 @@ pub struct ExactOutputParams {
     pub path: Vec<CandidPathKey>,
     pub amount_out: Nat,
     pub amount_in_maximum: Nat,
+    pub from_subaccount: Option<Subaccount>,
 }
 
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize)]
@@ -69,6 +75,21 @@ pub enum SwapArgs {
 }
 
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize, PartialEq, Eq)]
+pub enum SwapFailedReason {
+    PriceLimitAlreadyExceeded, // means there is a bug, should not happen
+    PriceLimitOutOfBounds,     // means there is a bug, should not happen
+    CalculationOverflow,
+    InvalidFeeForExactOutput,
+    PoolNotInitialized,
+    NoInRangeLiquidity,
+    InvalidAmount,
+    TooLittleReceived,
+    TooMuchRequeted,
+    BalanceOverflow,
+    InsufficientBalance,
+}
+
+#[derive(Debug, Clone, CandidType, Deserialize, Serialize, PartialEq, Eq)]
 pub enum SwapError {
     InvalidPoolFee,
     PoolNotInitialized,
@@ -77,6 +98,32 @@ pub enum SwapError {
     InvalidAmountOut,
     InvalidAmountOutMinimum,
     InvalidAmountInMaximum,
-    PathLengthTooBig { maximum: u8, received: u8 },
-    PathLengthTooSmall { minimum: u8, received: u8 },
+    PathDuplicated,
+    PathLengthTooBig {
+        maximum: u8,
+        received: u8,
+    },
+    PathLengthTooSmall {
+        minimum: u8,
+        received: u8,
+    },
+    DepositError(DepositError),
+    FailedRefunded {
+        failed_reason: SwapFailedReason,
+        refund_error: Option<WithdrawalError>, // if refund fails, refund error
+    },
+    WithdrawalError(WithdrawalError),
+}
+
+impl From<InnerSwapError> for SwapFailedReason {
+    fn from(value: InnerSwapError) -> Self {
+        match value {
+            InnerSwapError::PoolNotInitialized => Self::PoolNotInitialized,
+            InnerSwapError::IlliquidPool => Self::NoInRangeLiquidity,
+            InnerSwapError::InvalidFeeForExactOutput => Self::InvalidFeeForExactOutput,
+            InnerSwapError::PriceLimitAlreadyExceeded => Self::PriceLimitAlreadyExceeded,
+            InnerSwapError::PriceLimitOutOfBounds => Self::PriceLimitOutOfBounds,
+            InnerSwapError::CalculationOverflow => Self::CalculationOverflow,
+        }
+    }
 }

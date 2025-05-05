@@ -10,8 +10,8 @@ pub enum BalanceDeltaError {
 // Define the BalanceDelta struct with two I256 fields
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BalanceDelta {
-    pub amount0: I256, // Represents the delta for token0
-    pub amount1: I256, // Represents the delta for token1
+    amount0: I256, // Represents the delta for token0
+    amount1: I256, // Represents the delta for token1
 }
 
 impl BalanceDelta {

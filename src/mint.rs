@@ -72,8 +72,8 @@ pub fn execute_mint_position(
     // fee delta can be ignored as this is a new position
     validate_max_in(
         success_result.balance_delta,
-        user_balance.amount0.as_u256(),
-        user_balance.amount1.as_u256(),
+        user_balance.amount0().as_u256(),
+        user_balance.amount1().as_u256(),
     )
     .map_err(|_| MintPositionError::InsufficientBalance)?;
 
@@ -88,14 +88,14 @@ pub fn execute_mint_position(
                 user: caller,
                 token: token0,
             },
-            UserBalance(final_balance.amount0.as_u256()),
+            UserBalance(final_balance.amount0().as_u256()),
         );
         s.update_user_balance(
             UserBalanceKey {
                 user: caller,
                 token: token1,
             },
-            UserBalance(final_balance.amount1.as_u256()),
+            UserBalance(final_balance.amount1().as_u256()),
         );
         s.apply_modify_liquidity_buffer_state(success_result.buffer_state);
     });
