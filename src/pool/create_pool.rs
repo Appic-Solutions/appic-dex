@@ -4,6 +4,7 @@ use crate::{
     candid_types::pool::{CreatePoolArgs, CreatePoolError},
     libraries::{
         constants::{DEFAULT_PROTOCOL_FEE, MAX_SQRT_RATIO, MIN_SQRT_RATIO},
+        safe_cast::big_uint_to_u256,
         tick_math::TickMath,
     },
     state::{mutate_state, read_state},
@@ -13,8 +14,9 @@ use crate::{
 use super::types::{PoolFee, PoolId, PoolState};
 
 pub fn create_pool_inner(args: CreatePoolArgs) -> Result<PoolId, CreatePoolError> {
-    let sqrt_price_x96 = U256::from_str_radix(&args.sqrt_price_x96.0.to_str_radix(10), 10)
+    let sqrt_price_x96 = big_uint_to_u256(args.sqrt_price_x96.0)
         .map_err(|_e| CreatePoolError::InvalidSqrtPriceX96)?;
+
     if sqrt_price_x96 >= *MAX_SQRT_RATIO || sqrt_price_x96 <= *MIN_SQRT_RATIO {
         return Err(CreatePoolError::InvalidSqrtPriceX96);
     }

@@ -91,6 +91,7 @@ pub enum SwapFailedReason {
 
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize, PartialEq, Eq)]
 pub enum SwapError {
+    LockedPrincipal,
     InvalidPoolFee,
     PoolNotInitialized,
     NoInRangeLiquidity,

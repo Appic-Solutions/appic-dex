@@ -19,6 +19,7 @@ pub struct BurnPositionArgs {
 
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize)]
 pub enum BurnPositionError {
+    LockedPrinciapl,
     PositionNotFound,
     PoolNotInitialized,
     InvalidTick,
@@ -43,6 +44,7 @@ pub struct MintPositionArgs {
 
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize)]
 pub enum MintPositionError {
+    LockedPrinciapl,
     InvalidPoolFee,
     PoolNotInitialized,
     PositionAlreadyExists,

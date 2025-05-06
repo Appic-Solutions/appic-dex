@@ -2,6 +2,8 @@ use ethnum::U256;
 use num_bigint::BigUint;
 use num_traits::Zero;
 
+use super::safe_cast::big_uint_to_u256;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum FullMathError {
     DivisionByZero,
@@ -27,7 +29,7 @@ pub fn mul_div(a: U256, b: U256, denominator: U256) -> Result<U256, FullMathErro
     }
 
     // Convert BigUint quotient back to U256
-    Ok(U256::from_str_radix(&quotient.to_str_radix(10), 10).unwrap())
+    Ok(big_uint_to_u256(quotient).unwrap())
 }
 
 pub fn mul_div_rounding_up(a: U256, b: U256, denominator: U256) -> Result<U256, FullMathError> {
@@ -56,7 +58,7 @@ pub fn mul_div_rounding_up(a: U256, b: U256, denominator: U256) -> Result<U256, 
     }
 
     // Convert BigUint result back to U256
-    Ok(U256::from_str_radix(&result.to_str_radix(10), 10).unwrap())
+    Ok(big_uint_to_u256(result).unwrap())
 }
 
 /// Returns ceil(x / y)

@@ -1,6 +1,6 @@
 use crate::libraries::constants::{MAX_TICK, MIN_TICK};
 use crate::libraries::liquidity_math::{self, AddDeltaError};
-use crate::state::{mutate_state, read_state};
+use crate::state::read_state;
 use ethnum::U256;
 use types::{TickInfo, TickKey};
 

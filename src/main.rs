@@ -1,57 +1,39 @@
-use core::panic;
-use std::{fmt::format, process::Output};
-
 use appic_dex::{
     balances::types::{UserBalance, UserBalanceKey},
     burn::execute_burn_position,
     candid_types::{
-        pool::{self, CreatePoolArgs, CreatePoolError},
+        pool::{CreatePoolArgs, CreatePoolError},
         position::{BurnPositionArgs, BurnPositionError, MintPositionArgs, MintPositionError},
         quote::{QuoteArgs, QuoteError},
-        swap::{self, CandidSwapSuccess, SwapArgs, SwapError, SwapFailedReason},
+        swap::{CandidSwapSuccess, SwapArgs, SwapError},
         DepositError, WithdrawalError,
     },
-    guard::{PrincipalGuard, PrincipalGuardError},
+    guard::PrincipalGuard,
     icrc_client::{
         memo::{DepositMemo, WithdrawalMemo},
-        LedgerClient, LedgerTransferError,
+        LedgerClient,
     },
     libraries::{
-        amount_delta,
-        balance_delta::{self, BalanceDelta},
-        constants::{DEFAULT_PROTOCOL_FEE, MAX_SQRT_RATIO, MIN_SQRT_RATIO},
-        liquidity_amounts,
-        path_key::{PathKey, Swap},
+        balance_delta::BalanceDelta,
         safe_cast::{big_uint_to_u256, u256_to_big_uint, u256_to_nat},
-        slippage_check::BalanceDeltaValidationError,
-        sqrt_price_math,
-        tick_math::{self, TickMath},
     },
     mint::execute_mint_position,
-    pool::{
-        create_pool::create_pool_inner,
-        modify_liquidity::{self, modify_liquidity, ModifyLiquidityError, ModifyLiquidityParams},
-        swap::{swap_inner, SwapParams},
-        types::{PoolFee, PoolId, PoolState, PoolTickSpacing},
-    },
+    pool::create_pool::create_pool_inner,
     quote::{
-        get_sqrt_price_limit, process_multi_hop_exact_input, process_multi_hop_exact_output,
-        process_single_hop_exact_input, process_single_hop_exact_output, select_amount,
+        process_multi_hop_exact_input, process_multi_hop_exact_output,
+        process_single_hop_exact_input, process_single_hop_exact_output,
     },
     state::{mutate_state, read_state},
-    swap::{execute_swap, get_token_in_out},
-    tick::tick_spacing_to_max_liquidity_per_tick,
+    swap::execute_swap,
     validate_candid_args::{
-        self, validate_burn_position_args, validate_mint_position_args, validate_swap_args,
-        ValidatedMintPositionArgs, ValidatedSwapArgs, MAX_PATH_LENGTH, MIN_PATH_LENGTH,
+        validate_burn_position_args, validate_mint_position_args, validate_swap_args,
     },
 };
 
 use candid::{Nat, Principal};
-use ethnum::{AsI256, I256, U256};
+use ethnum::{I256, U256};
 use ic_cdk::{query, update};
 use icrc_ledger_types::icrc1::account::Account;
-use num_traits::Zero;
 
 fn validate_caller_not_anonymous() -> candid::Principal {
     let principal = ic_cdk::caller();
@@ -63,17 +45,33 @@ fn validate_caller_not_anonymous() -> candid::Principal {
 
 #[update]
 async fn create_pool(args: CreatePoolArgs) -> Result<(), CreatePoolError> {
-    // TODO: async Token Checks
+    let _ = LedgerClient::new(args.token_a)
+        .icrc_fee()
+        .await
+        .expect("A problem was found in the token canister");
+
+    let _ = LedgerClient::new(args.token_b)
+        .icrc_fee()
+        .await
+        .expect("A problem was found in the token canister");
+
     let _ = create_pool_inner(args)?;
+
     Ok(())
 }
 
 #[update]
 async fn mint_position(args: MintPositionArgs) -> Result<(), MintPositionError> {
-    // TODO: Principal Lock to be implemented
-
     // Validate inputs and caller
     let caller = validate_caller_not_anonymous();
+
+    // Principal Lock to prevent double processing(double spending, over paying, and under
+    // paying)
+    let _principal_guard = match PrincipalGuard::new_general_guard(caller) {
+        Ok(gurad) => gurad,
+        Err(_) => return Err(MintPositionError::LockedPrinciapl),
+    };
+
     let validated_args = validate_mint_position_args(args.clone(), caller)?;
 
     let pool_id = validated_args.pool_id.clone();
@@ -141,10 +139,16 @@ async fn mint_position(args: MintPositionArgs) -> Result<(), MintPositionError> 
 
 #[update]
 async fn burn(args: BurnPositionArgs) -> Result<(), BurnPositionError> {
-    // TODO: Principal Lock to be implemented
-
     // Validate inputs and caller
     let caller = validate_caller_not_anonymous();
+
+    // Principal Lock to prevent double processing(double spending, over paying, and under
+    // paying)
+    let _principal_guard = match PrincipalGuard::new_general_guard(caller) {
+        Ok(gurad) => gurad,
+        Err(_) => return Err(BurnPositionError::LockedPrinciapl),
+    };
+
     let validated_args = validate_burn_position_args(args.clone(), caller)?;
 
     let pool_id = validated_args.pool_id.clone();
@@ -192,6 +196,14 @@ async fn swap(args: SwapArgs) -> Result<CandidSwapSuccess, SwapError> {
     // Validate Inputs
     let validated_swap_args = validate_swap_args(args)?;
     let caller = validate_caller_not_anonymous();
+
+    // swap is desinged in a way that the same canister or user can send multiple swap request at a
+    // time, but if there is any liquidity modification in proccess, the swapping should not be
+    // allowed
+    let _guard = match PrincipalGuard::new_swap_guard(caller) {
+        Ok(guard) => guard,
+        Err(_err) => return Err(SwapError::LockedPrincipal),
+    };
 
     // Prepare User Account
     let mut user_address: Account = caller.into();
