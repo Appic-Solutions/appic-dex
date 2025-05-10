@@ -17,18 +17,20 @@ use crate::{
 pub struct SwapSuccessfulResult {
     amount_in: I256,                     // always <= 0
     amount_out: I256,                    // always >= 0
+    token_out_transfer_fee: U256,        // used to know transfer fee at the time of withdrawal
     swap_success_list: Vec<SwapSuccess>, // contains buffer state for each hop
 }
 
 /// Executes a swap based on validated arguments, updating user balances and pool states.
-/// Returns the positive input amount and output amount as (amount_in, amount_out).
+/// Returns the positive input amount and output amount as
+/// (amount_in,amount_out,token_out_transfer_fee).
 /// Fails if balance, slippage, or swap conditions are not met.
 pub fn execute_swap(
     validated_swap_args: &ValidatedSwapArgs,
     token_in: Principal,
     token_out: Principal,
     caller: Principal,
-) -> Result<(I256, I256), SwapFailedReason> {
+) -> Result<(I256, I256, U256), SwapFailedReason> {
     //  Initialize User Balance Keys
     let token_in_key = UserBalanceKey {
         token: token_in,
@@ -74,6 +76,7 @@ pub fn execute_swap(
             SwapSuccessfulResult {
                 amount_in,
                 amount_out,
+                token_out_transfer_fee: hop_result.token_out_transfer_fee,
                 swap_success_list: vec![hop_result],
             }
         }
@@ -91,6 +94,7 @@ pub fn execute_swap(
 
             let mut current_amount = *amount_in;
             let mut swap_success_list = Vec::new();
+            let mut token_out_transfer_fee = U256::ZERO;
 
             // Process each hop
             for swap in path {
@@ -98,6 +102,7 @@ pub fn execute_swap(
                     build_swap_params(swap.pool_id.clone(), -current_amount, swap.zero_for_one);
 
                 let hop_result = swap_inner(swap_params).map_err(SwapFailedReason::from)?;
+                token_out_transfer_fee = hop_result.token_out_transfer_fee;
                 current_amount = select_amount(hop_result.swap_delta, swap.zero_for_one, false);
                 swap_success_list.push(hop_result);
             }
@@ -112,6 +117,7 @@ pub fn execute_swap(
             SwapSuccessfulResult {
                 amount_in,
                 amount_out,
+                token_out_transfer_fee,
                 swap_success_list,
             }
         }
@@ -144,6 +150,7 @@ pub fn execute_swap(
             SwapSuccessfulResult {
                 amount_in,
                 amount_out: *amount_out,
+                token_out_transfer_fee: hop_result.token_out_transfer_fee,
                 swap_success_list: vec![hop_result],
             }
         }
@@ -161,16 +168,22 @@ pub fn execute_swap(
 
             let mut current_amount = *amount_out;
             let mut swap_success_list = Vec::new();
+            let mut token_out_transfer_fee = U256::ZERO;
 
             // Process each hop in reverse
+            let mut i = 0;
             for swap in path.into_iter().rev() {
                 let swap_direction = !swap.zero_for_one; // Reverse direction for exact output
                 let swap_params =
                     build_swap_params(swap.pool_id.clone(), current_amount, swap_direction);
 
                 let hop_result = swap_inner(swap_params).map_err(SwapFailedReason::from)?;
+                if i == 0 {
+                    token_out_transfer_fee = hop_result.token_out_transfer_fee;
+                };
                 current_amount = select_amount(hop_result.swap_delta, swap_direction, true);
                 swap_success_list.insert(0, hop_result);
+                i += 1;
             }
 
             // Final current_amount is the input amount
@@ -182,6 +195,7 @@ pub fn execute_swap(
 
             SwapSuccessfulResult {
                 amount_in,
+                token_out_transfer_fee,
                 amount_out: *amount_out,
                 swap_success_list,
             }
@@ -198,7 +212,11 @@ pub fn execute_swap(
     )?;
 
     // Return positive input amount and output amount
-    Ok((-swap_result.amount_in, swap_result.amount_out))
+    Ok((
+        -swap_result.amount_in,
+        swap_result.amount_out,
+        swap_result.token_out_transfer_fee,
+    ))
 }
 
 //// Fetches user balances for input and output tokens.

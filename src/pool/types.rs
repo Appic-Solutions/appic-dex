@@ -46,4 +46,8 @@ pub struct PoolState {
     pub max_liquidity_per_tick: u128, // Max liquidity per tick
     #[n(7)]
     pub fee_protocol: u16, // Max protocol fee is 0.1% (1000 pips)
+    #[cbor(n(8), with = "crate::cbor::u256")]
+    pub token0_transfer_fee: U256,
+    #[cbor(n(9), with = "crate::cbor::u256")]
+    pub token1_transfer_fee: U256,
 }

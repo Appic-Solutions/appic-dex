@@ -1,3 +1,5 @@
+use core::panic;
+
 use candid::{CandidType, Deserialize, Int, Nat, Principal};
 use icrc_ledger_types::icrc1::account::Subaccount;
 use serde::Serialize;
@@ -44,6 +46,7 @@ impl From<LedgerTransferError> for WithdrawalError {
             LedgerTransferError::InsufficientAllowance { allowance, .. } => {
                 Self::InsufficientAllowance { allowance }
             }
+            LedgerTransferError::BadFee { .. } => WithdrawalError::FeeUnknown,
             LedgerTransferError::FeeUnknown => Self::FeeUnknown,
             LedgerTransferError::AmountTooLow {
                 minimum_amount,
@@ -69,6 +72,9 @@ impl From<LedgerTransferError> for DepositError {
             }
             LedgerTransferError::InsufficientAllowance { allowance, .. } => {
                 Self::InsufficientAllowance { allowance }
+            }
+            LedgerTransferError::BadFee { .. } => {
+                panic!("Bug: Fee is not required for deposit")
             }
             LedgerTransferError::FeeUnknown => panic!("Bug: Fee is not required for deposit"),
             LedgerTransferError::AmountTooLow {

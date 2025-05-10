@@ -11,7 +11,7 @@ use appic_dex::{
     guard::PrincipalGuard,
     icrc_client::{
         memo::{DepositMemo, WithdrawalMemo},
-        LedgerClient,
+        LedgerClient, LedgerTransferError,
     },
     libraries::{
         balance_delta::BalanceDelta,
@@ -45,17 +45,27 @@ fn validate_caller_not_anonymous() -> candid::Principal {
 
 #[update]
 async fn create_pool(args: CreatePoolArgs) -> Result<(), CreatePoolError> {
-    let _ = LedgerClient::new(args.token_a)
-        .icrc_fee()
-        .await
-        .expect("A problem was found in the token canister");
+    // get the transfer fee for both tokens, meanwhile by getting the fee we also partially
+    // validate token's standard
+    let token_a_fee = big_uint_to_u256(
+        LedgerClient::new(args.token_a)
+            .icrc_fee()
+            .await
+            .expect("A problem was found in the token canister")
+            .0,
+    )
+    .map_err(|_| CreatePoolError::InvalidToken(args.token_a))?;
 
-    let _ = LedgerClient::new(args.token_b)
-        .icrc_fee()
-        .await
-        .expect("A problem was found in the token canister");
+    let token_b_fee = big_uint_to_u256(
+        LedgerClient::new(args.token_a)
+            .icrc_fee()
+            .await
+            .expect("A problem was found in the token canister")
+            .0,
+    )
+    .map_err(|_| CreatePoolError::InvalidToken(args.token_b))?;
 
-    let _ = create_pool_inner(args)?;
+    let _ = create_pool_inner(args, token_a_fee, token_b_fee)?;
 
     Ok(())
 }
@@ -156,7 +166,15 @@ async fn burn(args: BurnPositionArgs) -> Result<(), BurnPositionError> {
     let token1 = args.pool.token1;
 
     let user_balance_after_burn =
-        execute_burn_position(caller, pool_id, token0, token1, validated_args)?;
+        execute_burn_position(caller, pool_id.clone(), token0, token1, validated_args)?;
+
+    let (token0_transfer_fee, token1_transfer_fee) = read_state(|s| {
+        let pool_state = s.get_pool(&pool_id).unwrap();
+        (
+            pool_state.token0_transfer_fee,
+            pool_state.token1_transfer_fee,
+        )
+    });
 
     let to_account = Account::from(caller);
 
@@ -169,6 +187,7 @@ async fn burn(args: BurnPositionArgs) -> Result<(), BurnPositionError> {
             receiver: caller,
             amount: U256::ZERO,
         },
+        token0_transfer_fee,
     )
     .await
     .map_err(|e| BurnPositionError::BurntPositionWithdrawalFailed(e.into()));
@@ -182,6 +201,7 @@ async fn burn(args: BurnPositionArgs) -> Result<(), BurnPositionError> {
             receiver: caller,
             amount: U256::ZERO,
         },
+        token1_transfer_fee,
     )
     .await
     .map_err(|e| BurnPositionError::BurntPositionWithdrawalFailed(e.into()));
@@ -232,7 +252,6 @@ async fn swap(args: SwapArgs) -> Result<CandidSwapSuccess, SwapError> {
 
     // Execute Swap
     let swap_result = execute_swap(&validated_swap_args, token_in, token_out, caller);
-
     // Handle Swap Result
     match swap_result {
         Ok(swap_delta) => {
@@ -246,6 +265,7 @@ async fn swap(args: SwapArgs) -> Result<CandidSwapSuccess, SwapError> {
                     receiver: caller,
                     amount: U256::ZERO,
                 },
+                swap_delta.2,
             )
             .await
             .map_err(|e| SwapError::FailedToWithdraw {
@@ -303,6 +323,15 @@ async fn _refund(
     amount: U256,
     to: &Account,
 ) -> Result<(), WithdrawalError> {
+    let transfer_fee = big_uint_to_u256(
+        LedgerClient::new(token)
+            .icrc_fee()
+            .await
+            .map_err(|_| WithdrawalError::FeeUnknown)?
+            .0,
+    )
+    .map_err(|_| WithdrawalError::FeeUnknown)?;
+
     _withdraw(
         caller,
         token,
@@ -312,6 +341,7 @@ async fn _refund(
             receiver: to.owner,
             amount: U256::ZERO,
         },
+        transfer_fee,
     )
     .await
 }
@@ -323,17 +353,9 @@ async fn _withdraw(
     amount: U256,
     to: &Account,
     memo: &mut WithdrawalMemo,
+    transfer_fee: U256,
 ) -> Result<(), WithdrawalError> {
-    let ledger_client = LedgerClient::new(token);
-    let icrc_fee = ledger_client
-        .icrc_fee()
-        .await
-        .map_err(|_| WithdrawalError::FeeUnknown)?;
-
     let user_balance = get_user_balance(caller, token);
-
-    let transfer_fee: U256 =
-        big_uint_to_u256(icrc_fee.0).map_err(|_| WithdrawalError::FeeUnknown)?;
 
     if amount.checked_sub(transfer_fee).is_none() {
         return Err(WithdrawalError::AmountTooLow {
@@ -361,9 +383,10 @@ async fn _withdraw(
     });
 
     let withdrawal_amount = u256_to_big_uint(amount - transfer_fee);
+    let icrc_fee = u256_to_big_uint(transfer_fee);
     memo.set_amount(amount);
     match LedgerClient::new(token)
-        .withdraw(*to, withdrawal_amount, memo.clone())
+        .withdraw(*to, withdrawal_amount, memo.clone(), icrc_fee)
         .await
     {
         Ok(_) => return Ok(()),
@@ -379,7 +402,22 @@ async fn _withdraw(
                     UserBalance(latest_user_balance.checked_add(amount).unwrap_or(U256::MAX)),
                 );
             });
-            return Err(err.into());
+
+            match err {
+                LedgerTransferError::BadFee { expected_fee } => {
+                    let new_transfer_fee = big_uint_to_u256(expected_fee.0)
+                        .map_err(|_| WithdrawalError::FeeUnknown)?;
+
+                    // update token transfer fee across all pools
+                    mutate_state(|s| {
+                        s.update_token_trnasfer_fee_across_all_pools(token, new_transfer_fee)
+                    });
+                    return Err(WithdrawalError::FeeUnknown);
+                }
+                _ => {
+                    return Err(err.into());
+                }
+            }
         }
     };
 }

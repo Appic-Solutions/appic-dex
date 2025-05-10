@@ -72,6 +72,7 @@ pub struct SwapResult {
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct SwapSuccess {
     pub swap_delta: BalanceDelta,
+    pub token_out_transfer_fee: U256,
     pub amount_to_protocol: U256,
     pub fee_token: Principal,
     pub swap_fee: u32,
@@ -94,6 +95,12 @@ pub fn swap_inner(params: SwapParams) -> Result<SwapSuccess, InnerSwapError> {
     let pool_state_initial =
         read_state(|s| s.get_pool(&params.pool_id)).ok_or(InnerSwapError::PoolNotInitialized)?;
     let tick_spacing = pool_state_initial.tick_spacing;
+
+    let token_out_transfer_fee = if params.zero_for_one {
+        pool_state_initial.token1_transfer_fee
+    } else {
+        pool_state_initial.token0_transfer_fee
+    };
 
     let protocol_fee = pool_state_initial.fee_protocol;
     let swap_fee = calculate_swap_fee(protocol_fee, params.pool_id.fee.0);
@@ -121,6 +128,7 @@ pub fn swap_inner(params: SwapParams) -> Result<SwapSuccess, InnerSwapError> {
     if params.amount_specified == 0 {
         return Ok(SwapSuccess {
             swap_delta: BalanceDelta::ZERO_DELTA,
+            token_out_transfer_fee,
             amount_to_protocol,
             swap_fee,
             buffer_state,
@@ -326,6 +334,7 @@ pub fn swap_inner(params: SwapParams) -> Result<SwapSuccess, InnerSwapError> {
 
     Ok(SwapSuccess {
         swap_delta,
+        token_out_transfer_fee,
         amount_to_protocol,
         swap_fee,
         buffer_state,

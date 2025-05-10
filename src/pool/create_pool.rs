@@ -13,7 +13,11 @@ use crate::{
 
 use super::types::{PoolFee, PoolId, PoolState};
 
-pub fn create_pool_inner(args: CreatePoolArgs) -> Result<PoolId, CreatePoolError> {
+pub fn create_pool_inner(
+    args: CreatePoolArgs,
+    token_a_transfer_fee: U256,
+    token_b_transfer_fee: U256,
+) -> Result<PoolId, CreatePoolError> {
     let sqrt_price_x96 = big_uint_to_u256(args.sqrt_price_x96.0)
         .map_err(|_e| CreatePoolError::InvalidSqrtPriceX96)?;
 
@@ -26,6 +30,12 @@ pub fn create_pool_inner(args: CreatePoolArgs) -> Result<PoolId, CreatePoolError
         (args.token_a, args.token_b)
     } else {
         (args.token_b, args.token_a)
+    };
+
+    let (token0_transfer_fee, token1_transfer_fee) = if args.token_a < args.token_b {
+        (token_a_transfer_fee, token_b_transfer_fee)
+    } else {
+        (token_b_transfer_fee, token_a_transfer_fee)
     };
 
     let fee = PoolFee::try_from(args.fee).map_err(|_e| CreatePoolError::InvalidFeeAmount)?;
@@ -54,6 +64,8 @@ pub fn create_pool_inner(args: CreatePoolArgs) -> Result<PoolId, CreatePoolError
         tick_spacing,
         max_liquidity_per_tick,
         fee_protocol: *DEFAULT_PROTOCOL_FEE,
+        token0_transfer_fee,
+        token1_transfer_fee,
     };
     mutate_state(|s| s.set_pool(pool_id.clone(), pool_state));
 

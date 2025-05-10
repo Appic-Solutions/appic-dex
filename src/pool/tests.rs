@@ -74,6 +74,8 @@ mod modify_liquidity_tests {
                     tick_spacing: PoolTickSpacing(tick_spacing),
                     max_liquidity_per_tick: tick_spacing_to_max_liquidity_per_tick(10),
                     fee_protocol: 500,
+                    token1_transfer_fee: U256::ZERO,
+                    token0_transfer_fee: U256::ZERO,
                 },
             )
         });

@@ -40,6 +40,9 @@ pub enum LedgerTransferError {
         failed_amount: Nat,
         ledger: Principal,
     },
+    BadFee {
+        expected_fee: Nat,
+    },
     FeeUnknown,
 }
 
@@ -152,20 +155,22 @@ impl LedgerClient {
         }
     }
 
-    pub async fn withdraw<A: Into<Nat>>(
+    pub async fn withdraw<A: Into<Nat>, B: Into<Nat>>(
         &self,
         to: Account,
         amount: A,
         memo: WithdrawalMemo,
+        fee: B,
     ) -> Result<TransferIndex, LedgerTransferError> {
         let amount = amount.into();
+        let fee = fee.into();
         match self
             .client
             .transfer(TransferArg {
                 from_subaccount: None,
                 to,
                 amount: amount.clone(),
-                fee: None,
+                fee: Some(fee),
                 memo: Some(Memo::from(memo)),
                 created_at_time: None,
             })
@@ -179,7 +184,7 @@ impl LedgerClient {
                 );
                 let transfer_err = match transfer_error {
                     TransferError::BadFee { expected_fee } => {
-                        panic!("BUG: bad fee, expected fee: {expected_fee}")
+                        LedgerTransferError::BadFee { expected_fee }
                     }
                     TransferError::BadBurn { min_burn_amount: _ } => {
                         panic!("BUG: expected transfer")

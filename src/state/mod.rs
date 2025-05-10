@@ -93,6 +93,10 @@ impl State {
         self.pools.get(pool_id)
     }
 
+    pub fn get_pools(&self) -> Vec<(PoolId, PoolState)> {
+        self.pools.iter().collect()
+    }
+
     pub fn set_pool(&mut self, pool_id: PoolId, pool_state: PoolState) {
         self.pools.insert(pool_id, pool_state);
     }
@@ -162,6 +166,27 @@ impl State {
 
         for tick in buffer_state.shifted_ticks.into_iter() {
             self.ticks.insert(tick.0, tick.1);
+        }
+    }
+
+    pub fn update_token_trnasfer_fee_across_all_pools(
+        &mut self,
+        token: Principal,
+        transfer_fee: U256,
+    ) {
+        let pools_to_update = self
+            .get_pools()
+            .into_iter()
+            .filter(|(pool_id, _pool_state)| pool_id.token0 == token || pool_id.token1 == token);
+
+        for pool in pools_to_update {
+            let mut new_pool_state = pool.1;
+            if pool.0.token0 == token {
+                new_pool_state.token0_transfer_fee = transfer_fee
+            } else {
+                new_pool_state.token1_transfer_fee = transfer_fee
+            };
+            self.pools.insert(pool.0, new_pool_state);
         }
     }
 }

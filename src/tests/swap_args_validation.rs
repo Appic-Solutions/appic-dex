@@ -48,6 +48,8 @@ mod swap_args_tests {
                     tick_spacing: crate::pool::types::PoolTickSpacing(10),
                     max_liquidity_per_tick: u128::MAX / 10,
                     fee_protocol: 1000,
+                    token0_transfer_fee: U256::ZERO,
+                    token1_transfer_fee: U256::ZERO,
                 },
             )
         });
@@ -64,6 +66,8 @@ mod swap_args_tests {
                     tick_spacing: crate::pool::types::PoolTickSpacing(10),
                     max_liquidity_per_tick: u128::MAX / 10,
                     fee_protocol: 1000,
+                    token1_transfer_fee: U256::ZERO,
+                    token0_transfer_fee: U256::ZERO,
                 },
             )
         });
