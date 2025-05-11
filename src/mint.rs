@@ -49,6 +49,8 @@ pub fn execute_mint_position(
 
     let success_result = modify_liquidity(modify_params).map_err(map_modify_liquidity_error)?;
 
+    println!("{:?}", success_result);
+
     // Update user balances
     let user_balance = read_state(|s| {
         BalanceDelta::new(

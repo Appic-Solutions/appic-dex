@@ -16,12 +16,20 @@ pub mod quote;
 pub mod swap;
 
 #[derive(CandidType, Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
+pub struct DepositArgs {
+    pub token: Principal,
+    pub amount: Nat,
+    pub from_subaccount: Option<Subaccount>,
+}
+
+#[derive(CandidType, Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
 pub enum DepositError {
     AmountTooLow { min_withdrawal_amount: Nat },
     InsufficientFunds { balance: Nat }, // not enough balance in user wallet
     InsufficientAllowance { allowance: Nat },
     TemporarilyUnavailable(String),
     InvalidDestination(String),
+    AmountOverflow,
 }
 
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize, PartialEq, Eq)]

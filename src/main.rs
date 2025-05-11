@@ -6,7 +6,7 @@ use appic_dex::{
         position::{BurnPositionArgs, BurnPositionError, MintPositionArgs, MintPositionError},
         quote::{QuoteArgs, QuoteError},
         swap::{CandidSwapSuccess, SwapArgs, SwapError},
-        DepositError, WithdrawalError,
+        DepositArgs, DepositError, WithdrawalError,
     },
     guard::PrincipalGuard,
     icrc_client::{
@@ -18,7 +18,10 @@ use appic_dex::{
         safe_cast::{big_uint_to_u256, u256_to_big_uint, u256_to_nat},
     },
     mint::execute_mint_position,
-    pool::create_pool::create_pool_inner,
+    pool::{
+        create_pool::create_pool_inner,
+        types::{PoolFee, PoolTickSpacing},
+    },
     quote::{
         process_multi_hop_exact_input, process_multi_hop_exact_output,
         process_single_hop_exact_input, process_single_hop_exact_output,
@@ -32,7 +35,7 @@ use appic_dex::{
 
 use candid::{Nat, Principal};
 use ethnum::{I256, U256};
-use ic_cdk::{query, update};
+use ic_cdk::{init, query, update};
 use icrc_ledger_types::icrc1::account::Account;
 
 fn validate_caller_not_anonymous() -> candid::Principal {
@@ -41,6 +44,20 @@ fn validate_caller_not_anonymous() -> candid::Principal {
         panic!("anonymous principal is not allowed");
     }
     principal
+}
+
+#[init]
+async fn init() {
+    let fee_to_tick_spacnig = vec![
+        (100_u32, 1_i32),
+        (500_u32, 10i32),
+        (3000_u32, 60_i32),
+        (10_000_u32, 200_i32),
+    ];
+
+    for (fee, tick_spacing) in fee_to_tick_spacnig {
+        mutate_state(|s| s.set_tick_spacing(PoolFee(fee), PoolTickSpacing(tick_spacing)));
+    }
 }
 
 #[update]
@@ -422,7 +439,31 @@ async fn _withdraw(
     };
 }
 
-/// Deposits tokens, thenupdate user balance on success.
+#[update]
+async fn deposit(deposit_args: DepositArgs) -> Resunlt<(), DepositError> {
+    let caller = validate_caller_not_anonymous();
+
+    let from = Account::from(caller);
+    if let Some(subaccount) = deposit_args.from_subaccount {
+        account.subaccount = Some(subaccount);
+    }
+
+    let amount =
+        big_uint_to_u256(deposit_args.amount.0).map_err(|_| DepositError::AmountOverflow)?;
+    _deposit(
+        caller,
+        deposit_args.token,
+        &from,
+        amount,
+        &mut DepositMemo::Deposit {
+            sender: from.owner,
+            amount: U256::ZERO,
+        },
+    )
+    .await
+}
+
+/// Deposits tokens, then update user balance on success.
 async fn _deposit(
     caller: Principal,
     token: Principal,
@@ -484,6 +525,7 @@ pub fn get_user_balance(user: Principal, token: Principal) -> U256 {
     read_state(|s| s.get_user_balance(&UserBalanceKey { user, token }).0)
 }
 
-fn main() {
-    println!("Hello, world!");
-}
+fn main() {}
+
+// Enable Candid export
+ic_cdk::export_candid!();

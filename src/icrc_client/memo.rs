@@ -43,6 +43,16 @@ pub enum DepositMemo {
         /// amount
         amount: U256,
     },
+    /// The user deposits funds,
+    #[n(3)]
+    Deposit {
+        #[cbor(n(0), with = "crate::cbor::principal")]
+        /// The sender of the token.
+        sender: Principal,
+        #[cbor(n(2), with = "crate::cbor::u256")]
+        /// amount
+        amount: U256,
+    },
 }
 impl DepositMemo {
     pub fn set_amount(&mut self, new_amount: U256) {
