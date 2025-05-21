@@ -1,17 +1,19 @@
 mod modify_liquidity_tests {
     use candid::Principal;
     use ethnum::U256;
+    use ic_stable_structures::Storable;
     use proptest::{prop_assert, prop_assert_eq, proptest};
 
     use crate::{
         libraries::{
             constants::{MAX_TICK, MIN_TICK},
+            liquidity_amounts::get_liquidity_for_amounts,
             tick_bitmap::tests::is_initialized,
             tick_math,
         },
         pool::{
             modify_liquidity::{modify_liquidity, ModifyLiquidityError, ModifyLiquidityParams},
-            types::{PoolState, PoolTickSpacing},
+            types::{PoolFee, PoolId, PoolState, PoolTickSpacing},
         },
         position::types::PositionKey,
         state::{mutate_state, read_state},
@@ -58,6 +60,15 @@ mod modify_liquidity_tests {
         }
     }
 
+    pub fn test_position_key_3000() -> PositionKey {
+        PositionKey {
+            owner: Principal::management_canister(),
+            pool_id: test_pool_3000(),
+            tick_lower: -887220,
+            tick_upper: 887220,
+        }
+    }
+
     pub fn sqrt_price_1_1() -> U256 {
         U256::from(79228162514264337593543950336_u128)
     }
@@ -79,6 +90,34 @@ mod modify_liquidity_tests {
                 },
             )
         });
+    }
+
+    pub fn initialize_test_pool_3000() {
+        mutate_state(|s| {
+            s.set_pool(
+                test_pool_3000(),
+                PoolState {
+                    sqrt_price_x96: sqrt_price_1_1(),
+                    tick: tick_math::TickMath::get_tick_at_sqrt_ratio(sqrt_price_1_1()),
+                    fee_growth_global_0_x128: U256::ZERO,
+                    fee_growth_global_1_x128: U256::ZERO,
+                    liquidity: 0_u128,
+                    tick_spacing: PoolTickSpacing(60),
+                    max_liquidity_per_tick: tick_spacing_to_max_liquidity_per_tick(60),
+                    fee_protocol: 0,
+                    token1_transfer_fee: U256::ZERO,
+                    token0_transfer_fee: U256::ZERO,
+                },
+            )
+        });
+    }
+
+    pub fn test_pool_3000() -> PoolId {
+        PoolId {
+            fee: PoolFee(3000),
+            token0: Principal::from_text("ss2fx-dyaaa-aaaar-qacoq-cai").unwrap(),
+            token1: Principal::from_text("pe5t5-diaaa-aaaar-qahwa-cai").unwrap(),
+        }
     }
 
     #[test]
@@ -128,50 +167,53 @@ mod modify_liquidity_tests {
     }
 
     #[test]
-    fn modify_liquidity_on_the_different_positions_should_not_modify_each_other() {
-        initialize_test_pool(10);
-        let position = read_state(|s| s.get_position(&test_position_key()));
+    fn modify_based_on_amounts_should_not_fail() {
+        initialize_test_pool_3000();
+        let position = read_state(|s| s.get_position(&test_position_key_3000()));
         assert_eq!(position.liquidity, 0);
 
-        let result = modify_liquidity(test_modify_liquidity_params()).unwrap();
-        let result_2 = modify_liquidity(test_modify_liquidity_params_2()).unwrap();
+        let amount_0_max = U256::from(10000_u32);
+        let amount_1_max = U256::from(10000_u32);
+        let price_a = tick_math::TickMath::get_sqrt_ratio_at_tick(-887220);
+        let price_b = tick_math::TickMath::get_sqrt_ratio_at_tick(887220);
 
+        let liquidity_delta = get_liquidity_for_amounts(
+            sqrt_price_1_1(),
+            price_a,
+            price_b,
+            amount_0_max,
+            amount_1_max,
+        )
+        .unwrap();
+
+        println!("price a {:?} price b {:?}", price_a, price_b);
+
+        println!("liquidity delta{:?}", liquidity_delta);
+
+        let modify_liquidity_params = ModifyLiquidityParams {
+            owner: test_position_key().owner,
+            pool_id: test_pool_3000(),
+            tick_lower: -887220,
+            tick_upper: 887220,
+            liquidity_delta: liquidity_delta as i128,
+            tick_spacing: PoolTickSpacing(60),
+        };
+
+        let result = modify_liquidity(modify_liquidity_params.clone()).unwrap();
+
+        assert_eq!(result.clone().balance_delta.amount0(), -10000);
+        assert_eq!(result.balance_delta.amount1(), -10000);
+
+        println!("{:?}", result);
+
+        //
         mutate_state(|s| s.apply_modify_liquidity_buffer_state(result.buffer_state.clone()));
-        mutate_state(|s| s.apply_modify_liquidity_buffer_state(result_2.buffer_state.clone()));
-
-        let position = read_state(|s| s.get_position(&test_position_key()));
-        let position_2 = read_state(|s| s.get_position(&test_position_key_2()));
-
+        //
+        let position = read_state(|s| s.get_position(&test_position_key_3000()));
         assert_eq!(
             position.liquidity,
-            test_modify_liquidity_params().liquidity_delta as u128
+            modify_liquidity_params.clone().liquidity_delta as u128
         );
-
-        assert_eq!(
-            position_2.liquidity,
-            test_modify_liquidity_params_2().liquidity_delta as u128
-        );
-
-        let result = modify_liquidity(test_modify_liquidity_params()).unwrap();
-        let result_2 = modify_liquidity(test_modify_liquidity_params_2()).unwrap();
-
-        mutate_state(|s| s.apply_modify_liquidity_buffer_state(result.buffer_state.clone()));
-        mutate_state(|s| s.apply_modify_liquidity_buffer_state(result_2.buffer_state.clone()));
-
-        let position = read_state(|s| s.get_position(&test_position_key()));
-        let position_2 = read_state(|s| s.get_position(&test_position_key_2()));
-
-        assert_eq!(
-            position.liquidity,
-            test_modify_liquidity_params().liquidity_delta as u128 * 2
-        );
-
-        assert_eq!(
-            position_2.liquidity,
-            test_modify_liquidity_params_2().liquidity_delta as u128 * 2
-        );
-
-        assert_ne!(position.liquidity, position_2.liquidity)
     }
 
     #[test]

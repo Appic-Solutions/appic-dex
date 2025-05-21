@@ -16,6 +16,12 @@ pub mod quote;
 pub mod swap;
 
 #[derive(CandidType, Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
+pub struct UserBalanceArgs {
+    pub token: Principal,
+    pub user: Principal,
+}
+
+#[derive(CandidType, Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
 pub struct DepositArgs {
     pub token: Principal,
     pub amount: Nat,

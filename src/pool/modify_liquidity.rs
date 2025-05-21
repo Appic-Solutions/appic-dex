@@ -13,9 +13,8 @@ use crate::{
         tick_math::TickMath,
     },
     position::{
-        UpdatePositionError,
         types::{PositionInfo, PositionKey},
-        update_position,
+        update_position, UpdatePositionError,
     },
     state::read_state,
     tick::{
@@ -183,6 +182,7 @@ pub fn modify_liquidity(
         params.tick_upper,
         params.liquidity_delta,
         pool.tick,
+        pool.sqrt_price_x96,
     )?;
 
     Ok(ModifyLiquiditySuccess {
@@ -356,6 +356,7 @@ fn calculate_balance_delta_and_update_pool_liquidity(
     tick_upper: i32,
     liquidity_delta: i128,
     tick_current: i32,
+    sqrt_price_x96: U256,
 ) -> Result<BalanceDelta, ModifyLiquidityError> {
     if liquidity_delta == 0 {
         return Ok(BalanceDelta::ZERO_DELTA);
@@ -373,10 +374,10 @@ fn calculate_balance_delta_and_update_pool_liquidity(
     } else if tick_current < tick_upper {
         // In range: both tokens needed
         let amount0_delta =
-            get_amount_0_delta_signed(sqrt_price_a_x96, sqrt_price_b_x96, liquidity_delta)
+            get_amount_0_delta_signed(sqrt_price_x96, sqrt_price_b_x96, liquidity_delta)
                 .map_err(|_| ModifyLiquidityError::AmountDeltaOverflow)?;
         let amount1_delta =
-            get_amount_1_delta_signed(sqrt_price_a_x96, sqrt_price_b_x96, liquidity_delta)
+            get_amount_1_delta_signed(sqrt_price_a_x96, sqrt_price_x96, liquidity_delta)
                 .map_err(|_| ModifyLiquidityError::AmountDeltaOverflow)?;
 
         // Add liquidity delta to pool state

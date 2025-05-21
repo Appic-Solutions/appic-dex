@@ -1,3 +1,5 @@
+use std::ptr::read;
+
 use appic_dex::{
     balances::types::{UserBalance, UserBalanceKey},
     burn::execute_burn_position,
@@ -6,7 +8,7 @@ use appic_dex::{
         position::{BurnPositionArgs, BurnPositionError, MintPositionArgs, MintPositionError},
         quote::{QuoteArgs, QuoteError},
         swap::{CandidSwapSuccess, SwapArgs, SwapError},
-        DepositArgs, DepositError, WithdrawalError,
+        DepositArgs, DepositError, UserBalanceArgs, WithdrawalError,
     },
     guard::PrincipalGuard,
     icrc_client::{
@@ -440,12 +442,12 @@ async fn _withdraw(
 }
 
 #[update]
-async fn deposit(deposit_args: DepositArgs) -> Resunlt<(), DepositError> {
+async fn deposit(deposit_args: DepositArgs) -> Result<(), DepositError> {
     let caller = validate_caller_not_anonymous();
 
-    let from = Account::from(caller);
+    let mut from = Account::from(caller);
     if let Some(subaccount) = deposit_args.from_subaccount {
-        account.subaccount = Some(subaccount);
+        from.subaccount = Some(subaccount);
     }
 
     let amount =
@@ -461,6 +463,19 @@ async fn deposit(deposit_args: DepositArgs) -> Resunlt<(), DepositError> {
         },
     )
     .await
+}
+
+#[query]
+fn user_balance(args: UserBalanceArgs) -> Nat {
+    u256_to_nat(
+        read_state(|s| {
+            s.get_user_balance(&UserBalanceKey {
+                user: args.user,
+                token: args.token,
+            })
+        })
+        .0,
+    )
 }
 
 /// Deposits tokens, then update user balance on success.

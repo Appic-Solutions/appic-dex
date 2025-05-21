@@ -36,6 +36,7 @@ use crate::{
     candid_types::{
         pool::{CandidPoolId, CreatePoolArgs, CreatePoolError},
         position::{MintPositionArgs, MintPositionError},
+        DepositArgs, DepositError, UserBalanceArgs,
     },
     libraries::{safe_cast::u256_to_nat, sqrt_price_math::tests::SQRT_PRICE_1_1},
 };
@@ -539,6 +540,60 @@ pub fn create_pool_with_liquidity(pic: &PocketIc, token_0: Principal, token_1: P
 
     five_ticks(&pic);
     five_ticks(&pic);
+
+    let deposit_args0 = DepositArgs {
+        token: token_0,
+        amount: u256_to_nat(U256::from(100_u8)),
+        from_subaccount: None,
+    };
+
+    let deposit_args1 = DepositArgs {
+        token: token_1,
+        amount: u256_to_nat(U256::from(100_u8)),
+        from_subaccount: None,
+    };
+
+    let _ = update_call::<DepositArgs, Result<(), DepositError>>(
+        &pic,
+        appic_dex_canister_id(),
+        "deposit",
+        deposit_args0,
+        None,
+    );
+    let _ = update_call::<DepositArgs, Result<(), DepositError>>(
+        &pic,
+        appic_dex_canister_id(),
+        "deposit",
+        deposit_args1,
+        None,
+    );
+
+    five_ticks(&pic);
+    five_ticks(&pic);
+
+    let user_balance0 = query_call::<UserBalanceArgs, Nat>(
+        &pic,
+        appic_dex_canister_id(),
+        "user_balance",
+        UserBalanceArgs {
+            token: token_0,
+            user: sender_principal(),
+        },
+    );
+    let user_balance1 = query_call::<UserBalanceArgs, Nat>(
+        &pic,
+        appic_dex_canister_id(),
+        "user_balance",
+        UserBalanceArgs {
+            token: token_1,
+            user: sender_principal(),
+        },
+    );
+
+    println!(
+        "user balance in dex: {:?}{:?}",
+        user_balance0, user_balance1
+    );
 
     let mint_args = MintPositionArgs {
         pool: CandidPoolId {

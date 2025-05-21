@@ -37,11 +37,17 @@ type CreatePoolError = variant {
   InvalidToken : principal;
   PoolAlreadyExists;
 };
+type DepositArgs = record {
+  token : principal;
+  from_subaccount : opt blob;
+  amount : nat;
+};
 type DepositError = variant {
   TemporarilyUnavailable : text;
   InvalidDestination : text;
   InsufficientAllowance : record { allowance : nat };
   AmountTooLow : record { min_withdrawal_amount : nat };
+  AmountOverflow;
   InsufficientFunds : record { balance : nat };
 };
 type ExactInputParams = record {
@@ -123,9 +129,10 @@ type QuoteExactSingleParams = record {
 };
 type Result = variant { Ok; Err : BurnPositionError };
 type Result_1 = variant { Ok; Err : CreatePoolError };
-type Result_2 = variant { Ok; Err : MintPositionError };
-type Result_3 = variant { Ok : nat; Err : QuoteError };
-type Result_4 = variant { Ok : CandidSwapSuccess; Err : SwapError };
+type Result_2 = variant { Ok; Err : DepositError };
+type Result_3 = variant { Ok; Err : MintPositionError };
+type Result_4 = variant { Ok : nat; Err : QuoteError };
+type Result_5 = variant { Ok : CandidSwapSuccess; Err : SwapError };
 type SwapArgs = variant {
   ExactOutput : ExactOutputParams;
   ExactInput : ExactInputParams;
@@ -168,6 +175,7 @@ type SwapFailedReason = variant {
   InvalidFeeForExactOutput;
   CalculationOverflow;
 };
+type UserBalanceArgs = record { token : principal; user : principal };
 type WithdrawalError = variant {
   FeeUnknown;
   TemporarilyUnavailable : text;
@@ -179,7 +187,9 @@ type WithdrawalError = variant {
 service : () -> {
   burn : (BurnPositionArgs) -> (Result);
   create_pool : (CreatePoolArgs) -> (Result_1);
-  mint_position : (MintPositionArgs) -> (Result_2);
-  quote : (QuoteArgs) -> (Result_3) query;
-  swap : (SwapArgs) -> (Result_4);
+  deposit : (DepositArgs) -> (Result_2);
+  mint_position : (MintPositionArgs) -> (Result_3);
+  quote : (QuoteArgs) -> (Result_4) query;
+  swap : (SwapArgs) -> (Result_5);
+  user_balance : (UserBalanceArgs) -> (nat) query;
 }

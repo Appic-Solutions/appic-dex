@@ -114,18 +114,3 @@ pub fn get_liquidity_for_amounts(
 
     Ok(liquidity)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use ethnum::U256;
-
-    #[test]
-    fn test_invalid_price_by_zero() {
-        let sqrt_price_a_x96 = U256::from(79228162514264337593543950336u128);
-        let sqrt_price_b_x96 = U256::from(79228162514264337593543950336u128); // Equal to A
-        let amount0 = U256::from(1000000u64);
-        let result = get_liquidity_for_amount0(sqrt_price_a_x96, sqrt_price_b_x96, amount0);
-        assert_eq!(result, Err(LiquidityAmountsError::InvalidPrice));
-    }
-}

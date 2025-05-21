@@ -60,6 +60,7 @@ impl DepositMemo {
             DepositMemo::MintPotion { sender: _, amount } => *amount = new_amount,
             DepositMemo::IncreasePosition { sender: _, amount } => *amount = new_amount,
             DepositMemo::SwapIn { sender: _, amount } => *amount = new_amount,
+            DepositMemo::Deposit { sender: _, amount } => *amount = new_amount,
         }
     }
 }

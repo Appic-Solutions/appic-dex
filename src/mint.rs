@@ -77,7 +77,8 @@ pub fn execute_mint_position(
         user_balance.amount0().as_u256(),
         user_balance.amount1().as_u256(),
     )
-    .map_err(|_| MintPositionError::InsufficientBalance)?;
+    .unwrap();
+    //.map_err(|_| MintPositionError::InsufficientBalance)?;
 
     let final_balance = user_balance
         .add(success_result.balance_delta)
