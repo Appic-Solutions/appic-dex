@@ -10,9 +10,12 @@ const TWENTY_TRILLIONS: u64 = 20_000_000_000_000;
 
 const TWO_TRILLIONS: u64 = 2_000_000_000_000;
 
-const TWO_HUNDRED_ETH: u128 = 200_000_000_000_000_000_u128;
+const TOKEN_TRANSFER_FEE: u128 = 10_000_000_000_000_u128;
+
+const TWO_HUNDRED_ETH: u128 = 200_000_000_000_000_000_000_u128;
 pub mod swap_tests;
 
+use core::panic;
 use std::thread::AccessError;
 
 use candid::{CandidType, Int, Nat, Principal};
@@ -137,11 +140,11 @@ fn install_appic_dex_canister(pic: &PocketIc, canister_id: Principal) {
 }
 
 pub fn token0_principal() -> Principal {
-    Principal::from_text("n44gr-qyaaa-aaaam-qbuha-cai").unwrap()
+    Principal::from_text("zjydy-zyaaa-aaaaj-qnfka-cai").unwrap()
 }
 
 pub fn token1_principal() -> Principal {
-    Principal::from_text("eysav-tyaaa-aaaap-akqfq-cai").unwrap()
+    Principal::from_text("n44gr-qyaaa-aaaam-qbuha-cai").unwrap()
 }
 
 pub fn token2_principal() -> Principal {
@@ -149,7 +152,7 @@ pub fn token2_principal() -> Principal {
 }
 
 pub fn token3_principal() -> Principal {
-    Principal::from_text("zjydy-zyaaa-aaaaj-qnfka-cai").unwrap()
+    Principal::from_text("eysav-tyaaa-aaaap-akqfq-cai").unwrap()
 }
 
 fn create_token0_canister(pic: &PocketIc) -> Principal {
@@ -359,7 +362,7 @@ pub fn mint_tokens(pic: &PocketIc, token: Principal) {
         fee: None,
         created_at_time: None,
         memo: None,
-        amount: Nat::from(210_000_000_000_000_000_u128), // 210 eth
+        amount: Nat::from(410_000_000_000_000_000_000_u128), // 410 eth
     };
 
     let result = update_call::<TransferArg, Result<Nat, TransferError>>(
@@ -420,6 +423,9 @@ pub fn create_and_install_canisters(pic: &PocketIc) {
 }
 
 pub fn create_pool_with_liquidity(pic: &PocketIc, token_0: Principal, token_1: Principal) {
+    if token_0 > token_1 {
+        panic!("hooos;ocjns;ljvn")
+    }
     let create_args = CreatePoolArgs {
         token_a: token_0,
         token_b: token_1,
@@ -427,7 +433,7 @@ pub fn create_pool_with_liquidity(pic: &PocketIc, token_0: Principal, token_1: P
         sqrt_price_x96: u256_to_nat(*SQRT_PRICE_1_1),
     };
 
-    let create_pool_result = update_call::<CreatePoolArgs, Result<(), CreatePoolError>>(
+    let create_pool_result = update_call::<CreatePoolArgs, Result<CandidPoolId, CreatePoolError>>(
         pic,
         appic_dex_canister_id(),
         "create_pool",
@@ -450,7 +456,7 @@ pub fn create_pool_with_liquidity(pic: &PocketIc, token_0: Principal, token_1: P
                 subaccount: None,
             },
             amount: Nat::from(
-                TWO_HUNDRED_ETH, // 200 ethers
+                TWO_HUNDRED_ETH + TWO_HUNDRED_ETH, // 400 ethers
             ),
             expected_allowance: None,
             expires_at: None,
@@ -475,7 +481,7 @@ pub fn create_pool_with_liquidity(pic: &PocketIc, token_0: Principal, token_1: P
                 subaccount: None,
             },
             amount: Nat::from(
-                TWO_HUNDRED_ETH, // 200 ethers
+                TWO_HUNDRED_ETH + TWO_HUNDRED_ETH, // 400 ethers
             ),
             expected_allowance: None,
             expires_at: None,
@@ -540,35 +546,6 @@ pub fn create_pool_with_liquidity(pic: &PocketIc, token_0: Principal, token_1: P
 
     five_ticks(&pic);
     five_ticks(&pic);
-
-    let deposit_args0 = DepositArgs {
-        token: token_0,
-        amount: u256_to_nat(U256::from(100_u8)),
-        from_subaccount: None,
-    };
-
-    let deposit_args1 = DepositArgs {
-        token: token_1,
-        amount: u256_to_nat(U256::from(100_u8)),
-        from_subaccount: None,
-    };
-
-    let _ = update_call::<DepositArgs, Result<(), DepositError>>(
-        &pic,
-        appic_dex_canister_id(),
-        "deposit",
-        deposit_args0,
-        None,
-    );
-    let _ = update_call::<DepositArgs, Result<(), DepositError>>(
-        &pic,
-        appic_dex_canister_id(),
-        "deposit",
-        deposit_args1,
-        None,
-    );
-
-    five_ticks(&pic);
     five_ticks(&pic);
 
     let user_balance0 = query_call::<UserBalanceArgs, Nat>(
@@ -603,8 +580,8 @@ pub fn create_pool_with_liquidity(pic: &PocketIc, token_0: Principal, token_1: P
         },
         tick_lower: candid::Int::from(-887220),
         tick_upper: candid::Int::from(887220),
-        amount0_max: u256_to_nat(U256::from(100_u8)),
-        amount1_max: u256_to_nat(U256::from(100_u8)),
+        amount0_max: u256_to_nat(U256::from(TWO_HUNDRED_ETH)),
+        amount1_max: u256_to_nat(U256::from(TWO_HUNDRED_ETH)),
         from_subaccount: None,
     };
 
@@ -617,8 +594,30 @@ pub fn create_pool_with_liquidity(pic: &PocketIc, token_0: Principal, token_1: P
     );
 
     println!("{:?}", mint_result);
+}
 
-    //let mint=update_call::<
+pub fn set_up() -> PocketIc {
+    let pic = PocketIc::new();
+
+    create_and_install_canisters(&pic);
+
+    five_ticks(&pic);
+    five_ticks(&pic);
+
+    create_pool_with_liquidity(&pic, token0_principal(), token1_principal());
+    create_pool_with_liquidity(&pic, token1_principal(), token2_principal());
+    create_pool_with_liquidity(&pic, token2_principal(), token3_principal());
+
+    pic
+}
+
+pub fn get_balance(pic: &PocketIc, token: Principal, user_principal: Principal) -> Nat {
+    query_call(
+        pic,
+        token,
+        "icrc1_balance_of",
+        LedgerAccount::from(user_principal),
+    )
 }
 
 #[test]
@@ -631,6 +630,6 @@ fn test_init() {
     five_ticks(&pic);
 
     create_pool_with_liquidity(&pic, token0_principal(), token1_principal());
-
-    assert!(false)
+    create_pool_with_liquidity(&pic, token1_principal(), token2_principal());
+    create_pool_with_liquidity(&pic, token2_principal(), token3_principal());
 }

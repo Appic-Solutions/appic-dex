@@ -128,7 +128,7 @@ type QuoteExactSingleParams = record {
   exact_amount : nat;
 };
 type Result = variant { Ok; Err : BurnPositionError };
-type Result_1 = variant { Ok; Err : CreatePoolError };
+type Result_1 = variant { Ok : CandidPoolId; Err : CreatePoolError };
 type Result_2 = variant { Ok; Err : DepositError };
 type Result_3 = variant { Ok; Err : MintPositionError };
 type Result_4 = variant { Ok : nat; Err : QuoteError };
@@ -159,6 +159,7 @@ type SwapError = variant {
   NoInRangeLiquidity;
   SwapFailedRefunded : record {
     refund_error : opt WithdrawalError;
+    refund_amount : opt nat;
     failed_reason : SwapFailedReason;
   };
 };

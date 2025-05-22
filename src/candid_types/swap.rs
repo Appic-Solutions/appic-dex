@@ -111,8 +111,10 @@ pub enum SwapError {
     DepositError(DepositError),
     SwapFailedRefunded {
         failed_reason: SwapFailedReason,
+        refund_amount: Option<Nat>,
         refund_error: Option<WithdrawalError>, // if refund fails, refund error
     }, // swap failed but refunded, if refund fails refund_error will be Some(WithdrawalError)
+
     FailedToWithdraw {
         reason: WithdrawalError,
         amount_in: Nat,

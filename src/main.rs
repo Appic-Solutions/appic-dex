@@ -4,7 +4,7 @@ use appic_dex::{
     balances::types::{UserBalance, UserBalanceKey},
     burn::execute_burn_position,
     candid_types::{
-        pool::{CreatePoolArgs, CreatePoolError},
+        pool::{CandidPoolId, CreatePoolArgs, CreatePoolError},
         position::{BurnPositionArgs, BurnPositionError, MintPositionArgs, MintPositionError},
         quote::{QuoteArgs, QuoteError},
         swap::{CandidSwapSuccess, SwapArgs, SwapError},
@@ -63,7 +63,7 @@ async fn init() {
 }
 
 #[update]
-async fn create_pool(args: CreatePoolArgs) -> Result<(), CreatePoolError> {
+async fn create_pool(args: CreatePoolArgs) -> Result<CandidPoolId, CreatePoolError> {
     // get the transfer fee for both tokens, meanwhile by getting the fee we also partially
     // validate token's standard
     let token_a_fee = big_uint_to_u256(
@@ -84,9 +84,9 @@ async fn create_pool(args: CreatePoolArgs) -> Result<(), CreatePoolError> {
     )
     .map_err(|_| CreatePoolError::InvalidToken(args.token_b))?;
 
-    let _ = create_pool_inner(args, token_a_fee, token_b_fee)?;
+    let pool_id = create_pool_inner(args, token_a_fee, token_b_fee)?;
 
-    Ok(())
+    Ok(pool_id.into())
 }
 
 #[update]
@@ -234,6 +234,8 @@ async fn burn(args: BurnPositionArgs) -> Result<(), BurnPositionError> {
 async fn swap(args: SwapArgs) -> Result<CandidSwapSuccess, SwapError> {
     // Validate Inputs
     let validated_swap_args = validate_swap_args(args)?;
+
+    ic_cdk::println!("{:?}", validated_swap_args);
     let caller = validate_caller_not_anonymous();
 
     // swap is desinged in a way that the same canister or user can send multiple swap request at a
@@ -267,7 +269,7 @@ async fn swap(args: SwapArgs) -> Result<CandidSwapSuccess, SwapError> {
         },
     )
     .await
-    .map_err(|e| SwapError::DepositError(e));
+    .map_err(|e| SwapError::DepositError(e))?;
 
     // Execute Swap
     let swap_result = execute_swap(&validated_swap_args, token_in, token_out, caller);
@@ -300,16 +302,19 @@ async fn swap(args: SwapArgs) -> Result<CandidSwapSuccess, SwapError> {
         }
         Err(err) => {
             // Refund deposited tokens
-            _refund(caller, token_in, deposit_amount.as_u256(), &user_address)
-                .await
-                .map_err(|e| SwapError::SwapFailedRefunded {
-                    failed_reason: err.clone(),
-                    refund_error: Some(e),
-                })?;
+            let refunded_amount =
+                _refund(caller, token_in, deposit_amount.as_u256(), &user_address)
+                    .await
+                    .map_err(|e| SwapError::SwapFailedRefunded {
+                        refund_amount: None,
+                        failed_reason: err.clone(),
+                        refund_error: Some(e),
+                    })?;
 
             return Err(SwapError::SwapFailedRefunded {
                 failed_reason: err,
                 refund_error: None,
+                refund_amount: Some(u256_to_nat(refunded_amount)),
             });
         }
     }
@@ -336,12 +341,13 @@ pub fn quote(args: QuoteArgs) -> Result<Nat, QuoteError> {
 }
 
 /// refund, a wrapper around _withdraw for better readability
+/// return refunded amount(initial refund amount - transfer fee)
 async fn _refund(
     caller: Principal,
     token: Principal,
     amount: U256,
     to: &Account,
-) -> Result<(), WithdrawalError> {
+) -> Result<U256, WithdrawalError> {
     let transfer_fee = big_uint_to_u256(
         LedgerClient::new(token)
             .icrc_fee()
@@ -366,6 +372,7 @@ async fn _refund(
 }
 
 /// withdraws tokens if there is sufficient user balance, and update the user state balance
+/// returns withrdrew amount(initial withdraw amount - transfer fee)
 async fn _withdraw(
     caller: Principal,
     token: Principal,
@@ -373,7 +380,7 @@ async fn _withdraw(
     to: &Account,
     memo: &mut WithdrawalMemo,
     transfer_fee: U256,
-) -> Result<(), WithdrawalError> {
+) -> Result<U256, WithdrawalError> {
     let user_balance = get_user_balance(caller, token);
 
     if amount.checked_sub(transfer_fee).is_none() {
@@ -401,14 +408,19 @@ async fn _withdraw(
         );
     });
 
-    let withdrawal_amount = u256_to_big_uint(amount - transfer_fee);
+    let withdrawal_amount = amount - transfer_fee;
     let icrc_fee = u256_to_big_uint(transfer_fee);
     memo.set_amount(amount);
     match LedgerClient::new(token)
-        .withdraw(*to, withdrawal_amount, memo.clone(), icrc_fee)
+        .withdraw(
+            *to,
+            u256_to_big_uint(withdrawal_amount),
+            memo.clone(),
+            icrc_fee,
+        )
         .await
     {
-        Ok(_) => return Ok(()),
+        Ok(_) => return Ok(withdrawal_amount),
         Err(err) => {
             // transfer failed we need to add the remove balance to user
             let latest_user_balance = get_user_balance(caller, token);
