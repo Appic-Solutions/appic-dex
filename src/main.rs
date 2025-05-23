@@ -4,13 +4,14 @@ use appic_dex::{
     candid_types::{
         pool::{CandidPoolId, CreatePoolArgs, CreatePoolError},
         position::{
-            BurnPositionArgs, BurnPositionError, IncreaseLiquidtyArgs, IncreaseLiquidtyError,
-            MintPositionArgs, MintPositionError,
+            BurnPositionArgs, BurnPositionError, DecreaseLiquidityArgs, DecreaseLiquidityError,
+            IncreaseLiquidtyArgs, IncreaseLiquidtyError, MintPositionArgs, MintPositionError,
         },
         quote::{QuoteArgs, QuoteError},
         swap::{CandidSwapSuccess, SwapArgs, SwapError},
         DepositArgs, DepositError, UserBalanceArgs, WithdrawalError,
     },
+    decrease_liquidity::execute_decrease_liquidity,
     guard::PrincipalGuard,
     icrc_client::{
         memo::{DepositMemo, WithdrawalMemo},
@@ -33,8 +34,9 @@ use appic_dex::{
     state::{mutate_state, read_state},
     swap::execute_swap,
     validation::{
-        burn_args::validate_burn_position_args, increase_args::validate_increase_liquidty_args,
-        mint_args::validate_mint_position_args, swap_args::validate_swap_args,
+        burn_args::validate_burn_position_args, decrease_args::validate_decrease_liquidty_args,
+        increase_args::validate_increase_liquidty_args, mint_args::validate_mint_position_args,
+        swap_args::validate_swap_args,
     },
 };
 
@@ -308,8 +310,65 @@ async fn burn(args: BurnPositionArgs) -> Result<(), BurnPositionError> {
 }
 
 #[update]
-pub fn decrease_liquidity() -> Result<(), ()> {
-    todo!()
+async fn decrease_liquidity(args: DecreaseLiquidityArgs) -> Result<(), DecreaseLiquidityError> {
+    // Validate inputs and caller
+    let caller = validate_caller_not_anonymous();
+
+    // Principal Lock to prevent double processing(double spending, over paying, and under
+    // paying)
+    let _principal_guard = match PrincipalGuard::new_general_guard(caller) {
+        Ok(gurad) => gurad,
+        Err(_) => return Err(DecreaseLiquidityError::LockedPrinciapl),
+    };
+
+    let validated_args = validate_decrease_liquidty_args(args.clone(), caller)?;
+
+    let pool_id = validated_args.pool_id.clone();
+    let token0 = args.pool.token0;
+    let token1 = args.pool.token1;
+
+    let user_balance_after_burn =
+        execute_decrease_liquidity(caller, pool_id.clone(), token0, token1, validated_args)?;
+
+    let (token0_transfer_fee, token1_transfer_fee) = read_state(|s| {
+        let pool_state = s.get_pool(&pool_id).unwrap();
+        (
+            pool_state.token0_transfer_fee,
+            pool_state.token1_transfer_fee,
+        )
+    });
+
+    let to_account = Account::from(caller);
+
+    let _ = _withdraw(
+        caller,
+        token0,
+        user_balance_after_burn.amount0().as_u256(),
+        &to_account,
+        &mut WithdrawalMemo::BurnPotions {
+            receiver: caller,
+            amount: U256::ZERO,
+        },
+        token0_transfer_fee,
+    )
+    .await
+    .map_err(|e| BurnPositionError::BurntPositionWithdrawalFailed(e.into()));
+
+    let _ = _withdraw(
+        caller,
+        token1,
+        user_balance_after_burn.amount1().as_u256(),
+        &to_account,
+        &mut WithdrawalMemo::BurnPotions {
+            receiver: caller,
+            amount: U256::ZERO,
+        },
+        token1_transfer_fee,
+    )
+    .await
+    .map_err(|e| BurnPositionError::BurntPositionWithdrawalFailed(e.into()));
+
+    Ok(())
 }
 
 #[update]

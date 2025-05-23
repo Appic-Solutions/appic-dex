@@ -93,3 +93,19 @@ pub struct DecreaseLiquidityArgs {
     pub amount0_min: Nat,
     pub amount1_min: Nat,
 }
+
+#[derive(Debug, Clone, CandidType, Deserialize, Serialize)]
+pub enum DecreaseLiquidityError {
+    LockedPrinciapl,
+    PositionNotFound,
+    PoolNotInitialized,
+    InvalidTick,
+    InvalidPoolFee,
+    InvalidLiquidty,
+    LiquidityOverflow,
+    FeeOverflow,
+    AmountOverflow,
+    InvalidAmount,
+    InsufficientBalance,
+    BurntPositionWithdrawalFailed(WithdrawalError),
+}

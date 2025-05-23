@@ -2,6 +2,7 @@ pub mod balances;
 pub mod burn;
 pub mod candid_types;
 pub mod cbor;
+pub mod decrease_liquidity;
 pub mod guard;
 pub mod icrc_client;
 pub mod increase_liquidity;
