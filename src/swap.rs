@@ -10,7 +10,7 @@ use crate::{
     },
     quote::{get_sqrt_price_limit, select_amount},
     state::{mutate_state, read_state},
-    validate_candid_args::ValidatedSwapArgs,
+    validation::swap_args::ValidatedSwapArgs,
 };
 
 #[derive(Debug, PartialEq, Eq, Clone)]

@@ -1,11 +1,12 @@
-use std::ptr::read;
-
 use appic_dex::{
     balances::types::{UserBalance, UserBalanceKey},
     burn::execute_burn_position,
     candid_types::{
         pool::{CandidPoolId, CreatePoolArgs, CreatePoolError},
-        position::{BurnPositionArgs, BurnPositionError, MintPositionArgs, MintPositionError},
+        position::{
+            BurnPositionArgs, BurnPositionError, IncreaseLiquidtyArgs, IncreaseLiquidtyError,
+            MintPositionArgs, MintPositionError,
+        },
         quote::{QuoteArgs, QuoteError},
         swap::{CandidSwapSuccess, SwapArgs, SwapError},
         DepositArgs, DepositError, UserBalanceArgs, WithdrawalError,
@@ -15,6 +16,7 @@ use appic_dex::{
         memo::{DepositMemo, WithdrawalMemo},
         LedgerClient, LedgerTransferError,
     },
+    increase_liquidity::execute_increase_liquidty,
     libraries::{
         balance_delta::BalanceDelta,
         safe_cast::{big_uint_to_u256, u256_to_big_uint, u256_to_nat},
@@ -30,8 +32,9 @@ use appic_dex::{
     },
     state::{mutate_state, read_state},
     swap::execute_swap,
-    validate_candid_args::{
-        validate_burn_position_args, validate_mint_position_args, validate_swap_args,
+    validation::{
+        burn_args::validate_burn_position_args, increase_args::validate_increase_liquidty_args,
+        mint_args::validate_mint_position_args, swap_args::validate_swap_args,
     },
 };
 
@@ -166,6 +169,82 @@ async fn mint_position(args: MintPositionArgs) -> Result<(), MintPositionError> 
     execute_mint_position(caller, pool_id, token0, token1, validated_args)
 }
 
+async fn increase_liquidity(args: IncreaseLiquidtyArgs) -> Result<(), IncreaseLiquidtyError> {
+    // Validate inputs and caller
+    let caller = validate_caller_not_anonymous();
+
+    // Principal Lock to prevent double processing(double spending, over paying, and under
+    // paying)
+    let _principal_guard = match PrincipalGuard::new_general_guard(caller) {
+        Ok(gurad) => gurad,
+        Err(_) => return Err(IncreaseLiquidtyError::LockedPrinciapl),
+    };
+
+    let validated_args = validate_increase_liquidty_args(args.clone(), caller)?;
+
+    let pool_id = validated_args.pool_id.clone();
+    let token0 = args.pool.token0;
+    let token1 = args.pool.token1;
+    let max_deposit = BalanceDelta::new(validated_args.amount0_max, validated_args.amount1_max);
+
+    let user_balance = read_state(|s| {
+        BalanceDelta::new(
+            s.get_user_balance(&UserBalanceKey {
+                user: caller,
+                token: token0,
+            })
+            .0
+            .try_into()
+            .unwrap_or(I256::MAX), // Safe due to balance constraints
+            s.get_user_balance(&UserBalanceKey {
+                user: caller,
+                token: token1,
+            })
+            .0
+            .try_into()
+            .unwrap_or(I256::MAX),
+        )
+    });
+
+    // Prepare account for deposits
+    let mut from: Account = caller.into();
+    if let Some(subaccount) = args.from_subaccount {
+        from.subaccount = Some(subaccount);
+    }
+
+    // Perform deposits if needed
+    _deposit_if_needed(
+        caller,
+        token0,
+        &from,
+        user_balance.amount0().as_u256(),
+        max_deposit.amount0().as_u256(),
+        &mut DepositMemo::MintPotion {
+            sender: caller,
+            amount: U256::ZERO,
+        },
+    )
+    .await
+    .map_err(|e| IncreaseLiquidtyError::DepositError(e.into()))?;
+
+    _deposit_if_needed(
+        caller,
+        token1,
+        &from,
+        user_balance.amount1().as_u256(),
+        max_deposit.amount1().as_u256(),
+        &mut DepositMemo::MintPotion {
+            sender: caller,
+            amount: U256::ZERO,
+        },
+    )
+    .await
+    .map_err(|e| IncreaseLiquidtyError::DepositError(e.into()))?;
+
+    // Execute minting
+    execute_increase_liquidty(caller, pool_id, token0, token1, validated_args)
+}
+
 #[update]
 async fn burn(args: BurnPositionArgs) -> Result<(), BurnPositionError> {
     // Validate inputs and caller
@@ -226,6 +305,11 @@ async fn burn(args: BurnPositionArgs) -> Result<(), BurnPositionError> {
     .map_err(|e| BurnPositionError::BurntPositionWithdrawalFailed(e.into()));
 
     Ok(())
+}
+
+#[update]
+pub fn decrease_liquidity() -> Result<(), ()> {
+    todo!()
 }
 
 #[update]

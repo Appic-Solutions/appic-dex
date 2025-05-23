@@ -4,6 +4,7 @@ pub mod candid_types;
 pub mod cbor;
 pub mod guard;
 pub mod icrc_client;
+pub mod increase_liquidity;
 pub mod libraries;
 pub mod logs;
 pub mod mint;
@@ -13,7 +14,7 @@ pub mod quote;
 pub mod state;
 pub mod swap;
 pub mod tick;
-pub mod validate_candid_args;
+pub mod validation;
 
 #[cfg(test)]
 pub mod tests;

@@ -1,6 +1,6 @@
 use crate::{
     candid_types::swap::{CandidPathKey, CandidSwapSuccess, SwapArgs, SwapError, SwapFailedReason},
-    libraries::{amount_delta, safe_cast::big_uint_to_u256, sqrt_price_math::tests::ONE_ETHER},
+    libraries::sqrt_price_math::tests::ONE_ETHER,
 };
 
 use super::*;

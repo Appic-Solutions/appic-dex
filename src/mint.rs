@@ -14,7 +14,7 @@ use crate::{
         types::PoolId,
     },
     state::{mutate_state, read_state},
-    validate_candid_args::ValidatedMintPositionArgs,
+    validation::mint_args::ValidatedMintPositionArgs,
 };
 
 /// Executes the minting logic by computing liquidity and updating pool state.
@@ -107,7 +107,7 @@ pub fn execute_mint_position(
 }
 
 /// Computes liquidity for the given amounts and tick range.
-fn calculate_liquidity(
+pub fn calculate_liquidity(
     sqrt_price_x96: U256,
     lower_tick: i32,
     upper_tick: i32,

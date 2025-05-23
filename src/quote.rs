@@ -16,7 +16,7 @@ use crate::{
         swap::{swap_inner, SwapParams},
         types::PoolId,
     },
-    validate_candid_args::{MAX_PATH_LENGTH, MIN_PATH_LENGTH},
+    validation::swap_args::{MAX_PATH_LENGTH, MIN_PATH_LENGTH},
 };
 
 /// Processes a single-hop exact input quote, calculating the output amount.
