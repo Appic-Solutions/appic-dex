@@ -68,7 +68,7 @@ pub fn execute_swap(
 
             // Calculate amounts
             let amount_out = select_amount(hop_result.swap_delta, *zero_for_one, false);
-            let amount_in = -amount_in;
+            let amount_in = *amount_in;
 
             // Check slippage
             check_exact_input_slippage(amount_out, *amount_out_minimum)?;
@@ -109,7 +109,7 @@ pub fn execute_swap(
 
             // Final current_amount is the output amount
             let amount_out = current_amount;
-            let amount_in = -amount_in;
+            let amount_in = *amount_in;
 
             // Check slippage
             check_exact_input_slippage(amount_out, *amount_out_minimum)?;
@@ -145,7 +145,7 @@ pub fn execute_swap(
             let amount_in = -select_amount(hop_result.swap_delta, *zero_for_one, true);
 
             // Check slippage
-            check_exact_output_slippage(amount_in, -amount_in_maximum)?;
+            check_exact_output_slippage(amount_in, *amount_in_maximum)?;
 
             SwapSuccessfulResult {
                 amount_in,
@@ -177,21 +177,28 @@ pub fn execute_swap(
                 let swap_params =
                     build_swap_params(swap.pool_id.clone(), current_amount, swap_direction);
 
+                ic_cdk::println!("swap params {:?}", swap_params);
+
                 let hop_result = swap_inner(swap_params).map_err(SwapFailedReason::from)?;
+
+                ic_cdk::println!("hop result {:?}", hop_result);
+
                 if i == 0 {
                     token_out_transfer_fee = hop_result.token_out_transfer_fee;
                 };
-                current_amount = select_amount(hop_result.swap_delta, swap_direction, true);
+                current_amount = -select_amount(hop_result.swap_delta, swap_direction, true);
+
+                ic_cdk::println!("current_amount {:?}", current_amount);
                 swap_success_list.insert(0, hop_result);
                 i += 1;
             }
 
             // Final current_amount is the input amount
-            let amount_in = -current_amount;
+            let amount_in = current_amount;
             let amount_out = amount_out;
 
             // Check slippage
-            check_exact_output_slippage(amount_in, -amount_in_maximum)?;
+            check_exact_output_slippage(amount_in, *amount_in_maximum)?;
 
             SwapSuccessfulResult {
                 amount_in,
@@ -213,7 +220,7 @@ pub fn execute_swap(
 
     // Return positive input amount and output amount
     Ok((
-        -swap_result.amount_in,
+        swap_result.amount_in,
         swap_result.amount_out,
         swap_result.token_out_transfer_fee,
     ))
@@ -269,7 +276,7 @@ fn check_exact_output_slippage(
     amount_in: I256,
     max_amount_in: I256,
 ) -> Result<(), SwapFailedReason> {
-    if amount_in < max_amount_in {
+    if amount_in > max_amount_in {
         Err(SwapFailedReason::TooMuchRequeted)
     } else {
         Ok(())

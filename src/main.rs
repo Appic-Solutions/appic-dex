@@ -273,6 +273,7 @@ async fn swap(args: SwapArgs) -> Result<CandidSwapSuccess, SwapError> {
 
     // Execute Swap
     let swap_result = execute_swap(&validated_swap_args, token_in, token_out, caller);
+
     // Handle Swap Result
     match swap_result {
         Ok(swap_delta) => {
