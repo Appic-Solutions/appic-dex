@@ -2,10 +2,11 @@ use appic_dex::{
     balances::types::{UserBalance, UserBalanceKey},
     burn::execute_burn_position,
     candid_types::{
-        pool::{CandidPoolId, CreatePoolArgs, CreatePoolError},
+        pool::{CandidPoolId, CandidPoolState, CreatePoolArgs, CreatePoolError},
         position::{
-            BurnPositionArgs, BurnPositionError, DecreaseLiquidityArgs, DecreaseLiquidityError,
-            IncreaseLiquidtyArgs, IncreaseLiquidtyError, MintPositionArgs, MintPositionError,
+            BurnPositionArgs, BurnPositionError, CandidPositionInfo, CandidPositionKey,
+            DecreaseLiquidityArgs, DecreaseLiquidityError, IncreaseLiquidtyArgs,
+            IncreaseLiquidtyError, MintPositionArgs, MintPositionError,
         },
         quote::{QuoteArgs, QuoteError},
         swap::{CandidSwapSuccess, SwapArgs, SwapError},
@@ -25,8 +26,9 @@ use appic_dex::{
     mint::execute_mint_position,
     pool::{
         create_pool::create_pool_inner,
-        types::{PoolFee, PoolTickSpacing},
+        types::{PoolFee, PoolId, PoolTickSpacing},
     },
+    position::types::PositionKey,
     quote::{
         process_multi_hop_exact_input, process_multi_hop_exact_output,
         process_single_hop_exact_input, process_single_hop_exact_output,
@@ -65,6 +67,63 @@ async fn init() {
     for (fee, tick_spacing) in fee_to_tick_spacnig {
         mutate_state(|s| s.set_tick_spacing(PoolFee(fee), PoolTickSpacing(tick_spacing)));
     }
+}
+
+#[query]
+fn get_pool(pool_id: CandidPoolId) -> Option<CandidPoolState> {
+    let pool_id: PoolId = pool_id.try_into().ok()?;
+    read_state(|s| {
+        s.get_pool(&pool_id)
+            .map(|pool_state| CandidPoolState::from(pool_state))
+    })
+}
+
+#[query]
+fn get_pools() -> Vec<(CandidPoolId, CandidPoolState)> {
+    read_state(|s| s.get_pools())
+        .into_iter()
+        .map(|(id, state)| (CandidPoolId::from(id), CandidPoolState::from(state)))
+        .collect()
+}
+
+#[query]
+fn get_position(position_key: CandidPositionKey) -> Option<CandidPositionInfo> {
+    let position_key = PositionKey::try_from(position_key).ok()?;
+    let (position, token0_owed, token1_owed) =
+        read_state(|s| s.get_position_with_fees_owed(&position_key))?;
+
+    Some(CandidPositionInfo {
+        liquidity: position.liquidity.into(),
+        fee_growth_inside_0_last_x128: u256_to_nat(position.fee_growth_inside_0_last_x128),
+        fee_growth_inside_1_last_x128: u256_to_nat(position.fee_growth_inside_1_last_x128),
+        fees_token0_owed: u256_to_nat(token0_owed),
+        fees_token1_owed: u256_to_nat(token1_owed),
+    })
+}
+
+#[query]
+fn get_positions_by_owner(owner: Principal) -> Vec<(CandidPositionKey, CandidPositionInfo)> {
+    read_state(|s| s.get_positions_by_owner(owner))
+        .into_iter()
+        .map(|(key, info, token0_owed, token1_owed)| {
+            let candid_key = CandidPositionKey {
+                owner,
+                pool_id: key.pool_id.into(),
+                tick_lower: key.tick_lower.into(),
+                tick_upper: key.tick_upper.into(),
+            };
+
+            let candid_info = CandidPositionInfo {
+                liquidity: info.liquidity.into(),
+                fee_growth_inside_0_last_x128: u256_to_nat(info.fee_growth_inside_0_last_x128),
+                fee_growth_inside_1_last_x128: u256_to_nat(info.fee_growth_inside_1_last_x128),
+                fees_token0_owed: u256_to_nat(token0_owed),
+                fees_token1_owed: u256_to_nat(token1_owed),
+            };
+
+            (candid_key, candid_info)
+        })
+        .collect()
 }
 
 #[update]
@@ -171,6 +230,7 @@ async fn mint_position(args: MintPositionArgs) -> Result<(), MintPositionError> 
     execute_mint_position(caller, pool_id, token0, token1, validated_args)
 }
 
+#[update]
 async fn increase_liquidity(args: IncreaseLiquidtyArgs) -> Result<(), IncreaseLiquidtyError> {
     // Validate inputs and caller
     let caller = validate_caller_not_anonymous();

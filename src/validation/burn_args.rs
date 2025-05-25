@@ -57,6 +57,7 @@ pub fn validate_burn_position_args(
         tick_lower: lower_tick,
         tick_upper: upper_tick,
     };
+
     let position_info = read_state(|s| s.get_position(&position_key));
     if position_info.liquidity == 0 {
         return Err(BurnPositionError::PositionNotFound);

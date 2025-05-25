@@ -13,6 +13,8 @@ const TWO_TRILLIONS: u64 = 2_000_000_000_000;
 const TOKEN_TRANSFER_FEE: u128 = 10_000_000_000_000_u128;
 
 const TWO_HUNDRED_ETH: u128 = 200_000_000_000_000_000_000_u128;
+
+pub mod modify_liquidty;
 pub mod swap_tests;
 
 use core::panic;

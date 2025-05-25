@@ -9,6 +9,8 @@
 
 use crate::{
     balances::types::{UserBalance, UserBalanceKey},
+    candid_types::position,
+    libraries::{constants::Q128, full_math::mul_div},
     pool::{
         modify_liquidity::ModifyLiquidityBufferState,
         swap::SwapBufferState,
@@ -71,6 +73,50 @@ impl State {
 
     pub fn get_position(&self, key: &PositionKey) -> PositionInfo {
         self.positions.get(key).unwrap_or_default()
+    }
+
+    // returns a list of all the positions from that user with
+    // (position_key,position_info,token0_owed,token1_owed)
+    pub fn get_positions_by_owner(
+        &self,
+        owner: Principal,
+    ) -> Vec<(PositionKey, PositionInfo, U256, U256)> {
+        self.positions
+            .iter()
+            .filter_map(|(key, info)| {
+                if key.owner == owner {
+                    let (_info, fees0_owed, fees1_owed) = self.get_position_with_fees_owed(&key)?;
+                    Some((key, info, fees0_owed, fees1_owed))
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    // returns (position_info, token0_owed, token1_owed)
+    pub fn get_position_with_fees_owed(
+        &self,
+        key: &PositionKey,
+    ) -> Option<(PositionInfo, U256, U256)> {
+        let position = self.positions.get(key)?;
+        let pool = self.pools.get(&key.pool_id)?;
+
+        let token0_owed = mul_div(
+            pool.fee_growth_global_0_x128 - position.fee_growth_inside_0_last_x128,
+            U256::from(position.liquidity),
+            *Q128,
+        )
+        .ok()?;
+
+        let token1_owed = mul_div(
+            pool.fee_growth_global_1_x128 - position.fee_growth_inside_1_last_x128,
+            U256::from(position.liquidity),
+            *Q128,
+        )
+        .ok()?;
+
+        Some((position, token0_owed, token1_owed))
     }
 
     pub fn update_position(&mut self, key: PositionKey, info: PositionInfo) {
@@ -140,14 +186,30 @@ impl State {
         self.pools.insert(pool_id, buffer_state.pool.1);
 
         //ticks state transition
-        self.ticks
-            .insert(buffer_state.tick_lower.0, buffer_state.tick_lower.1);
-        self.ticks
-            .insert(buffer_state.tick_upper.0, buffer_state.tick_upper.1);
+        if buffer_state.tick_lower.1 == TickInfo::default() {
+            self.ticks.remove(&buffer_state.tick_lower.0);
+        } else {
+            self.ticks
+                .insert(buffer_state.tick_lower.0, buffer_state.tick_lower.1);
+        }
+
+        if buffer_state.tick_upper.1 == TickInfo::default() {
+            self.ticks.remove(&buffer_state.tick_upper.0);
+        } else {
+            self.ticks
+                .insert(buffer_state.tick_upper.0, buffer_state.tick_upper.1);
+        }
 
         // position state transition
         if let Some((position_key, position_info)) = buffer_state.position {
-            self.positions.insert(position_key, position_info);
+            if position_info.liquidity == 0
+                && position_info.fee_growth_inside_0_last_x128 == 0
+                && position_info.fee_growth_inside_1_last_x128 == 0
+            {
+                self.positions.remove(&position_key);
+            } else {
+                self.positions.insert(position_key, position_info);
+            }
         }
 
         // tickbitmaps state transition
@@ -165,7 +227,11 @@ impl State {
         self.pools.insert(pool_id, buffer_state.pool.1);
 
         for tick in buffer_state.shifted_ticks.into_iter() {
-            self.ticks.insert(tick.0, tick.1);
+            if tick.1 == TickInfo::default() {
+                self.ticks.remove(&tick.0);
+            } else {
+                self.ticks.insert(tick.0, tick.1);
+            }
         }
     }
 
