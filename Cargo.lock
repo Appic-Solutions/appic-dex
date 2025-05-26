@@ -41,7 +41,7 @@ dependencies = [
  "hex",
  "ic-canister-log 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "ic-cdk 0.16.0",
- "ic-cdk-timers 0.10.0",
+ "ic-cdk-timers",
  "ic-icrc1-ledger",
  "ic-stable-structures",
  "icrc-ledger-client-cdk",
@@ -489,7 +489,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33d852cb9b869c2a9b3df2f71a3074817f01e1844f839a144f5fcef059a4eb5d"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -922,20 +922,6 @@ dependencies = [
 
 [[package]]
 name = "ic-cdk-timers"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c7c528bbb3d4d934b43a364855995d318649217c7510f40f92ad52eba3ff7be"
-dependencies = [
- "futures",
- "ic-cdk 0.16.0",
- "ic0",
- "serde",
- "serde_bytes",
- "slotmap",
-]
-
-[[package]]
-name = "ic-cdk-timers"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fb8fd812a9e26f6aa00594546f8fbf4d4853f39c3ba794c8ff11ecf86fd3c9e4"
@@ -1073,7 +1059,7 @@ dependencies = [
  "ic-canister-log 0.2.0 (git+https://github.com/dfinity/ic.git)",
  "ic-cdk 0.17.1",
  "ic-cdk-macros 0.17.1",
- "ic-cdk-timers 0.11.0",
+ "ic-cdk-timers",
  "ic-certification 3.0.3",
  "ic-crypto-tree-hash",
  "ic-http-types",
@@ -1930,7 +1916,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -2155,7 +2141,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -2497,7 +2483,7 @@ dependencies = [
  "cfg-if",
  "libc",
  "psm",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -2580,7 +2566,7 @@ dependencies = [
  "getrandom 0.3.2",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
