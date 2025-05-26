@@ -24,7 +24,7 @@ pub fn execute_mint_position(
     token0: Principal,
     token1: Principal,
     validated_args: ValidatedMintPositionArgs,
-) -> Result<(), MintPositionError> {
+) -> Result<u128, MintPositionError> {
     // Fetch pool state
     let pool = read_state(|s| s.get_pool(&pool_id)).ok_or(MintPositionError::PoolNotInitialized)?;
 
@@ -103,7 +103,7 @@ pub fn execute_mint_position(
         s.apply_modify_liquidity_buffer_state(success_result.buffer_state);
     });
 
-    Ok(())
+    Ok(liquidity_delta as u128)
 }
 
 /// Computes liquidity for the given amounts and tick range.

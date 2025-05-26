@@ -5,13 +5,14 @@ use appic_dex::{
         pool::{CandidPoolId, CandidPoolState, CreatePoolArgs, CreatePoolError},
         position::{
             BurnPositionArgs, BurnPositionError, CandidPositionInfo, CandidPositionKey,
-            DecreaseLiquidityArgs, DecreaseLiquidityError, IncreaseLiquidtyArgs,
-            IncreaseLiquidtyError, MintPositionArgs, MintPositionError,
+            CollectFeesError, CollectFeesSuccess, DecreaseLiquidityArgs, DecreaseLiquidityError,
+            IncreaseLiquidtyArgs, IncreaseLiquidtyError, MintPositionArgs, MintPositionError,
         },
         quote::{QuoteArgs, QuoteError},
         swap::{CandidSwapSuccess, SwapArgs, SwapError},
         DepositArgs, DepositError, UserBalanceArgs, WithdrawalError,
     },
+    collect_fees::{self, execute_collect_fees},
     decrease_liquidity::execute_decrease_liquidity,
     guard::PrincipalGuard,
     icrc_client::{
@@ -20,12 +21,13 @@ use appic_dex::{
     },
     increase_liquidity::execute_increase_liquidty,
     libraries::{
-        balance_delta::BalanceDelta,
+        balance_delta::{self, BalanceDelta},
         safe_cast::{big_uint_to_u256, u256_to_big_uint, u256_to_nat},
     },
     mint::execute_mint_position,
     pool::{
         create_pool::create_pool_inner,
+        modify_liquidity::{modify_liquidity, ModifyLiquidityParams},
         types::{PoolFee, PoolId, PoolTickSpacing},
     },
     position::types::PositionKey,
@@ -108,7 +110,7 @@ fn get_positions_by_owner(owner: Principal) -> Vec<(CandidPositionKey, CandidPos
         .map(|(key, info, token0_owed, token1_owed)| {
             let candid_key = CandidPositionKey {
                 owner,
-                pool_id: key.pool_id.into(),
+                pool: key.pool_id.into(),
                 tick_lower: key.tick_lower.into(),
                 tick_upper: key.tick_upper.into(),
             };
@@ -153,8 +155,9 @@ async fn create_pool(args: CreatePoolArgs) -> Result<CandidPoolId, CreatePoolErr
     Ok(pool_id.into())
 }
 
+/// returns liquidity amount minted
 #[update]
-async fn mint_position(args: MintPositionArgs) -> Result<(), MintPositionError> {
+async fn mint_position(args: MintPositionArgs) -> Result<Nat, MintPositionError> {
     // Validate inputs and caller
     let caller = validate_caller_not_anonymous();
 
@@ -228,10 +231,12 @@ async fn mint_position(args: MintPositionArgs) -> Result<(), MintPositionError> 
 
     // Execute minting
     execute_mint_position(caller, pool_id, token0, token1, validated_args)
+        .map(|mint_result| Nat::from(mint_result))
 }
 
+/// returns liquidity delta
 #[update]
-async fn increase_liquidity(args: IncreaseLiquidtyArgs) -> Result<(), IncreaseLiquidtyError> {
+async fn increase_liquidity(args: IncreaseLiquidtyArgs) -> Result<Nat, IncreaseLiquidtyError> {
     // Validate inputs and caller
     let caller = validate_caller_not_anonymous();
 
@@ -305,6 +310,7 @@ async fn increase_liquidity(args: IncreaseLiquidtyArgs) -> Result<(), IncreaseLi
 
     // Execute minting
     execute_increase_liquidty(caller, pool_id, token0, token1, validated_args)
+        .map(|liquidity_delta| Nat::from(liquidity_delta))
 }
 
 #[update]
@@ -350,7 +356,7 @@ async fn burn(args: BurnPositionArgs) -> Result<(), BurnPositionError> {
         token0_transfer_fee,
     )
     .await
-    .map_err(|e| BurnPositionError::BurntPositionWithdrawalFailed(e.into()));
+    .map_err(|e| BurnPositionError::BurntPositionWithdrawalFailed(e.into()))?;
 
     let _ = _withdraw(
         caller,
@@ -364,7 +370,7 @@ async fn burn(args: BurnPositionArgs) -> Result<(), BurnPositionError> {
         token1_transfer_fee,
     )
     .await
-    .map_err(|e| BurnPositionError::BurntPositionWithdrawalFailed(e.into()));
+    .map_err(|e| BurnPositionError::BurntPositionWithdrawalFailed(e.into()))?;
 
     Ok(())
 }
@@ -412,7 +418,7 @@ async fn decrease_liquidity(args: DecreaseLiquidityArgs) -> Result<(), DecreaseL
         token0_transfer_fee,
     )
     .await
-    .map_err(|e| BurnPositionError::BurntPositionWithdrawalFailed(e.into()));
+    .map_err(|e| DecreaseLiquidityError::DereasedPositionWithdrawalFailed(e.into()))?;
 
     let _ = _withdraw(
         caller,
@@ -426,7 +432,7 @@ async fn decrease_liquidity(args: DecreaseLiquidityArgs) -> Result<(), DecreaseL
         token1_transfer_fee,
     )
     .await
-    .map_err(|e| BurnPositionError::BurntPositionWithdrawalFailed(e.into()));
+    .map_err(|e| DecreaseLiquidityError::DereasedPositionWithdrawalFailed(e.into()))?;
 
     Ok(())
 }
@@ -521,6 +527,72 @@ async fn swap(args: SwapArgs) -> Result<CandidSwapSuccess, SwapError> {
                 refund_amount: Some(u256_to_nat(refunded_amount)),
             });
         }
+    }
+}
+
+async fn collect_fees(position: CandidPositionKey) -> Result<CollectFeesSuccess, CollectFeesError> {
+    let caller = validate_caller_not_anonymous();
+    // Principal Lock to prevent double processing(double spending, over paying, and under
+    // paying)
+    let _principal_guard = match PrincipalGuard::new_general_guard(caller) {
+        Ok(gurad) => gurad,
+        Err(_) => return Err(CollectFeesError::LockedPrinciapl),
+    };
+
+    let mut position_key: PositionKey = position
+        .try_into()
+        .map_err(|_| CollectFeesError::PositionNotFound)?;
+
+    position_key.owner = caller;
+
+    let (_position, token0_owed, token1_owed) =
+        read_state(|s| s.get_position_with_fees_owed(&position_key))
+            .ok_or(CollectFeesError::PositionNotFound)?;
+
+    let pool = read_state(|s| s.get_pool(&position_key.pool_id))
+        .ok_or(CollectFeesError::PositionNotFound)?;
+
+    if token0_owed == U256::ZERO && token1_owed == U256::ZERO {
+        return Err(CollectFeesError::NoFeeToCollect);
+    }
+
+    let fee_delta = execute_collect_fees(caller, &position_key, pool.tick_spacing)?;
+
+    if fee_delta != BalanceDelta::ZERO_DELTA {
+        let _ = _withdraw(
+            caller,
+            position_key.pool_id.token0,
+            fee_delta.amount0().as_u256(),
+            &caller.into(),
+            &mut WithdrawalMemo::CollectFees {
+                receiver: caller,
+                amount: U256::ZERO,
+            },
+            pool.token0_transfer_fee,
+        )
+        .await
+        .map_err(|e| CollectFeesError::CollectedFeesWithdrawalFailed(e.into()))?;
+
+        let _ = _withdraw(
+            caller,
+            position_key.pool_id.token1,
+            fee_delta.amount1().as_u256(),
+            &caller.into(),
+            &mut WithdrawalMemo::CollectFees {
+                receiver: caller,
+                amount: U256::ZERO,
+            },
+            pool.token0_transfer_fee,
+        )
+        .await
+        .map_err(|e| CollectFeesError::CollectedFeesWithdrawalFailed(e.into()))?;
+
+        Ok(CollectFeesSuccess {
+            token0_collected: u256_to_nat(fee_delta.amount0().as_u256()),
+            token1_collected: u256_to_nat(fee_delta.amount1().as_u256()),
+        })
+    } else {
+        Err(CollectFeesError::NoFeeToCollect)
     }
 }
 

@@ -21,7 +21,7 @@ pub fn execute_increase_liquidty(
     token0: Principal,
     token1: Principal,
     validated_args: ValidatedIncreaseLiquidityArgs,
-) -> Result<(), IncreaseLiquidtyError> {
+) -> Result<u128, IncreaseLiquidtyError> {
     // Fetch pool state
     let pool =
         read_state(|s| s.get_pool(&pool_id)).ok_or(IncreaseLiquidtyError::PoolNotInitialized)?;
@@ -107,7 +107,7 @@ pub fn execute_increase_liquidty(
         s.apply_modify_liquidity_buffer_state(success_result.buffer_state);
     });
 
-    Ok(())
+    Ok(liquidity_delta as u128)
 }
 
 /// Maps ModifyLiquidityError to IncreaseLiquidtyError.

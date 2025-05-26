@@ -122,6 +122,15 @@ pub enum WithdrawalMemo {
         /// amount
         amount: U256,
     },
+    #[n(5)]
+    CollectFees {
+        #[cbor(n(0), with = "crate::cbor::principal")]
+        /// The receiver of the token.
+        receiver: Principal,
+        #[cbor(n(2), with = "crate::cbor::u256")]
+        /// amount
+        amount: U256,
+    },
 }
 
 impl From<WithdrawalMemo> for Memo {
@@ -150,6 +159,10 @@ impl WithdrawalMemo {
                 amount,
             } => *amount = new_amount,
             WithdrawalMemo::Refund {
+                receiver: _,
+                amount,
+            } => *amount = new_amount,
+            WithdrawalMemo::CollectFees {
                 receiver: _,
                 amount,
             } => *amount = new_amount,

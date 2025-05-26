@@ -119,6 +119,10 @@ pub fn sender_principal() -> Principal {
     Principal::from_text("matbl-u2myk-jsllo-b5aw6-bxboq-7oon2-h6wmo-awsxf-pcebc-4wpgx-4qe").unwrap()
 }
 
+pub fn liquidity_provider_principal() -> Principal {
+    Principal::from_text("jswz3-jv6su-cmo3o-izfod-sofls-yng6u-rkxyb-5kyxn-4ughb-ls52c-kae").unwrap()
+}
+
 pub fn minting_principal() -> Principal {
     Principal::from_text("2ztvj-yaaaa-aaaap-ahiza-cai").unwrap()
 }
@@ -367,11 +371,29 @@ pub fn mint_tokens(pic: &PocketIc, token: Principal) {
         amount: Nat::from(410_000_000_000_000_000_000_u128), // 410 eth
     };
 
-    let result = update_call::<TransferArg, Result<Nat, TransferError>>(
+    let _result = update_call::<TransferArg, Result<Nat, TransferError>>(
         pic,
         token,
         "icrc1_transfer",
         transfer_args,
+        Some(minting_principal()),
+    )
+    .unwrap();
+
+    let transfer_args_to_liquidity_provider = TransferArg {
+        from_subaccount: None,
+        to: liquidity_provider_principal().into(),
+        fee: None,
+        created_at_time: None,
+        memo: None,
+        amount: Nat::from(410_000_000_000_000_000_000_u128), // 410 eth
+    };
+
+    let _result = update_call::<TransferArg, Result<Nat, TransferError>>(
+        pic,
+        token,
+        "icrc1_transfer",
+        transfer_args_to_liquidity_provider,
         Some(minting_principal()),
     )
     .unwrap();
@@ -425,9 +447,6 @@ pub fn create_and_install_canisters(pic: &PocketIc) {
 }
 
 pub fn create_pool_with_liquidity(pic: &PocketIc, token_0: Principal, token_1: Principal) {
-    if token_0 > token_1 {
-        panic!("hooos;ocjns;ljvn")
-    }
     let create_args = CreatePoolArgs {
         token_a: token_0,
         token_b: token_1,
@@ -587,7 +606,7 @@ pub fn create_pool_with_liquidity(pic: &PocketIc, token_0: Principal, token_1: P
         from_subaccount: None,
     };
 
-    let mint_result = update_call::<MintPositionArgs, Result<(), MintPositionError>>(
+    let mint_result = update_call::<MintPositionArgs, Result<Nat, MintPositionError>>(
         &pic,
         appic_dex_canister_id(),
         "mint_position",

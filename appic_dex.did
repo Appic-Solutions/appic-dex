@@ -24,6 +24,31 @@ type CandidPoolId = record {
   token0 : principal;
   token1 : principal;
 };
+type CandidPoolState = record {
+  sqrt_price_x96 : nat;
+  fee_protocol : nat;
+  token0_transfer_fee : nat;
+  fee_growth_global_1_x128 : nat;
+  tick : int;
+  liquidity : nat;
+  fee_growth_global_0_x128 : nat;
+  max_liquidity_per_tick : nat;
+  token1_transfer_fee : nat;
+  tick_spacing : int;
+};
+type CandidPositionInfo = record {
+  fees_token0_owed : nat;
+  fee_growth_inside_1_last_x128 : nat;
+  liquidity : nat;
+  fees_token1_owed : nat;
+  fee_growth_inside_0_last_x128 : nat;
+};
+type CandidPositionKey = record {
+  owner : principal;
+  pool : CandidPoolId;
+  tick_lower : int;
+  tick_upper : int;
+};
 type CandidSwapSuccess = record { amount_out : nat; amount_in : nat };
 type CreatePoolArgs = record {
   fee : nat;
@@ -36,6 +61,28 @@ type CreatePoolError = variant {
   InvalidFeeAmount;
   InvalidToken : principal;
   PoolAlreadyExists;
+};
+type DecreaseLiquidityArgs = record {
+  amount1_min : nat;
+  pool : CandidPoolId;
+  liquidity : nat;
+  amount0_min : nat;
+  tick_lower : int;
+  tick_upper : int;
+};
+type DecreaseLiquidityError = variant {
+  PositionNotFound;
+  InvalidAmount;
+  InvalidPoolFee;
+  PoolNotInitialized;
+  InsufficientBalance;
+  LiquidityOverflow;
+  FeeOverflow;
+  BurntPositionWithdrawalFailed : WithdrawalError;
+  InvalidTick;
+  InvalidLiquidty;
+  LockedPrinciapl;
+  AmountOverflow;
 };
 type DepositArgs = record {
   token : principal;
@@ -77,6 +124,28 @@ type ExactOutputSingleParams = record {
   from_subaccount : opt blob;
   amount_out : nat;
   pool_id : CandidPoolId;
+};
+type IncreaseLiquidtyArgs = record {
+  amount1_max : nat;
+  pool : CandidPoolId;
+  from_subaccount : opt blob;
+  amount0_max : nat;
+  tick_lower : int;
+  tick_upper : int;
+};
+type IncreaseLiquidtyError = variant {
+  DepositError : DepositError;
+  TickNotAlignedWithTickSpacing;
+  InvalidAmount;
+  InvalidPoolFee;
+  PoolNotInitialized;
+  InsufficientBalance;
+  LiquidityOverflow;
+  FeeOverflow;
+  InvalidTick;
+  PositionDoesNotExist;
+  LockedPrinciapl;
+  AmountOverflow;
 };
 type MintPositionArgs = record {
   amount1_max : nat;
@@ -129,10 +198,12 @@ type QuoteExactSingleParams = record {
 };
 type Result = variant { Ok; Err : BurnPositionError };
 type Result_1 = variant { Ok : CandidPoolId; Err : CreatePoolError };
-type Result_2 = variant { Ok; Err : DepositError };
-type Result_3 = variant { Ok; Err : MintPositionError };
-type Result_4 = variant { Ok : nat; Err : QuoteError };
-type Result_5 = variant { Ok : CandidSwapSuccess; Err : SwapError };
+type Result_2 = variant { Ok; Err : DecreaseLiquidityError };
+type Result_3 = variant { Ok; Err : DepositError };
+type Result_4 = variant { Ok : nat; Err : IncreaseLiquidtyError };
+type Result_5 = variant { Ok : nat; Err : MintPositionError };
+type Result_6 = variant { Ok : nat; Err : QuoteError };
+type Result_7 = variant { Ok : CandidSwapSuccess; Err : SwapError };
 type SwapArgs = variant {
   ExactOutput : ExactOutputParams;
   ExactInput : ExactInputParams;
@@ -188,9 +259,17 @@ type WithdrawalError = variant {
 service : () -> {
   burn : (BurnPositionArgs) -> (Result);
   create_pool : (CreatePoolArgs) -> (Result_1);
-  deposit : (DepositArgs) -> (Result_2);
-  mint_position : (MintPositionArgs) -> (Result_3);
-  quote : (QuoteArgs) -> (Result_4) query;
-  swap : (SwapArgs) -> (Result_5);
+  decrease_liquidity : (DecreaseLiquidityArgs) -> (Result_2);
+  deposit : (DepositArgs) -> (Result_3);
+  get_pool : (CandidPoolId) -> (opt CandidPoolState) query;
+  get_pools : () -> (vec record { CandidPoolId; CandidPoolState }) query;
+  get_position : (CandidPositionKey) -> (opt CandidPositionInfo) query;
+  get_positions_by_owner : (principal) -> (
+      vec record { CandidPositionKey; CandidPositionInfo },
+    ) query;
+  increase_liquidity : (IncreaseLiquidtyArgs) -> (Result_4);
+  mint_position : (MintPositionArgs) -> (Result_5);
+  quote : (QuoteArgs) -> (Result_6) query;
+  swap : (SwapArgs) -> (Result_7);
   user_balance : (UserBalanceArgs) -> (nat) query;
 }

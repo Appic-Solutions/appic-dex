@@ -13,7 +13,7 @@ mod swap_args_tests {
         },
         pool::types::{PoolFee, PoolId},
         state::mutate_state,
-        validate_candid_args::{
+        validation::swap_args::{
             validate_swap_args, ValidatedSwapArgs, MAX_PATH_LENGTH, MIN_PATH_LENGTH,
         },
     };

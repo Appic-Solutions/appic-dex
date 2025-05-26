@@ -5,7 +5,7 @@ use super::{pool::CandidPoolId, *};
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize)]
 pub struct CandidPositionKey {
     pub owner: Principal,
-    pub pool_id: CandidPoolId,
+    pub pool: CandidPoolId,
     pub tick_lower: Int,
     pub tick_upper: Int,
 }
@@ -14,7 +14,7 @@ impl TryFrom<CandidPositionKey> for PositionKey {
     type Error = String;
 
     fn try_from(value: CandidPositionKey) -> Result<Self, Self::Error> {
-        let pool_id = PoolId::try_from(value.pool_id)?;
+        let pool_id = PoolId::try_from(value.pool)?;
 
         let tick_lower: i32 = value
             .tick_lower
@@ -54,7 +54,7 @@ pub struct BurnPositionArgs {
     pub amount1_min: Nat,
 }
 
-#[derive(Debug, Clone, CandidType, Deserialize, Serialize)]
+#[derive(Debug, Clone, CandidType, Deserialize, Serialize, PartialEq, Eq)]
 pub enum BurnPositionError {
     LockedPrinciapl,
     PositionNotFound,
@@ -144,5 +144,20 @@ pub enum DecreaseLiquidityError {
     AmountOverflow,
     InvalidAmount,
     InsufficientBalance,
-    BurntPositionWithdrawalFailed(WithdrawalError),
+    DereasedPositionWithdrawalFailed(WithdrawalError),
+}
+
+#[derive(Debug, Clone, CandidType, Deserialize, Serialize)]
+pub struct CollectFeesSuccess {
+    pub token0_collected: Nat,
+    pub token1_collected: Nat,
+}
+
+#[derive(Debug, Clone, CandidType, Deserialize, Serialize)]
+pub enum CollectFeesError {
+    LockedPrinciapl,
+    PositionNotFound,
+    FeeOverflow,
+    NoFeeToCollect,
+    CollectedFeesWithdrawalFailed(WithdrawalError),
 }
