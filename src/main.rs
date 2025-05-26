@@ -530,6 +530,7 @@ async fn swap(args: SwapArgs) -> Result<CandidSwapSuccess, SwapError> {
     }
 }
 
+#[update]
 async fn collect_fees(position: CandidPositionKey) -> Result<CollectFeesSuccess, CollectFeesError> {
     let caller = validate_caller_not_anonymous();
     // Principal Lock to prevent double processing(double spending, over paying, and under

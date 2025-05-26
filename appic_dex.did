@@ -50,6 +50,17 @@ type CandidPositionKey = record {
   tick_upper : int;
 };
 type CandidSwapSuccess = record { amount_out : nat; amount_in : nat };
+type CollectFeesError = variant {
+  PositionNotFound;
+  FeeOverflow;
+  LockedPrinciapl;
+  CollectedFeesWithdrawalFailed : WithdrawalError;
+  NoFeeToCollect;
+};
+type CollectFeesSuccess = record {
+  token0_collected : nat;
+  token1_collected : nat;
+};
 type CreatePoolArgs = record {
   fee : nat;
   sqrt_price_x96 : nat;
@@ -75,10 +86,10 @@ type DecreaseLiquidityError = variant {
   InvalidAmount;
   InvalidPoolFee;
   PoolNotInitialized;
+  DereasedPositionWithdrawalFailed : WithdrawalError;
   InsufficientBalance;
   LiquidityOverflow;
   FeeOverflow;
-  BurntPositionWithdrawalFailed : WithdrawalError;
   InvalidTick;
   InvalidLiquidty;
   LockedPrinciapl;
@@ -197,13 +208,14 @@ type QuoteExactSingleParams = record {
   exact_amount : nat;
 };
 type Result = variant { Ok; Err : BurnPositionError };
-type Result_1 = variant { Ok : CandidPoolId; Err : CreatePoolError };
-type Result_2 = variant { Ok; Err : DecreaseLiquidityError };
-type Result_3 = variant { Ok; Err : DepositError };
-type Result_4 = variant { Ok : nat; Err : IncreaseLiquidtyError };
-type Result_5 = variant { Ok : nat; Err : MintPositionError };
-type Result_6 = variant { Ok : nat; Err : QuoteError };
-type Result_7 = variant { Ok : CandidSwapSuccess; Err : SwapError };
+type Result_1 = variant { Ok : CollectFeesSuccess; Err : CollectFeesError };
+type Result_2 = variant { Ok : CandidPoolId; Err : CreatePoolError };
+type Result_3 = variant { Ok; Err : DecreaseLiquidityError };
+type Result_4 = variant { Ok; Err : DepositError };
+type Result_5 = variant { Ok : nat; Err : IncreaseLiquidtyError };
+type Result_6 = variant { Ok : nat; Err : MintPositionError };
+type Result_7 = variant { Ok : nat; Err : QuoteError };
+type Result_8 = variant { Ok : CandidSwapSuccess; Err : SwapError };
 type SwapArgs = variant {
   ExactOutput : ExactOutputParams;
   ExactInput : ExactInputParams;
@@ -258,18 +270,19 @@ type WithdrawalError = variant {
 };
 service : () -> {
   burn : (BurnPositionArgs) -> (Result);
-  create_pool : (CreatePoolArgs) -> (Result_1);
-  decrease_liquidity : (DecreaseLiquidityArgs) -> (Result_2);
-  deposit : (DepositArgs) -> (Result_3);
+  collect_fees : (CandidPositionKey) -> (Result_1);
+  create_pool : (CreatePoolArgs) -> (Result_2);
+  decrease_liquidity : (DecreaseLiquidityArgs) -> (Result_3);
+  deposit : (DepositArgs) -> (Result_4);
   get_pool : (CandidPoolId) -> (opt CandidPoolState) query;
   get_pools : () -> (vec record { CandidPoolId; CandidPoolState }) query;
   get_position : (CandidPositionKey) -> (opt CandidPositionInfo) query;
   get_positions_by_owner : (principal) -> (
       vec record { CandidPositionKey; CandidPositionInfo },
     ) query;
-  increase_liquidity : (IncreaseLiquidtyArgs) -> (Result_4);
-  mint_position : (MintPositionArgs) -> (Result_5);
-  quote : (QuoteArgs) -> (Result_6) query;
-  swap : (SwapArgs) -> (Result_7);
+  increase_liquidity : (IncreaseLiquidtyArgs) -> (Result_5);
+  mint_position : (MintPositionArgs) -> (Result_6);
+  quote : (QuoteArgs) -> (Result_7) query;
+  swap : (SwapArgs) -> (Result_8);
   user_balance : (UserBalanceArgs) -> (nat) query;
 }

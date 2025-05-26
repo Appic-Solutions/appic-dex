@@ -1,9 +1,16 @@
-use crate::candid_types::{
-    pool::CandidPoolState,
-    position::{
-        CandidPositionInfo, CandidPositionKey, IncreaseLiquidtyArgs, IncreaseLiquidtyError,
+use ic_cdk::print;
+
+use crate::{
+    candid_types::{
+        pool::CandidPoolState,
+        position::{
+            BurnPositionArgs, BurnPositionError, CandidPositionInfo, CandidPositionKey,
+            CollectFeesError, CollectFeesSuccess, DecreaseLiquidityArgs, DecreaseLiquidityError,
+            IncreaseLiquidtyArgs, IncreaseLiquidtyError,
+        },
+        swap::{CandidSwapSuccess, ExactInputParams, ExactInputSingleParams, SwapArgs, SwapError},
     },
-    swap::{CandidSwapSuccess, ExactInputParams, ExactInputSingleParams, SwapArgs, SwapError},
+    decrease_liquidity,
 };
 
 use super::*;
@@ -286,5 +293,118 @@ fn flow_test() {
             || position.fees_token1_owed == Nat::from(150000000000000004_u128)
     ); // impersision due to rounding
 
+    five_ticks(&pic);
+    five_ticks(&pic);
+    five_ticks(&pic);
+
     // collcting fees
+    let fee_collection_result =
+        update_call::<CandidPositionKey, Result<CollectFeesSuccess, CollectFeesError>>(
+            &pic,
+            appic_dex_canister_id(),
+            "collect_fees",
+            CandidPositionKey {
+                owner: liquidity_provider_principal(),
+                pool: pool_id.clone(),
+                tick_lower: candid::Int::from(-887220),
+                tick_upper: candid::Int::from(887220),
+            },
+            Some(liquidity_provider_principal()),
+        )
+        .unwrap();
+
+    println!("{:?}", fee_collection_result);
+
+    let position = query_call::<CandidPositionKey, Option<CandidPositionInfo>>(
+        &pic,
+        appic_dex_canister_id(),
+        "get_position",
+        CandidPositionKey {
+            owner: liquidity_provider_principal(),
+            pool: pool_id.clone(),
+            tick_lower: candid::Int::from(-887220),
+            tick_upper: candid::Int::from(887220),
+        },
+    )
+    .unwrap();
+
+    assert!(position.fees_token0_owed == Nat::from(0_u8));
+    assert!(position.fees_token1_owed == Nat::from(0_u8));
+
+    five_ticks(&pic);
+    five_ticks(&pic);
+    five_ticks(&pic);
+
+    // decreasing liquidity
+    let _ = update_call::<DecreaseLiquidityArgs, Result<(), DecreaseLiquidityError>>(
+        &pic,
+        appic_dex_canister_id(),
+        "decrease_liquidity",
+        DecreaseLiquidityArgs {
+            pool: pool_id.clone(),
+            tick_lower: candid::Int::from(-887220),
+            tick_upper: candid::Int::from(887220),
+            liquidity: (TWO_HUNDRED_ETH / 4).into(),
+            amount0_min: Nat::from(0_u8),
+            amount1_min: Nat::from(0_u8),
+        },
+        Some(liquidity_provider_principal()),
+    )
+    .unwrap();
+
+    let position = query_call::<CandidPositionKey, Option<CandidPositionInfo>>(
+        &pic,
+        appic_dex_canister_id(),
+        "get_position",
+        CandidPositionKey {
+            owner: liquidity_provider_principal(),
+            pool: pool_id.clone(),
+            tick_lower: candid::Int::from(-887220),
+            tick_upper: candid::Int::from(887220),
+        },
+    )
+    .unwrap();
+
+    assert_eq!(
+        position.liquidity,
+        Nat::from(TWO_HUNDRED_ETH + (TWO_HUNDRED_ETH / 2) - (TWO_HUNDRED_ETH / 4) + 15)
+    );
+
+    five_ticks(&pic);
+    five_ticks(&pic);
+    five_ticks(&pic);
+    five_ticks(&pic);
+
+    // burn position
+    let _ = update_call::<BurnPositionArgs, Result<(), BurnPositionError>>(
+        &pic,
+        appic_dex_canister_id(),
+        "burn",
+        BurnPositionArgs {
+            pool: pool_id.clone(),
+            tick_lower: candid::Int::from(-887220),
+            tick_upper: candid::Int::from(887220),
+            amount0_min: Nat::from(0_u8),
+            amount1_min: Nat::from(0_u8),
+        },
+        Some(liquidity_provider_principal()),
+    )
+    .unwrap();
+
+    let position = query_call::<CandidPositionKey, Option<CandidPositionInfo>>(
+        &pic,
+        appic_dex_canister_id(),
+        "get_position",
+        CandidPositionKey {
+            owner: liquidity_provider_principal(),
+            pool: pool_id.clone(),
+            tick_lower: candid::Int::from(-887220),
+            tick_upper: candid::Int::from(887220),
+        },
+    )
+    .unwrap();
+
+    assert_eq!(position.liquidity, Nat::from(0_u8));
+
+    println!("{:?}", position);
 }
