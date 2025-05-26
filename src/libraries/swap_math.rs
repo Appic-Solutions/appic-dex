@@ -86,7 +86,7 @@ pub const MAX_SWAP_FEE: u32 = 1_000_000;
 /// Returns `ComputeSwapError::InvalidPriceOrLiquidity` if `sqrt_price_current_x96` or `liquidity` is zero.
 /// Returns `ComputeSwapError::PriceOverflow` for arithmetic overflows.
 /// Returns `ComputeSwapError::NotEnoughLiquidity` if the swap cannot proceed due to insufficient liquidity.
-/// Returns `ComputeSwapError::InvalidFee` if the fee is greator than max fee.
+/// Returns `ComputeSwapError::InvalidFee` if the fee is greater than max fee.
 
 pub fn compute_swap_step(
     sqrt_price_current_x96: U256,
@@ -469,8 +469,8 @@ pub mod tests {
     }
 
     #[test]
-    fn test_compute_swap_step_zero_for_one_handles_intermediate_insufficient_liquidity_exact_output(
-    ) {
+    fn test_compute_swap_step_zero_for_one_handles_intermediate_insufficient_liquidity_exact_output()
+     {
         let sqrt_p = U256::from(20282409603651670423947251286016u128);
         let sqrt_p_target = sqrt_p * U256::from(11_u8) / U256::from(10_u8);
         let liquidity = 1024;
@@ -488,8 +488,8 @@ pub mod tests {
     }
 
     #[test]
-    fn test_compute_swap_step_one_for_zero_handles_intermediate_insufficient_liquidity_exact_output(
-    ) {
+    fn test_compute_swap_step_one_for_zero_handles_intermediate_insufficient_liquidity_exact_output()
+     {
         let sqrt_p = U256::from(20282409603651670423947251286016u128);
         let sqrt_p_target = sqrt_p * U256::from(9_u8) / U256::from(10_u8);
         let liquidity = 1024;

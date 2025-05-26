@@ -107,7 +107,7 @@ impl ValidatedSwapArgs {
 // in multi hop swaps the maximum number of hops(swaps) should be <= MAX_PATH_LENGTH
 pub const MAX_PATH_LENGTH: u8 = 4;
 
-// in multi hop swaps the minumm number of hops(swaps) should be >= MIN_PATH_LENGTH
+// in multi hop swaps the minimum number of hops(swaps) should be >= MIN_PATH_LENGTH
 // if a swap has less than 1 hops, the swap is invalid
 pub const MIN_PATH_LENGTH: u8 = 1;
 
@@ -120,7 +120,7 @@ pub fn validate_swap_args(args: SwapArgs) -> Result<ValidatedSwapArgs, SwapError
                 .map_err(|_| SwapError::InvalidPoolFee)?;
 
             let pool = read_state(|s| s.get_pool(&pool_id)).ok_or(SwapError::PoolNotInitialized)?;
-            // In case in range liquidty is 0
+            // In case in range liquidity is 0
             if pool.liquidity == 0 {
                 return Err(SwapError::NoInRangeLiquidity);
             }
@@ -160,8 +160,8 @@ pub fn validate_swap_args(args: SwapArgs) -> Result<ValidatedSwapArgs, SwapError
 
             let mut token_in = exact_input_params.token_in;
             let mut swap_path = Vec::new();
-            for canidid_path in exact_input_params.path.into_iter() {
-                let path_key = PathKey::try_from(canidid_path)?;
+            for candid_path in exact_input_params.path.into_iter() {
+                let path_key = PathKey::try_from(candid_path)?;
                 swap_path.push(path_key.get_pool_and_swap_direction(token_in));
                 token_in = path_key.intermediary_token;
             }
@@ -178,7 +178,7 @@ pub fn validate_swap_args(args: SwapArgs) -> Result<ValidatedSwapArgs, SwapError
             for swap in swap_path.iter() {
                 let pool = read_state(|s| s.get_pool(&swap.pool_id))
                     .ok_or(SwapError::PoolNotInitialized)?;
-                // In case in range liquidty is 0
+                // In case in range liquidity is 0
                 if pool.liquidity == 0 {
                     return Err(SwapError::NoInRangeLiquidity);
                 }
@@ -205,7 +205,7 @@ pub fn validate_swap_args(args: SwapArgs) -> Result<ValidatedSwapArgs, SwapError
                 .map_err(|_| SwapError::InvalidPoolFee)?;
 
             let pool = read_state(|s| s.get_pool(&pool_id)).ok_or(SwapError::PoolNotInitialized)?;
-            // In case in range liquidty is 0
+            // In case in range liquidity is 0
             if pool.liquidity == 0 {
                 return Err(SwapError::NoInRangeLiquidity);
             }
@@ -246,8 +246,8 @@ pub fn validate_swap_args(args: SwapArgs) -> Result<ValidatedSwapArgs, SwapError
             let mut token_out = exact_output_params.token_out;
             // in multi hop exact output we go from the opposite direction
             let mut swap_path = Vec::new();
-            for canidid_path in exact_output_params.path.into_iter().rev() {
-                let path_key = PathKey::try_from(canidid_path)?;
+            for candid_path in exact_output_params.path.into_iter().rev() {
+                let path_key = PathKey::try_from(candid_path)?;
                 swap_path.push(path_key.get_pool_and_swap_direction(token_out));
                 token_out = path_key.intermediary_token;
             }
@@ -266,7 +266,7 @@ pub fn validate_swap_args(args: SwapArgs) -> Result<ValidatedSwapArgs, SwapError
             for swap in swap_path.iter() {
                 let pool = read_state(|s| s.get_pool(&swap.pool_id))
                     .ok_or(SwapError::PoolNotInitialized)?;
-                // In case in range liquidty is 0
+                // In case in range liquidity is 0
                 if pool.liquidity == 0 {
                     return Err(SwapError::NoInRangeLiquidity);
                 }

@@ -41,7 +41,6 @@ pub fn calculate_swap_fee(protocol_fee: u16, lp_fee: u32) -> u32 {
 mod tests {
     use super::*;
 
-    const MAX_PROTOCOL_FEE: u16 = 1_000; // 0.1% in pips
     const MAX_LP_FEE: u32 = 1_000_000; // 100% in hundredths of a bip
 
     #[test]

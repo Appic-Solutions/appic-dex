@@ -1,7 +1,6 @@
 mod modify_liquidity_tests {
     use candid::Principal;
     use ethnum::U256;
-    use ic_stable_structures::Storable;
     use proptest::{prop_assert, prop_assert_eq, proptest};
 
     use crate::{
@@ -12,7 +11,7 @@ mod modify_liquidity_tests {
             tick_math,
         },
         pool::{
-            modify_liquidity::{modify_liquidity, ModifyLiquidityError, ModifyLiquidityParams},
+            modify_liquidity::{ModifyLiquidityError, ModifyLiquidityParams, modify_liquidity},
             types::{PoolFee, PoolId, PoolState, PoolTickSpacing},
         },
         position::types::PositionKey,
@@ -31,32 +30,12 @@ mod modify_liquidity_tests {
         }
     }
 
-    pub fn test_modify_liquidity_params_2() -> ModifyLiquidityParams {
-        ModifyLiquidityParams {
-            owner: Principal::management_canister(),
-            pool_id: test_pool_id(),
-            tick_lower: -190,
-            tick_upper: 190,
-            liquidity_delta: 50_i128.pow(18),
-            tick_spacing: PoolTickSpacing(10),
-        }
-    }
-
     pub fn test_position_key() -> PositionKey {
         PositionKey {
             owner: Principal::management_canister(),
             pool_id: test_pool_id(),
             tick_lower: -120,
             tick_upper: 120,
-        }
-    }
-
-    pub fn test_position_key_2() -> PositionKey {
-        PositionKey {
-            owner: Principal::management_canister(),
-            pool_id: test_pool_id(),
-            tick_lower: -190,
-            tick_upper: 190,
         }
     }
 

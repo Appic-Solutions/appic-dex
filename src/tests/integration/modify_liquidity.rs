@@ -1,22 +1,17 @@
-use ic_cdk::print;
-
-use crate::{
-    candid_types::{
-        pool::CandidPoolState,
-        position::{
-            BurnPositionArgs, BurnPositionError, CandidPositionInfo, CandidPositionKey,
-            CollectFeesError, CollectFeesSuccess, DecreaseLiquidityArgs, DecreaseLiquidityError,
-            IncreaseLiquidtyArgs, IncreaseLiquidtyError,
-        },
-        swap::{CandidSwapSuccess, ExactInputParams, ExactInputSingleParams, SwapArgs, SwapError},
+use crate::candid_types::{
+    pool::CandidPoolState,
+    position::{
+        BurnPositionArgs, BurnPositionError, CandidPositionInfo, CandidPositionKey,
+        CollectFeesError, CollectFeesSuccess, DecreaseLiquidityArgs, DecreaseLiquidityError,
+        IncreaseLiquidity, IncreaseLiquidityArgs,
     },
-    decrease_liquidity,
+    swap::{CandidSwapSuccess, ExactInputSingleParams, SwapArgs, SwapError},
 };
 
 use super::*;
 
 // This test contains the whole flow of adding liquidity, increasing liquidity, swapping,
-// collecting fees, decreasing liquidty, and burning added liquidity.
+// collecting fees, decreasing liquidity, and burning added liquidity.
 #[test]
 fn flow_test() {
     let pic = PocketIc::new();
@@ -143,12 +138,12 @@ fn flow_test() {
     five_ticks(&pic);
     five_ticks(&pic);
 
-    // increase liquidty
-    let liquidity_delta = update_call::<IncreaseLiquidtyArgs, Result<Nat, IncreaseLiquidtyError>>(
+    // increase liquidity
+    let liquidity_delta = update_call::<IncreaseLiquidityArgs, Result<Nat, IncreaseLiquidity>>(
         &pic,
         appic_dex_canister_id(),
         "increase_liquidity",
-        IncreaseLiquidtyArgs {
+        IncreaseLiquidityArgs {
             pool: pool_id.clone(),
             tick_lower: candid::Int::from(-887220),
             tick_upper: candid::Int::from(887220),
@@ -286,18 +281,18 @@ fn flow_test() {
     assert!(
         position.fees_token0_owed == Nat::from(150000000000000003_u128)
             || position.fees_token0_owed == Nat::from(150000000000000004_u128)
-    ); // impersision due to rounding
+    ); // imprecision due to rounding
 
     assert!(
         position.fees_token1_owed == Nat::from(150000000000000003_u128)
             || position.fees_token1_owed == Nat::from(150000000000000004_u128)
-    ); // impersision due to rounding
+    ); // imprecision due to rounding
 
     five_ticks(&pic);
     five_ticks(&pic);
     five_ticks(&pic);
 
-    // collcting fees
+    // collecting fees
     let fee_collection_result =
         update_call::<CandidPositionKey, Result<CollectFeesSuccess, CollectFeesError>>(
             &pic,

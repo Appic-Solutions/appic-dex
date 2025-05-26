@@ -19,7 +19,7 @@ pub mod quoter {
         },
         pool::{
             create_pool::create_pool_inner,
-            modify_liquidity::{modify_liquidity, ModifyLiquidityParams, ModifyLiquidityState},
+            modify_liquidity::{ModifyLiquidityParams, modify_liquidity},
             types::{PoolId, PoolTickSpacing},
         },
         quote::{
@@ -700,11 +700,11 @@ pub mod quoter {
             .expect("Failed to get liquidity") as i128,
             tick_spacing: PoolTickSpacing(60),
         };
-        let modifiy_liquidity_result =
+        let modify_liquidity_result =
             modify_liquidity(modify_liquidity_params).expect("Failed to modify liquidity");
 
         mutate_state(|s| {
-            s.apply_modify_liquidity_buffer_state(modifiy_liquidity_result.buffer_state)
+            s.apply_modify_liquidity_buffer_state(modify_liquidity_result.buffer_state)
         });
     }
 
@@ -725,11 +725,11 @@ pub mod quoter {
             tick_spacing: PoolTickSpacing(60),
         };
 
-        let modifiy_liquidity_result =
+        let modify_liquidity_result =
             modify_liquidity(modify_liquidity_params).expect("Failed to modify liquidity");
 
         mutate_state(|s| {
-            s.apply_modify_liquidity_buffer_state(modifiy_liquidity_result.buffer_state)
+            s.apply_modify_liquidity_buffer_state(modify_liquidity_result.buffer_state)
         });
 
         let modify_liquidity_params_60 = ModifyLiquidityParams {
@@ -748,11 +748,11 @@ pub mod quoter {
             tick_spacing: PoolTickSpacing(60),
         };
 
-        let modifiy_liquidity_result =
+        let modify_liquidity_result =
             modify_liquidity(modify_liquidity_params_60).expect("Failed to modify liquidity");
 
         mutate_state(|s| {
-            s.apply_modify_liquidity_buffer_state(modifiy_liquidity_result.buffer_state)
+            s.apply_modify_liquidity_buffer_state(modify_liquidity_result.buffer_state)
         });
 
         let modify_liquidity_params_120 = ModifyLiquidityParams {
@@ -771,11 +771,11 @@ pub mod quoter {
             tick_spacing: PoolTickSpacing(60),
         };
 
-        let modifiy_liquidity_result =
+        let modify_liquidity_result =
             modify_liquidity(modify_liquidity_params_120).expect("Failed to modify liquidity");
 
         mutate_state(|s| {
-            s.apply_modify_liquidity_buffer_state(modifiy_liquidity_result.buffer_state)
+            s.apply_modify_liquidity_buffer_state(modify_liquidity_result.buffer_state)
         });
     }
 
@@ -796,11 +796,11 @@ pub mod quoter {
             tick_spacing: PoolTickSpacing(60),
         };
 
-        let modifiy_liquidity_result =
+        let modify_liquidity_result =
             modify_liquidity(modify_liquidity_params).expect("Failed to modify liquidity");
 
         mutate_state(|s| {
-            s.apply_modify_liquidity_buffer_state(modifiy_liquidity_result.buffer_state)
+            s.apply_modify_liquidity_buffer_state(modify_liquidity_result.buffer_state)
         });
 
         let modify_liquidity_params_60 = ModifyLiquidityParams {
@@ -819,11 +819,11 @@ pub mod quoter {
             tick_spacing: PoolTickSpacing(60),
         };
 
-        let modifiy_liquidity_result =
+        let modify_liquidity_result =
             modify_liquidity(modify_liquidity_params_60).expect("Failed to modify liquidity");
 
         mutate_state(|s| {
-            s.apply_modify_liquidity_buffer_state(modifiy_liquidity_result.buffer_state)
+            s.apply_modify_liquidity_buffer_state(modify_liquidity_result.buffer_state)
         });
 
         let modify_liquidity_params_120 = ModifyLiquidityParams {
@@ -842,11 +842,11 @@ pub mod quoter {
             tick_spacing: PoolTickSpacing(60),
         };
 
-        let modifiy_liquidity_result =
+        let modify_liquidity_result =
             modify_liquidity(modify_liquidity_params_120).expect("Failed to modify liquidity");
 
         mutate_state(|s| {
-            s.apply_modify_liquidity_buffer_state(modifiy_liquidity_result.buffer_state)
+            s.apply_modify_liquidity_buffer_state(modify_liquidity_result.buffer_state)
         });
     }
 }

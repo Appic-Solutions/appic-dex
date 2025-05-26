@@ -6,11 +6,11 @@ use crate::{
     candid_types::position::DecreaseLiquidityError,
     libraries::{balance_delta::BalanceDelta, slippage_check::validate_min_out},
     pool::{
-        modify_liquidity::{modify_liquidity, ModifyLiquidityError, ModifyLiquidityParams},
+        modify_liquidity::{ModifyLiquidityError, ModifyLiquidityParams, modify_liquidity},
         types::PoolId,
     },
     state::{mutate_state, read_state},
-    validation::decrease_args::ValidatedDecreaseLiquidtyArgs,
+    validation::decrease_args::ValidatedDecreaseLiquidityArgs,
 };
 
 /// Executes the minting logic by computing liquidity and updating pool state.
@@ -19,7 +19,7 @@ pub fn execute_decrease_liquidity(
     pool_id: PoolId,
     token0: Principal,
     token1: Principal,
-    validated_args: ValidatedDecreaseLiquidtyArgs,
+    validated_args: ValidatedDecreaseLiquidityArgs,
 ) -> Result<BalanceDelta, DecreaseLiquidityError> {
     // Fetch pool state
     let pool =

@@ -8,17 +8,12 @@ const APPIC_DEX_WASM_BYTES: &[u8] = include_bytes!("./wasm/appic_dex.wasm");
 
 const TWENTY_TRILLIONS: u64 = 20_000_000_000_000;
 
-const TWO_TRILLIONS: u64 = 2_000_000_000_000;
-
 const TOKEN_TRANSFER_FEE: u128 = 10_000_000_000_000_u128;
 
 const TWO_HUNDRED_ETH: u128 = 200_000_000_000_000_000_000_u128;
 
-pub mod modify_liquidty;
+pub mod modify_liquidity;
 pub mod swap_tests;
-
-use core::panic;
-use std::thread::AccessError;
 
 use candid::{CandidType, Int, Nat, Principal};
 use ethnum::U256;
@@ -39,9 +34,9 @@ use ic_icrc1_ledger::{ArchiveOptions, InitArgs as LedgerInitArgs, LedgerArgument
 
 use crate::{
     candid_types::{
+        UserBalanceArgs,
         pool::{CandidPoolId, CreatePoolArgs, CreatePoolError},
         position::{MintPositionArgs, MintPositionError},
-        DepositArgs, DepositError, UserBalanceArgs,
     },
     libraries::{safe_cast::u256_to_nat, sqrt_price_math::tests::SQRT_PRICE_1_1},
 };

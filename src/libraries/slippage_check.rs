@@ -1,4 +1,4 @@
-use super::balance_delta::{BalanceDelta, BalanceDeltaError};
+use super::balance_delta::BalanceDelta;
 use ethnum::{I256, U256};
 
 #[derive(Debug, PartialEq)]

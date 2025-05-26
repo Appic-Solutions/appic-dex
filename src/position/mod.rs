@@ -72,7 +72,7 @@ pub fn update_position(
     // Storing updated position info will not happen here since this function will be called in other
     // operations as well and in those operations there are other function calls that can fail, so tick
     // updating happens in those operations if nothing fails
-    // This way we guarantee we dont need a state reverting mechanism
+    // This way we guarantee we don't need a state reverting mechanism
 
     Ok(UpdatePositionSuccess {
         fee0_owed,

@@ -2,32 +2,31 @@ use appic_dex::{
     balances::types::{UserBalance, UserBalanceKey},
     burn::execute_burn_position,
     candid_types::{
+        DepositArgs, DepositError, UserBalanceArgs, WithdrawalError,
         pool::{CandidPoolId, CandidPoolState, CreatePoolArgs, CreatePoolError},
         position::{
             BurnPositionArgs, BurnPositionError, CandidPositionInfo, CandidPositionKey,
             CollectFeesError, CollectFeesSuccess, DecreaseLiquidityArgs, DecreaseLiquidityError,
-            IncreaseLiquidtyArgs, IncreaseLiquidtyError, MintPositionArgs, MintPositionError,
+            IncreaseLiquidity, IncreaseLiquidityArgs, MintPositionArgs, MintPositionError,
         },
         quote::{QuoteArgs, QuoteError},
         swap::{CandidSwapSuccess, SwapArgs, SwapError},
-        DepositArgs, DepositError, UserBalanceArgs, WithdrawalError,
     },
-    collect_fees::{self, execute_collect_fees},
+    collect_fees::execute_collect_fees,
     decrease_liquidity::execute_decrease_liquidity,
     guard::PrincipalGuard,
     icrc_client::{
-        memo::{DepositMemo, WithdrawalMemo},
         LedgerClient, LedgerTransferError,
+        memo::{DepositMemo, WithdrawalMemo},
     },
-    increase_liquidity::execute_increase_liquidty,
+    increase_liquidity::execute_increase_liquidity,
     libraries::{
-        balance_delta::{self, BalanceDelta},
+        balance_delta::BalanceDelta,
         safe_cast::{big_uint_to_u256, u256_to_big_uint, u256_to_nat},
     },
     mint::execute_mint_position,
     pool::{
         create_pool::create_pool_inner,
-        modify_liquidity::{modify_liquidity, ModifyLiquidityParams},
         types::{PoolFee, PoolId, PoolTickSpacing},
     },
     position::types::PositionKey,
@@ -38,8 +37,8 @@ use appic_dex::{
     state::{mutate_state, read_state},
     swap::execute_swap,
     validation::{
-        burn_args::validate_burn_position_args, decrease_args::validate_decrease_liquidty_args,
-        increase_args::validate_increase_liquidty_args, mint_args::validate_mint_position_args,
+        burn_args::validate_burn_position_args, decrease_args::validate_decrease_liquidity_args,
+        increase_args::validate_increase_liquidity_args, mint_args::validate_mint_position_args,
         swap_args::validate_swap_args,
     },
 };
@@ -59,14 +58,14 @@ fn validate_caller_not_anonymous() -> candid::Principal {
 
 #[init]
 async fn init() {
-    let fee_to_tick_spacnig = vec![
+    let fee_to_tick_spacing = vec![
         (100_u32, 1_i32),
         (500_u32, 10i32),
         (3000_u32, 60_i32),
         (10_000_u32, 200_i32),
     ];
 
-    for (fee, tick_spacing) in fee_to_tick_spacnig {
+    for (fee, tick_spacing) in fee_to_tick_spacing {
         mutate_state(|s| s.set_tick_spacing(PoolFee(fee), PoolTickSpacing(tick_spacing)));
     }
 }
@@ -164,8 +163,8 @@ async fn mint_position(args: MintPositionArgs) -> Result<Nat, MintPositionError>
     // Principal Lock to prevent double processing(double spending, over paying, and under
     // paying)
     let _principal_guard = match PrincipalGuard::new_general_guard(caller) {
-        Ok(gurad) => gurad,
-        Err(_) => return Err(MintPositionError::LockedPrinciapl),
+        Ok(guard) => guard,
+        Err(_) => return Err(MintPositionError::LockedPrincipal),
     };
 
     let validated_args = validate_mint_position_args(args.clone(), caller)?;
@@ -236,18 +235,18 @@ async fn mint_position(args: MintPositionArgs) -> Result<Nat, MintPositionError>
 
 /// returns liquidity delta
 #[update]
-async fn increase_liquidity(args: IncreaseLiquidtyArgs) -> Result<Nat, IncreaseLiquidtyError> {
+async fn increase_liquidity(args: IncreaseLiquidityArgs) -> Result<Nat, IncreaseLiquidity> {
     // Validate inputs and caller
     let caller = validate_caller_not_anonymous();
 
     // Principal Lock to prevent double processing(double spending, over paying, and under
     // paying)
     let _principal_guard = match PrincipalGuard::new_general_guard(caller) {
-        Ok(gurad) => gurad,
-        Err(_) => return Err(IncreaseLiquidtyError::LockedPrinciapl),
+        Ok(guard) => guard,
+        Err(_) => return Err(IncreaseLiquidity::LockedPrincipal),
     };
 
-    let validated_args = validate_increase_liquidty_args(args.clone(), caller)?;
+    let validated_args = validate_increase_liquidity_args(args.clone(), caller)?;
 
     let pool_id = validated_args.pool_id.clone();
     let token0 = args.pool.token0;
@@ -292,7 +291,7 @@ async fn increase_liquidity(args: IncreaseLiquidtyArgs) -> Result<Nat, IncreaseL
         },
     )
     .await
-    .map_err(|e| IncreaseLiquidtyError::DepositError(e.into()))?;
+    .map_err(|e| IncreaseLiquidity::DepositError(e.into()))?;
 
     _deposit_if_needed(
         caller,
@@ -306,10 +305,10 @@ async fn increase_liquidity(args: IncreaseLiquidtyArgs) -> Result<Nat, IncreaseL
         },
     )
     .await
-    .map_err(|e| IncreaseLiquidtyError::DepositError(e.into()))?;
+    .map_err(|e| IncreaseLiquidity::DepositError(e.into()))?;
 
     // Execute minting
-    execute_increase_liquidty(caller, pool_id, token0, token1, validated_args)
+    execute_increase_liquidity(caller, pool_id, token0, token1, validated_args)
         .map(|liquidity_delta| Nat::from(liquidity_delta))
 }
 
@@ -321,8 +320,8 @@ async fn burn(args: BurnPositionArgs) -> Result<(), BurnPositionError> {
     // Principal Lock to prevent double processing(double spending, over paying, and under
     // paying)
     let _principal_guard = match PrincipalGuard::new_general_guard(caller) {
-        Ok(gurad) => gurad,
-        Err(_) => return Err(BurnPositionError::LockedPrinciapl),
+        Ok(guard) => guard,
+        Err(_) => return Err(BurnPositionError::LockedPrincipal),
     };
 
     let validated_args = validate_burn_position_args(args.clone(), caller)?;
@@ -383,11 +382,11 @@ async fn decrease_liquidity(args: DecreaseLiquidityArgs) -> Result<(), DecreaseL
     // Principal Lock to prevent double processing(double spending, over paying, and under
     // paying)
     let _principal_guard = match PrincipalGuard::new_general_guard(caller) {
-        Ok(gurad) => gurad,
-        Err(_) => return Err(DecreaseLiquidityError::LockedPrinciapl),
+        Ok(guard) => guard,
+        Err(_) => return Err(DecreaseLiquidityError::LockedPrincipal),
     };
 
-    let validated_args = validate_decrease_liquidty_args(args.clone(), caller)?;
+    let validated_args = validate_decrease_liquidity_args(args.clone(), caller)?;
 
     let pool_id = validated_args.pool_id.clone();
     let token0 = args.pool.token0;
@@ -418,7 +417,7 @@ async fn decrease_liquidity(args: DecreaseLiquidityArgs) -> Result<(), DecreaseL
         token0_transfer_fee,
     )
     .await
-    .map_err(|e| DecreaseLiquidityError::DereasedPositionWithdrawalFailed(e.into()))?;
+    .map_err(|e| DecreaseLiquidityError::DecreasedPositionWithdrawalFailed(e.into()))?;
 
     let _ = _withdraw(
         caller,
@@ -432,7 +431,7 @@ async fn decrease_liquidity(args: DecreaseLiquidityArgs) -> Result<(), DecreaseL
         token1_transfer_fee,
     )
     .await
-    .map_err(|e| DecreaseLiquidityError::DereasedPositionWithdrawalFailed(e.into()))?;
+    .map_err(|e| DecreaseLiquidityError::DecreasedPositionWithdrawalFailed(e.into()))?;
 
     Ok(())
 }
@@ -447,8 +446,8 @@ async fn swap(args: SwapArgs) -> Result<CandidSwapSuccess, SwapError> {
     ic_cdk::println!("{:?}", validated_swap_args);
     let caller = validate_caller_not_anonymous();
 
-    // swap is desinged in a way that the same canister or user can send multiple swap request at a
-    // time, but if there is any liquidity modification in proccess, the swapping should not be
+    // swap is designed in a way that the same canister or user can send multiple swap request at a
+    // time, but if there is any liquidity modification in process, the swapping should not be
     // allowed
     let _guard = match PrincipalGuard::new_swap_guard(caller) {
         Ok(guard) => guard,
@@ -536,8 +535,8 @@ async fn collect_fees(position: CandidPositionKey) -> Result<CollectFeesSuccess,
     // Principal Lock to prevent double processing(double spending, over paying, and under
     // paying)
     let _principal_guard = match PrincipalGuard::new_general_guard(caller) {
-        Ok(gurad) => gurad,
-        Err(_) => return Err(CollectFeesError::LockedPrinciapl),
+        Ok(guard) => guard,
+        Err(_) => return Err(CollectFeesError::LockedPrincipal),
     };
 
     let mut position_key: PositionKey = position
@@ -649,7 +648,7 @@ async fn _refund(
 }
 
 /// withdraws tokens if there is sufficient user balance, and update the user state balance
-/// returns withrdrew amount(initial withdraw amount - transfer fee)
+/// returns withdrew amount(initial withdraw amount - transfer fee)
 async fn _withdraw(
     caller: Principal,
     token: Principal,
@@ -718,7 +717,7 @@ async fn _withdraw(
 
                     // update token transfer fee across all pools
                     mutate_state(|s| {
-                        s.update_token_trnasfer_fee_across_all_pools(token, new_transfer_fee)
+                        s.update_token_transfer_fee_across_all_pools(token, new_transfer_fee)
                     });
                     return Err(WithdrawalError::FeeUnknown);
                 }

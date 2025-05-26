@@ -14,7 +14,7 @@ mod swap_args_tests {
         pool::types::{PoolFee, PoolId},
         state::mutate_state,
         validation::swap_args::{
-            validate_swap_args, ValidatedSwapArgs, MAX_PATH_LENGTH, MIN_PATH_LENGTH,
+            MAX_PATH_LENGTH, MIN_PATH_LENGTH, ValidatedSwapArgs, validate_swap_args,
         },
     };
 
@@ -110,8 +110,8 @@ mod swap_args_tests {
                 amount_in,
                 amount_out_minimum,
                 from_subaccount: _,
-                token_out,
-                token_in,
+                token_out: _,
+                token_in: _,
             } => {
                 assert_eq!(pool_id, valid_pool_id().try_into().unwrap());
                 assert!(zero_for_one);
@@ -161,8 +161,8 @@ mod swap_args_tests {
                 amount_in,
                 amount_out_minimum,
                 from_subaccount: _,
-                token_in,
-                token_out,
+                token_in: _,
+                token_out: _,
             } => {
                 assert_eq!(path.len(), 2);
                 assert_eq!(amount_in, I256::from(1000u64));
@@ -248,8 +248,8 @@ mod swap_args_tests {
                 amount_out,
                 amount_in_maximum,
                 from_subaccount: _,
-                token_out,
-                token_in,
+                token_out: _,
+                token_in: _,
             } => {
                 assert_eq!(pool_id, valid_pool_id().try_into().unwrap());
                 assert!(!zero_for_one);
@@ -299,8 +299,8 @@ mod swap_args_tests {
                 amount_out,
                 amount_in_maximum,
                 from_subaccount: _,
-                token_in,
-                token_out,
+                token_in: _,
+                token_out: _,
             } => {
                 assert_eq!(path.len(), 2);
                 assert_eq!(amount_out, I256::from(500u64));

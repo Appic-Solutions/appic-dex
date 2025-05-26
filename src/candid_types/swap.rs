@@ -84,7 +84,7 @@ pub enum SwapFailedReason {
     NoInRangeLiquidity,
     InvalidAmount,
     TooLittleReceived,
-    TooMuchRequeted,
+    TooMuchRequested,
     BalanceOverflow,
     InsufficientBalance,
 }

@@ -56,7 +56,7 @@ pub struct BurnPositionArgs {
 
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize, PartialEq, Eq)]
 pub enum BurnPositionError {
-    LockedPrinciapl,
+    LockedPrincipal,
     PositionNotFound,
     PoolNotInitialized,
     InvalidTick,
@@ -81,7 +81,7 @@ pub struct MintPositionArgs {
 
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize)]
 pub enum MintPositionError {
-    LockedPrinciapl,
+    LockedPrincipal,
     InvalidPoolFee,
     PoolNotInitialized,
     PositionAlreadyExists,
@@ -96,7 +96,7 @@ pub enum MintPositionError {
 }
 
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize)]
-pub struct IncreaseLiquidtyArgs {
+pub struct IncreaseLiquidityArgs {
     pub pool: CandidPoolId,
     pub tick_lower: Int,
     pub tick_upper: Int,
@@ -106,8 +106,8 @@ pub struct IncreaseLiquidtyArgs {
 }
 
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize)]
-pub enum IncreaseLiquidtyError {
-    LockedPrinciapl,
+pub enum IncreaseLiquidity {
+    LockedPrincipal,
     InvalidPoolFee,
     PoolNotInitialized,
     InvalidTick,
@@ -133,18 +133,18 @@ pub struct DecreaseLiquidityArgs {
 
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize)]
 pub enum DecreaseLiquidityError {
-    LockedPrinciapl,
+    LockedPrincipal,
     PositionNotFound,
     PoolNotInitialized,
     InvalidTick,
     InvalidPoolFee,
-    InvalidLiquidty,
+    InvalidLiquidity,
     LiquidityOverflow,
     FeeOverflow,
     AmountOverflow,
     InvalidAmount,
     InsufficientBalance,
-    DereasedPositionWithdrawalFailed(WithdrawalError),
+    DecreasedPositionWithdrawalFailed(WithdrawalError),
 }
 
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize)]
@@ -155,7 +155,7 @@ pub struct CollectFeesSuccess {
 
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize)]
 pub enum CollectFeesError {
-    LockedPrinciapl,
+    LockedPrincipal,
     PositionNotFound,
     FeeOverflow,
     NoFeeToCollect,

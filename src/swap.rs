@@ -5,7 +5,7 @@ use crate::{
     balances::types::{UserBalance, UserBalanceKey},
     candid_types::swap::SwapFailedReason,
     pool::{
-        swap::{swap_inner, SwapParams, SwapSuccess},
+        swap::{SwapParams, SwapSuccess, swap_inner},
         types::PoolId,
     },
     quote::{get_sqrt_price_limit, select_amount},
@@ -277,7 +277,7 @@ fn check_exact_output_slippage(
     max_amount_in: I256,
 ) -> Result<(), SwapFailedReason> {
     if amount_in > max_amount_in {
-        Err(SwapFailedReason::TooMuchRequeted)
+        Err(SwapFailedReason::TooMuchRequested)
     } else {
         Ok(())
     }
@@ -310,7 +310,7 @@ fn update_balances_and_states(
         for swap_success in &swap_result.swap_success_list {
             s.apply_swap_buffer_state(swap_success.buffer_state.clone());
 
-            // add to accumulated prtocol fee
+            // add to accumulated protocol fee
             let fee_accumulated = s
                 .get_protocol_fee_for_token(&swap_success.fee_token)
                 .0

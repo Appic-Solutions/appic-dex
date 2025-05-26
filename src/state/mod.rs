@@ -24,8 +24,8 @@ use candid::Principal;
 use ethnum::U256;
 use ic_stable_structures::BTreeMap;
 use memory_manager::{
-    pools_memory_id, positions_memory_id, protocol_balance_memory_id, tick_bitmaps_memory_id,
-    tick_spacings_memory_id, ticks_memory_id, user_balances_memory_id, StableMemory,
+    StableMemory, pools_memory_id, positions_memory_id, protocol_balance_memory_id,
+    tick_bitmaps_memory_id, tick_spacings_memory_id, ticks_memory_id, user_balances_memory_id,
 };
 use std::cell::RefCell;
 
@@ -235,7 +235,7 @@ impl State {
         }
     }
 
-    pub fn update_token_trnasfer_fee_across_all_pools(
+    pub fn update_token_transfer_fee_across_all_pools(
         &mut self,
         token: Principal,
         transfer_fee: U256,

@@ -15,7 +15,7 @@ type BurnPositionError = variant {
   FeeOverflow;
   BurntPositionWithdrawalFailed : WithdrawalError;
   InvalidTick;
-  LockedPrinciapl;
+  LockedPrincipal;
   AmountOverflow;
 };
 type CandidPathKey = record { fee : nat; intermediary_token : principal };
@@ -53,7 +53,7 @@ type CandidSwapSuccess = record { amount_out : nat; amount_in : nat };
 type CollectFeesError = variant {
   PositionNotFound;
   FeeOverflow;
-  LockedPrinciapl;
+  LockedPrincipal;
   CollectedFeesWithdrawalFailed : WithdrawalError;
   NoFeeToCollect;
 };
@@ -86,14 +86,14 @@ type DecreaseLiquidityError = variant {
   InvalidAmount;
   InvalidPoolFee;
   PoolNotInitialized;
-  DereasedPositionWithdrawalFailed : WithdrawalError;
   InsufficientBalance;
   LiquidityOverflow;
   FeeOverflow;
   InvalidTick;
-  InvalidLiquidty;
-  LockedPrinciapl;
+  InvalidLiquidity;
+  LockedPrincipal;
   AmountOverflow;
+  DecreasedPositionWithdrawalFailed : WithdrawalError;
 };
 type DepositArgs = record {
   token : principal;
@@ -136,15 +136,7 @@ type ExactOutputSingleParams = record {
   amount_out : nat;
   pool_id : CandidPoolId;
 };
-type IncreaseLiquidtyArgs = record {
-  amount1_max : nat;
-  pool : CandidPoolId;
-  from_subaccount : opt blob;
-  amount0_max : nat;
-  tick_lower : int;
-  tick_upper : int;
-};
-type IncreaseLiquidtyError = variant {
+type IncreaseLiquidity = variant {
   DepositError : DepositError;
   TickNotAlignedWithTickSpacing;
   InvalidAmount;
@@ -155,8 +147,16 @@ type IncreaseLiquidtyError = variant {
   FeeOverflow;
   InvalidTick;
   PositionDoesNotExist;
-  LockedPrinciapl;
+  LockedPrincipal;
   AmountOverflow;
+};
+type IncreaseLiquidityArgs = record {
+  amount1_max : nat;
+  pool : CandidPoolId;
+  from_subaccount : opt blob;
+  amount0_max : nat;
+  tick_lower : int;
+  tick_upper : int;
 };
 type MintPositionArgs = record {
   amount1_max : nat;
@@ -177,7 +177,7 @@ type MintPositionError = variant {
   FeeOverflow;
   PositionAlreadyExists;
   InvalidTick;
-  LockedPrinciapl;
+  LockedPrincipal;
   AmountOverflow;
 };
 type QuoteArgs = variant {
@@ -212,7 +212,7 @@ type Result_1 = variant { Ok : CollectFeesSuccess; Err : CollectFeesError };
 type Result_2 = variant { Ok : CandidPoolId; Err : CreatePoolError };
 type Result_3 = variant { Ok; Err : DecreaseLiquidityError };
 type Result_4 = variant { Ok; Err : DepositError };
-type Result_5 = variant { Ok : nat; Err : IncreaseLiquidtyError };
+type Result_5 = variant { Ok : nat; Err : IncreaseLiquidity };
 type Result_6 = variant { Ok : nat; Err : MintPositionError };
 type Result_7 = variant { Ok : nat; Err : QuoteError };
 type Result_8 = variant { Ok : CandidSwapSuccess; Err : SwapError };
@@ -247,13 +247,13 @@ type SwapError = variant {
   };
 };
 type SwapFailedReason = variant {
+  TooMuchRequested;
   InvalidAmount;
   PoolNotInitialized;
   InsufficientBalance;
   PriceLimitOutOfBounds;
   BalanceOverflow;
   TooLittleReceived;
-  TooMuchRequeted;
   NoInRangeLiquidity;
   PriceLimitAlreadyExceeded;
   InvalidFeeForExactOutput;
@@ -280,7 +280,7 @@ service : () -> {
   get_positions_by_owner : (principal) -> (
       vec record { CandidPositionKey; CandidPositionInfo },
     ) query;
-  increase_liquidity : (IncreaseLiquidtyArgs) -> (Result_5);
+  increase_liquidity : (IncreaseLiquidityArgs) -> (Result_5);
   mint_position : (MintPositionArgs) -> (Result_6);
   quote : (QuoteArgs) -> (Result_7) query;
   swap : (SwapArgs) -> (Result_8);

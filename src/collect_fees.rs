@@ -6,21 +6,21 @@ use crate::{
     candid_types::position::CollectFeesError,
     libraries::balance_delta::BalanceDelta,
     pool::{
-        modify_liquidity::{modify_liquidity, ModifyLiquidityParams},
+        modify_liquidity::{ModifyLiquidityParams, modify_liquidity},
         types::PoolTickSpacing,
     },
     position::types::PositionKey,
     state::{mutate_state, read_state},
 };
 
-/// modifies the liquidty with zero delta lqiuidity to get only the fees owed to the user
+/// modifies the liquidity with zero delta liquidity to get only the fees owed to the user
 /// #returns fee delta in case of success and CollectFeesError in case of failure
 pub fn execute_collect_fees(
     caller: Principal,
     position_key: &PositionKey,
     tick_spacing: PoolTickSpacing,
 ) -> Result<BalanceDelta, CollectFeesError> {
-    let modifiy_liquidity_params = ModifyLiquidityParams {
+    let modify_liquidity_params = ModifyLiquidityParams {
         owner: position_key.owner,
         pool_id: position_key.pool_id.clone(),
         tick_lower: position_key.tick_lower,
@@ -30,7 +30,7 @@ pub fn execute_collect_fees(
     };
 
     let success_result =
-        modify_liquidity(modifiy_liquidity_params).map_err(|_| CollectFeesError::FeeOverflow)?;
+        modify_liquidity(modify_liquidity_params).map_err(|_| CollectFeesError::FeeOverflow)?;
 
     // Update user balances
     let user_balance = read_state(|s| {

@@ -66,7 +66,13 @@ fn test_exact_input_single_amount() {
     let user_balance_before_token0 = get_balance(&pic, token0_principal(), sender_principal());
     let user_balance_before_token1 = get_balance(&pic, token1_principal(), sender_principal());
 
-    println!("before swap balances, pool_token0 {:?}, pool_token1 {:?}, user_token0 {:?}, user_token1 {:?}",pool_balance_before_token0,pool_balance_before_token1,user_balance_before_token0,user_balance_before_token1);
+    println!(
+        "before swap balances, pool_token0 {:?}, pool_token1 {:?}, user_token0 {:?}, user_token1 {:?}",
+        pool_balance_before_token0,
+        pool_balance_before_token1,
+        user_balance_before_token0,
+        user_balance_before_token1
+    );
 
     let amount_in = *ONE_ETHER;
     let expected_amount_out = U256::from(992054607780215625_u128);
@@ -102,7 +108,13 @@ fn test_exact_input_single_amount() {
     let user_balance_after_token0 = get_balance(&pic, token0_principal(), sender_principal());
     let user_balance_after_token1 = get_balance(&pic, token1_principal(), sender_principal());
 
-    println!("after swap balances, pool_token0 {:?}, pool_token1 {:?}, user_token0 {:?}, user_token1 {:?}",pool_balance_after_token0,pool_balance_after_token1,user_balance_after_token0,user_balance_after_token1);
+    println!(
+        "after swap balances, pool_token0 {:?}, pool_token1 {:?}, user_token0 {:?}, user_token1 {:?}",
+        pool_balance_after_token0,
+        pool_balance_after_token1,
+        user_balance_after_token0,
+        user_balance_after_token1
+    );
 
     assert_eq!(
         pool_balance_before_token0 + u256_to_nat(amount_in.clone()),
@@ -308,7 +320,7 @@ fn test_exact_output_single_amount_fails_for_amount_in() {
     assert_eq!(
         swap_result,
         Err(SwapError::SwapFailedRefunded {
-            failed_reason: SwapFailedReason::TooMuchRequeted,
+            failed_reason: SwapFailedReason::TooMuchRequested,
             refund_error: None,
             refund_amount: Some(Nat::from(1008039273448486162_u128)),
         })
@@ -373,7 +385,13 @@ fn test_exact_output_single_balances() {
     let user_balance_before_token0 = get_balance(&pic, token0_principal(), sender_principal());
     let user_balance_before_token1 = get_balance(&pic, token1_principal(), sender_principal());
 
-    println!("before swap balances, pool_token0 {:?}, pool_token1 {:?}, user_token0 {:?}, user_token1 {:?}",pool_balance_before_token0,pool_balance_before_token1,user_balance_before_token0,user_balance_before_token1);
+    println!(
+        "before swap balances, pool_token0 {:?}, pool_token1 {:?}, user_token0 {:?}, user_token1 {:?}",
+        pool_balance_before_token0,
+        pool_balance_before_token1,
+        user_balance_before_token0,
+        user_balance_before_token1
+    );
 
     let amount_out = *ONE_ETHER;
     let expected_amount_in = U256::from(1008049273448486163_u128);
@@ -410,7 +428,13 @@ fn test_exact_output_single_balances() {
     let user_balance_after_token0 = get_balance(&pic, token0_principal(), sender_principal());
     let user_balance_after_token1 = get_balance(&pic, token1_principal(), sender_principal());
 
-    println!("after swap balances, pool_token0 {:?}, pool_token1 {:?}, user_token0 {:?}, user_token1 {:?}",pool_balance_after_token0,pool_balance_after_token1,user_balance_after_token0,user_balance_after_token1);
+    println!(
+        "after swap balances, pool_token0 {:?}, pool_token1 {:?}, user_token0 {:?}, user_token1 {:?}",
+        pool_balance_after_token0,
+        pool_balance_after_token1,
+        user_balance_after_token0,
+        user_balance_after_token1
+    );
 
     assert_eq!(
         pool_balance_before_token0 + u256_to_nat(expected_amount_in.clone()),

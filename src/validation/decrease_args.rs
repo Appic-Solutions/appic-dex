@@ -12,7 +12,7 @@ use crate::{
     state::read_state,
 };
 
-pub struct ValidatedDecreaseLiquidtyArgs {
+pub struct ValidatedDecreaseLiquidityArgs {
     pub tick_spacing: PoolTickSpacing,
     pub lower_tick: i32,
     pub upper_tick: i32,
@@ -24,10 +24,10 @@ pub struct ValidatedDecreaseLiquidtyArgs {
     pub liquidity_delta: i128,
 }
 
-pub fn validate_decrease_liquidty_args(
+pub fn validate_decrease_liquidity_args(
     args: DecreaseLiquidityArgs,
     caller: Principal,
-) -> Result<ValidatedDecreaseLiquidtyArgs, DecreaseLiquidityError> {
+) -> Result<ValidatedDecreaseLiquidityArgs, DecreaseLiquidityError> {
     // check pool
     let pool_id: PoolId = args
         .pool
@@ -51,11 +51,11 @@ pub fn validate_decrease_liquidty_args(
         return Err(DecreaseLiquidityError::InvalidTick);
     };
 
-    let liquidty_delta: u128 = args
+    let liquidity_delta: u128 = args
         .liquidity
         .0
         .try_into()
-        .map_err(|_| DecreaseLiquidityError::InvalidLiquidty)?;
+        .map_err(|_| DecreaseLiquidityError::InvalidLiquidity)?;
 
     // position should not exist
     let position_key = PositionKey {
@@ -69,8 +69,8 @@ pub fn validate_decrease_liquidty_args(
         return Err(DecreaseLiquidityError::PositionNotFound);
     }
 
-    if position_info.liquidity < liquidty_delta {
-        return Err(DecreaseLiquidityError::InvalidLiquidty);
+    if position_info.liquidity < liquidity_delta {
+        return Err(DecreaseLiquidityError::InvalidLiquidity);
     }
 
     let amount0_min: U256 =
@@ -86,12 +86,12 @@ pub fn validate_decrease_liquidty_args(
         .try_into()
         .map_err(|_e| DecreaseLiquidityError::InvalidAmount)?;
 
-    let liquidity_delta = i128::try_from(liquidty_delta)
+    let liquidity_delta = i128::try_from(liquidity_delta)
         .map_err(|_e| DecreaseLiquidityError::LiquidityOverflow)?
         .checked_mul(-1i128)
         .ok_or(DecreaseLiquidityError::LiquidityOverflow)?;
 
-    Ok(ValidatedDecreaseLiquidtyArgs {
+    Ok(ValidatedDecreaseLiquidityArgs {
         tick_spacing,
         lower_tick,
         upper_tick,
