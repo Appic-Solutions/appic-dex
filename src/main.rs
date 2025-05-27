@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use appic_dex::{
     balances::types::{UserBalance, UserBalanceKey},
     burn::execute_burn_position,
@@ -15,6 +17,7 @@ use appic_dex::{
     collect_fees::execute_collect_fees,
     decrease_liquidity::execute_decrease_liquidity,
     guard::PrincipalGuard,
+    historical::capture_historical_data,
     icrc_client::{
         memo::{DepositMemo, WithdrawalMemo},
         LedgerClient, LedgerTransferError,
@@ -45,7 +48,7 @@ use appic_dex::{
 
 use candid::{Nat, Principal};
 use ethnum::{I256, U256};
-use ic_cdk::{init, query, update};
+use ic_cdk::{init, post_upgrade, query, update};
 use icrc_ledger_types::icrc1::account::Account;
 
 fn validate_caller_not_anonymous() -> candid::Principal {
@@ -56,8 +59,12 @@ fn validate_caller_not_anonymous() -> candid::Principal {
     principal
 }
 
+fn set_up_timers() {
+    ic_cdk_timers::set_timer_interval(Duration::from_secs(10 * 60), capture_historical_data);
+}
+
 #[init]
-async fn init() {
+fn init() {
     let fee_to_tick_spacing = vec![
         (100_u32, 1_i32),
         (500_u32, 10i32),
@@ -68,6 +75,13 @@ async fn init() {
     for (fee, tick_spacing) in fee_to_tick_spacing {
         mutate_state(|s| s.set_tick_spacing(PoolFee(fee), PoolTickSpacing(tick_spacing)));
     }
+
+    set_up_timers();
+}
+
+#[post_upgrade]
+fn post_upgrade() {
+    set_up_timers();
 }
 
 #[query]

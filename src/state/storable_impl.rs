@@ -3,7 +3,7 @@ use std::borrow::Cow;
 
 use crate::{
     balances::types::{UserBalance, UserBalanceKey},
-    historical::{HistoryBucket, PoolHistory},
+    historical::types::{HistoryBucket, PoolHistory},
     pool::types::{PoolFee, PoolId, PoolState, PoolTickSpacing},
     position::types::{PositionInfo, PositionKey},
     tick::types::{BitmapWord, TickBitmapKey, TickInfo, TickKey},

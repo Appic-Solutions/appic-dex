@@ -9,7 +9,7 @@
 
 use crate::{
     balances::types::{UserBalance, UserBalanceKey},
-    historical::PoolHistory,
+    historical::types::PoolHistory,
     libraries::{constants::Q128, full_math::mul_div},
     pool::{
         modify_liquidity::ModifyLiquidityBufferState,
@@ -259,6 +259,14 @@ impl State {
             };
             self.pools.insert(pool.0, new_pool_state);
         }
+    }
+
+    pub fn get_pool_history(&self, pool_id: &PoolId) -> PoolHistory {
+        self.pool_history.get(pool_id).unwrap_or_default()
+    }
+
+    pub fn set_pool_history(&mut self, pool_id: PoolId, pool_history: PoolHistory) {
+        self.pool_history.insert(pool_id, pool_history);
     }
 }
 
