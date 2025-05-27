@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 
-use ic_cdk::api::stable::StableMemory;
 use ic_stable_structures::{
     memory_manager::{MemoryId, MemoryManager, VirtualMemory},
     DefaultMemoryImpl,

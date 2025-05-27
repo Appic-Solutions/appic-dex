@@ -26,11 +26,15 @@ type CandidPoolId = record {
 };
 type CandidPoolState = record {
   sqrt_price_x96 : nat;
+  pool_reserves0 : nat;
+  pool_reserves1 : nat;
   fee_protocol : nat;
   token0_transfer_fee : nat;
+  swap_volume1_all_time : nat;
   fee_growth_global_1_x128 : nat;
   tick : int;
   liquidity : nat;
+  swap_volume0_all_time : nat;
   fee_growth_global_0_x128 : nat;
   max_liquidity_per_tick : nat;
   token1_transfer_fee : nat;

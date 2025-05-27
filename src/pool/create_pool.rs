@@ -66,6 +66,10 @@ pub fn create_pool_inner(
         fee_protocol: *DEFAULT_PROTOCOL_FEE,
         token0_transfer_fee,
         token1_transfer_fee,
+        swap_volume0_all_time: U256::ZERO,
+        swap_volume1_all_time: U256::ZERO,
+        pool_reserve0: U256::ZERO,
+        pool_reserve1: U256::ZERO,
     };
     mutate_state(|s| s.set_pool(pool_id.clone(), pool_state));
 

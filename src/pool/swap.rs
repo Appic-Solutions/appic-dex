@@ -1,5 +1,5 @@
 use candid::Principal;
-use ethnum::{I256, U256};
+use ethnum::{AsI256, I256, U256};
 
 use crate::{
     libraries::{
@@ -304,6 +304,14 @@ pub fn swap_inner(params: SwapParams) -> Result<SwapSuccess, InnerSwapError> {
         }
     }
 
+    // Compute Swap Delta
+    let swap_delta = compute_swap_delta(
+        params.zero_for_one,
+        params.amount_specified,
+        remaining_amount,
+        calculated_amount,
+    );
+
     // Update Buffered State
     update_buffer_state(
         &mut buffer_state,
@@ -311,14 +319,7 @@ pub fn swap_inner(params: SwapParams) -> Result<SwapSuccess, InnerSwapError> {
         &pool_state_initial,
         &step,
         params.zero_for_one,
-    );
-
-    // Compute Swap Delta
-    let swap_delta = compute_swap_delta(
-        params.zero_for_one,
-        params.amount_specified,
-        remaining_amount,
-        calculated_amount,
+        &swap_delta,
     );
 
     // check if pool is illiquid
@@ -425,16 +426,54 @@ fn update_buffer_state(
     pool_state_initial: &PoolState,
     step: &StepComputations,
     zero_for_one: bool,
+    swap_delta: &BalanceDelta,
 ) {
+    // update sqrt_price and tick
     buffer_state.pool.1.sqrt_price_x96 = swap_result.sqrt_price_x96;
     buffer_state.pool.1.tick = swap_result.tick;
+
+    // update pool reserves
+    let old_pool_reserves = BalanceDelta::new(
+        buffer_state.pool.1.pool_reserve0.as_i256(),
+        buffer_state.pool.1.pool_reserve1.as_i256(),
+    );
+
+    // amount in is negative and amount out is positive, so pool_reserves - swap_delta = new
+    // pool reserves
+    let pool_reserves_after = old_pool_reserves
+        .sub(*swap_delta)
+        .expect("Bug: this operation should be fail, since swap was successful");
+
+    buffer_state.pool.1.pool_reserve0 = pool_reserves_after.amount0().as_u256();
+    buffer_state.pool.1.pool_reserve1 = pool_reserves_after.amount1().as_u256();
+
+    // update liqudity
     if pool_state_initial.liquidity != swap_result.liquidity {
         buffer_state.pool.1.liquidity = swap_result.liquidity;
     }
+
+    // update fee_growth_global_x128 and accumulated swap volume
     if zero_for_one {
         buffer_state.pool.1.fee_growth_global_0_x128 = step.fee_growth_global_x128;
+        let swap_volume0_all_time = buffer_state
+            .pool
+            .1
+            .swap_volume0_all_time
+            .as_i256()
+            .checked_sub(swap_delta.amount0())
+            .unwrap_or(I256::MAX);
+        buffer_state.pool.1.swap_volume0_all_time = swap_volume0_all_time.as_u256();
     } else {
         buffer_state.pool.1.fee_growth_global_1_x128 = step.fee_growth_global_x128;
+
+        let swap_volume1_all_time = buffer_state
+            .pool
+            .1
+            .swap_volume1_all_time
+            .as_i256()
+            .checked_sub(swap_delta.amount1())
+            .unwrap_or(I256::MAX);
+        buffer_state.pool.1.swap_volume1_all_time = swap_volume1_all_time.as_u256();
     }
 }
 

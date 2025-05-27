@@ -14,7 +14,7 @@ mod swap_args_tests {
         pool::types::{PoolFee, PoolId},
         state::mutate_state,
         validation::swap_args::{
-            MAX_PATH_LENGTH, MIN_PATH_LENGTH, ValidatedSwapArgs, validate_swap_args,
+            validate_swap_args, ValidatedSwapArgs, MAX_PATH_LENGTH, MIN_PATH_LENGTH,
         },
     };
 
@@ -50,6 +50,10 @@ mod swap_args_tests {
                     fee_protocol: 1000,
                     token0_transfer_fee: U256::ZERO,
                     token1_transfer_fee: U256::ZERO,
+                    swap_volume0_all_time: U256::ZERO,
+                    swap_volume1_all_time: U256::ZERO,
+                    pool_reserve0: U256::ZERO,
+                    pool_reserve1: U256::ZERO,
                 },
             )
         });
@@ -68,6 +72,10 @@ mod swap_args_tests {
                     fee_protocol: 1000,
                     token1_transfer_fee: U256::ZERO,
                     token0_transfer_fee: U256::ZERO,
+                    swap_volume0_all_time: U256::ZERO,
+                    swap_volume1_all_time: U256::ZERO,
+                    pool_reserve0: U256::ZERO,
+                    pool_reserve1: U256::ZERO,
                 },
             )
         });
