@@ -5,7 +5,7 @@ use crate::{
     balances::types::{UserBalance, UserBalanceKey},
     candid_types::swap::SwapFailedReason,
     pool::{
-        swap::{SwapParams, SwapSuccess, swap_inner},
+        swap::{swap_inner, SwapParams, SwapSuccess},
         types::PoolId,
     },
     quote::{get_sqrt_price_limit, select_amount},

@@ -3,6 +3,7 @@ use std::borrow::Cow;
 
 use crate::{
     balances::types::{UserBalance, UserBalanceKey},
+    historical::{HistoryBucket, PoolHistory},
     pool::types::{PoolFee, PoolId, PoolState, PoolTickSpacing},
     position::types::{PositionInfo, PositionKey},
     tick::types::{BitmapWord, TickBitmapKey, TickInfo, TickKey},
@@ -44,3 +45,5 @@ impl_storable_minicbor!(UserBalanceKey);
 impl_storable_minicbor!(BitmapWord);
 impl_storable_minicbor!(PoolFee);
 impl_storable_minicbor!(PoolTickSpacing);
+impl_storable_minicbor!(HistoryBucket);
+impl_storable_minicbor!(PoolHistory);

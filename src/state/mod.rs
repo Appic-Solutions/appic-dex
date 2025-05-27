@@ -9,7 +9,7 @@
 
 use crate::{
     balances::types::{UserBalance, UserBalanceKey},
-    candid_types::position,
+    historical::PoolHistory,
     libraries::{constants::Q128, full_math::mul_div},
     pool::{
         modify_liquidity::ModifyLiquidityBufferState,
@@ -24,8 +24,9 @@ use candid::Principal;
 use ethnum::U256;
 use ic_stable_structures::BTreeMap;
 use memory_manager::{
-    StableMemory, pools_memory_id, positions_memory_id, protocol_balance_memory_id,
+    pool_history_memory_id, pools_memory_id, positions_memory_id, protocol_balance_memory_id,
     tick_bitmaps_memory_id, tick_spacings_memory_id, ticks_memory_id, user_balances_memory_id,
+    StableMemory,
 };
 use std::cell::RefCell;
 
@@ -40,7 +41,8 @@ thread_local! {
         positions: BTreeMap::init(positions_memory_id()),
         ticks: BTreeMap::init(ticks_memory_id()),
         tick_bitmaps: BTreeMap::init(tick_bitmaps_memory_id()),
-        tick_spacings:BTreeMap::init(tick_spacings_memory_id())
+        tick_spacings:BTreeMap::init(tick_spacings_memory_id()),
+        pool_history:BTreeMap::init(pool_history_memory_id()),
     }));
 }
 
@@ -52,6 +54,9 @@ pub struct State {
     ticks: BTreeMap<TickKey, TickInfo, StableMemory>,
     tick_bitmaps: BTreeMap<TickBitmapKey, BitmapWord, StableMemory>,
     tick_spacings: BTreeMap<PoolFee, PoolTickSpacing, StableMemory>,
+
+    // historical data storage
+    pool_history: BTreeMap<PoolId, PoolHistory, StableMemory>,
 }
 
 impl State {

@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 
+use ic_cdk::api::stable::StableMemory;
 use ic_stable_structures::{
     memory_manager::{MemoryId, MemoryManager, VirtualMemory},
     DefaultMemoryImpl,
@@ -53,4 +54,10 @@ const TICK_SPACINGS_MEMORY_ID: MemoryId = MemoryId::new(6);
 
 pub fn tick_spacings_memory_id() -> StableMemory {
     MEMORY_MANAGER.with(|m| m.borrow().get(TICK_SPACINGS_MEMORY_ID))
+}
+
+const POOL_HISTORY_MEMORY_ID: MemoryId = MemoryId::new(7);
+
+pub fn pool_history_memory_id() -> StableMemory {
+    MEMORY_MANAGER.with(|m| m.borrow().get(POOL_HISTORY_MEMORY_ID))
 }
