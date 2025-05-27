@@ -35,9 +35,9 @@ pub struct PoolState {
     #[n(1)]
     pub tick: i32, // Current tick index
     #[cbor(n(2), with = "crate::cbor::u256")]
-    pub fee_growth_global_0_x128: U256, // Cumulative fees for token0
+    pub fee_growth_global_0_x128: U256, // Cumulative fees for token0 per liquidty
     #[cbor(n(3), with = "crate::cbor::u256")]
-    pub fee_growth_global_1_x128: U256, // Cumulative fees for token1
+    pub fee_growth_global_1_x128: U256, // Cumulative fees for token1 per liquidty
     #[cbor(n(4), with = "crate::cbor::u128")]
     pub liquidity: u128, // Total active liquidity
     #[n(5)]
@@ -59,4 +59,8 @@ pub struct PoolState {
     pub pool_reserve0: U256, // balance of token 0 in pool
     #[cbor(n(13), with = "crate::cbor::u256")]
     pub pool_reserve1: U256, // balance of token 1 in the pool
+    #[cbor(n(14), with = "crate::cbor::u256")]
+    pub generated_swap_fee0: U256, // Cumulative swap fee for token0
+    #[cbor(n(15), with = "crate::cbor::u256")]
+    pub generated_swap_fee1: U256, // Cumulative swap fee for token1
 }

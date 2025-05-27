@@ -70,6 +70,8 @@ pub fn create_pool_inner(
         swap_volume1_all_time: U256::ZERO,
         pool_reserve0: U256::ZERO,
         pool_reserve1: U256::ZERO,
+        generated_swap_fee0: U256::ZERO,
+        generated_swap_fee1: U256::ZERO,
     };
     mutate_state(|s| s.set_pool(pool_id.clone(), pool_state));
 

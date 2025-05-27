@@ -54,6 +54,8 @@ mod swap_args_tests {
                     swap_volume1_all_time: U256::ZERO,
                     pool_reserve0: U256::ZERO,
                     pool_reserve1: U256::ZERO,
+                    generated_swap_fee0: U256::ZERO,
+                    generated_swap_fee1: U256::ZERO,
                 },
             )
         });
@@ -76,6 +78,8 @@ mod swap_args_tests {
                     swap_volume1_all_time: U256::ZERO,
                     pool_reserve0: U256::ZERO,
                     pool_reserve1: U256::ZERO,
+                    generated_swap_fee0: U256::ZERO,
+                    generated_swap_fee1: U256::ZERO,
                 },
             )
         });

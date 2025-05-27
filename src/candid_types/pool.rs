@@ -41,6 +41,8 @@ pub struct CandidPoolState {
     pub swap_volume1_all_time: Nat,
     pub pool_reserves0: Nat,
     pub pool_reserves1: Nat,
+    pub generated_swap_fee0: Nat,
+    pub generated_swap_fee1: Nat,
 }
 
 impl TryFrom<CandidPoolId> for PoolId {
@@ -78,6 +80,8 @@ impl From<PoolState> for CandidPoolState {
             swap_volume1_all_time: u256_to_nat(value.swap_volume1_all_time),
             pool_reserves0: u256_to_nat(value.pool_reserve0),
             pool_reserves1: u256_to_nat(value.pool_reserve1),
+            generated_swap_fee0: u256_to_nat(value.generated_swap_fee0),
+            generated_swap_fee1: u256_to_nat(value.generated_swap_fee1),
         }
     }
 }

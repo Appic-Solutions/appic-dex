@@ -245,7 +245,7 @@ fn flow_test() {
             zero_for_one,
         });
 
-        let swap_result = update_call::<SwapArgs, Result<CandidSwapSuccess, SwapError>>(
+        let _swap_result = update_call::<SwapArgs, Result<CandidSwapSuccess, SwapError>>(
             &pic,
             appic_dex_canister_id(),
             "swap",
@@ -254,7 +254,7 @@ fn flow_test() {
         )
         .unwrap();
 
-        let pool_state = query_call::<CandidPoolId, Option<CandidPoolState>>(
+        let _pool_state = query_call::<CandidPoolId, Option<CandidPoolState>>(
             &pic,
             appic_dex_canister_id(),
             "get_pool",

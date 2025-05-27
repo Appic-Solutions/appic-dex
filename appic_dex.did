@@ -34,6 +34,8 @@ type CandidPoolState = record {
   fee_growth_global_1_x128 : nat;
   tick : int;
   liquidity : nat;
+  generated_swap_fee0 : nat;
+  generated_swap_fee1 : nat;
   swap_volume0_all_time : nat;
   fee_growth_global_0_x128 : nat;
   max_liquidity_per_tick : nat;
