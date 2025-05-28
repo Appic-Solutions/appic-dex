@@ -1,3 +1,5 @@
+use minicbor::{Decode, Encode};
+
 use crate::position::types::PositionKey;
 
 use super::{pool::CandidPoolId, *};
@@ -79,7 +81,7 @@ pub struct MintPositionArgs {
     pub from_subaccount: Option<Subaccount>,
 }
 
-#[derive(Debug, Clone, CandidType, Deserialize, Serialize)]
+#[derive(Debug, Clone, CandidType, Deserialize, Serialize, Eq, PartialEq)]
 pub enum MintPositionError {
     LockedPrincipal,
     InvalidPoolFee,

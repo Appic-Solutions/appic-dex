@@ -4,6 +4,7 @@ use ethnum::{I256, U256};
 use crate::{
     balances::types::{UserBalance, UserBalanceKey},
     candid_types::swap::SwapFailedReason,
+    events::{Event, EventType},
     pool::{
         swap::{swap_inner, SwapParams, SwapSuccess},
         types::PoolId,
@@ -209,6 +210,16 @@ pub fn execute_swap(
         }
     };
 
+    let event = Event {
+        timestamp: ic_cdk::api::time(),
+        payload: EventType::Swap {
+            final_amount_in: swap_result.amount_in.as_u256(),
+            final_amount_out: swap_result.amount_out.as_u256(),
+            swap_args: validated_swap_args.clone(),
+            principal: caller,
+        },
+    };
+
     //  Update Balances and Pool States
     update_balances_and_states(
         token_in_key,
@@ -216,6 +227,7 @@ pub fn execute_swap(
         token_in_balance_before,
         token_out_balance_before,
         &swap_result,
+        event,
     )?;
 
     // Return positive input amount and output amount
@@ -290,6 +302,7 @@ fn update_balances_and_states(
     token_in_balance_before: I256,
     token_out_balance_before: I256,
     swap_result: &SwapSuccessfulResult,
+    event: Event,
 ) -> Result<(), SwapFailedReason> {
     let token_in_balance_after = UserBalance(
         token_in_balance_before
@@ -318,6 +331,8 @@ fn update_balances_and_states(
                 .unwrap_or(U256::MAX);
             s.update_protocol_fee_for_token(swap_success.fee_token, UserBalance(fee_accumulated));
         }
+
+        s.record_event(event);
     });
 
     Ok(())

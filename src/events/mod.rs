@@ -4,7 +4,7 @@ use candid::Principal;
 use ethnum::U256;
 use minicbor::{Decode, Encode};
 
-use crate::position::types::PositionKey;
+use crate::{position::types::PositionKey, validation::swap_args::ValidatedSwapArgs};
 
 /// The event describing the  minter state transition.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
@@ -16,9 +16,11 @@ pub enum EventType {
         #[cbor(n(1), with = "crate::cbor::u128")]
         liquidity: u128,
         #[cbor(n(2), with = "crate::cbor::u256")]
-        amount0: U256,
+        amount0_paid: U256,
         #[cbor(n(3), with = "crate::cbor::u256")]
-        amount1: U256,
+        amount1_paid: U256,
+        #[cbor(n(4), with = "crate::cbor::principal")]
+        principal: Principal,
     },
     #[n(1)]
     IncreasedLiquidity {
@@ -27,9 +29,11 @@ pub enum EventType {
         #[cbor(n(1), with = "crate::cbor::u128")]
         liquidity_delta: u128,
         #[cbor(n(2), with = "crate::cbor::u256")]
-        amount0: U256,
+        amount0_paid: U256,
         #[cbor(n(3), with = "crate::cbor::u256")]
-        amount1: U256,
+        amount1_paid: U256,
+        #[cbor(n(4), with = "crate::cbor::principal")]
+        principal: Principal,
     },
     #[n(2)]
     BurntPosition {
@@ -38,9 +42,11 @@ pub enum EventType {
         #[cbor(n(1), with = "crate::cbor::u128")]
         liqudity: u128,
         #[cbor(n(2), with = "crate::cbor::u256")]
-        amount0: U256,
+        amount0_received: U256,
         #[cbor(n(3), with = "crate::cbor::u256")]
-        amount1: U256,
+        amount1_recieved: U256,
+        #[cbor(n(4), with = "crate::cbor::principal")]
+        principal: Principal,
     },
     #[n(3)]
     DecreasedLiqudity {
@@ -49,21 +55,34 @@ pub enum EventType {
         #[cbor(n(1), with = "crate::cbor::u128")]
         liquidity_delta: u128,
         #[cbor(n(2), with = "crate::cbor::u256")]
-        amount0: U256,
+        amount0_received: U256,
         #[cbor(n(3), with = "crate::cbor::u256")]
-        amount1: U256,
+        amount1_recieved: U256,
+        #[cbor(n(4), with = "crate::cbor::principal")]
+        principal: Principal,
     },
     #[n(4)]
     CollectedFees {
         #[n(0)]
         position: PositionKey,
         #[cbor(n(1), with = "crate::cbor::u256")]
-        amount0: U256,
+        amount0_collected: U256,
         #[cbor(n(2), with = "crate::cbor::u256")]
-        amount1: U256,
+        amount1_collected: U256,
+        #[cbor(n(3), with = "crate::cbor::principal")]
+        principal: Principal,
     },
     #[n(5)]
-    Swap {},
+    Swap {
+        #[cbor(n(0), with = "crate::cbor::u256")]
+        final_amount_in: U256,
+        #[cbor(n(1), with = "crate::cbor::u256")]
+        final_amount_out: U256,
+        #[n(2)]
+        swap_args: ValidatedSwapArgs,
+        #[cbor(n(3), with = "crate::cbor::principal")]
+        principal: Principal,
+    },
 }
 
 #[derive(Encode, Decode, Debug, PartialEq, Eq)]

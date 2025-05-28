@@ -9,6 +9,7 @@
 
 use crate::{
     balances::types::{UserBalance, UserBalanceKey},
+    events::{Event, EventType},
     historical::types::PoolHistory,
     libraries::{constants::Q128, full_math::mul_div},
     pool::{
@@ -22,11 +23,11 @@ use crate::{
 
 use candid::Principal;
 use ethnum::U256;
-use ic_stable_structures::BTreeMap;
+use ic_stable_structures::{BTreeMap, Log};
 use memory_manager::{
-    pool_history_memory_id, pools_memory_id, positions_memory_id, protocol_balance_memory_id,
-    tick_bitmaps_memory_id, tick_spacings_memory_id, ticks_memory_id, user_balances_memory_id,
-    StableMemory,
+    events_data_memory_id, events_index_memoery_id, pool_history_memory_id, pools_memory_id,
+    positions_memory_id, protocol_balance_memory_id, tick_bitmaps_memory_id,
+    tick_spacings_memory_id, ticks_memory_id, user_balances_memory_id, StableMemory,
 };
 use std::cell::RefCell;
 
@@ -43,6 +44,7 @@ thread_local! {
         tick_bitmaps: BTreeMap::init(tick_bitmaps_memory_id()),
         tick_spacings:BTreeMap::init(tick_spacings_memory_id()),
         pool_history:BTreeMap::init(pool_history_memory_id()),
+        events:Log::init(events_data_memory_id(), events_index_memoery_id()).expect("Failed to initialize events log")
     }));
 }
 
@@ -57,6 +59,7 @@ pub struct State {
 
     // historical data storage
     pool_history: BTreeMap<PoolId, PoolHistory, StableMemory>,
+    events: Log<Event, StableMemory, StableMemory>,
 }
 
 impl State {
@@ -267,6 +270,10 @@ impl State {
 
     pub fn set_pool_history(&mut self, pool_id: PoolId, pool_history: PoolHistory) {
         self.pool_history.insert(pool_id, pool_history);
+    }
+
+    pub fn record_event(&mut self, event: Event) {
+        self.events.append(&event);
     }
 }
 

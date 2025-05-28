@@ -60,3 +60,15 @@ const POOL_HISTORY_MEMORY_ID: MemoryId = MemoryId::new(7);
 pub fn pool_history_memory_id() -> StableMemory {
     MEMORY_MANAGER.with(|m| m.borrow().get(POOL_HISTORY_MEMORY_ID))
 }
+
+const EVENTS_INDEX_MEMORY_ID: MemoryId = MemoryId::new(8);
+
+pub fn events_index_memoery_id() -> StableMemory {
+    MEMORY_MANAGER.with(|m| m.borrow().get(EVENTS_INDEX_MEMORY_ID))
+}
+
+const EVENTS_DATA_MEMORY_ID: MemoryId = MemoryId::new(9);
+
+pub fn events_data_memory_id() -> StableMemory {
+    MEMORY_MANAGER.with(|m| m.borrow().get(EVENTS_DATA_MEMORY_ID))
+}

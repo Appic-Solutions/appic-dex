@@ -5,6 +5,7 @@ use num_traits::ToPrimitive;
 use crate::{
     balances::types::{UserBalance, UserBalanceKey},
     candid_types::position::MintPositionError,
+    events::{Event, EventType},
     libraries::{
         balance_delta::BalanceDelta, liquidity_amounts, slippage_check::validate_max_in,
         tick_math::TickMath,
