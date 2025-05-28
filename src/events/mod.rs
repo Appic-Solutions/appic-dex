@@ -44,7 +44,7 @@ pub enum EventType {
         #[cbor(n(2), with = "crate::cbor::u256")]
         amount0_received: U256,
         #[cbor(n(3), with = "crate::cbor::u256")]
-        amount1_recieved: U256,
+        amount1_received: U256,
         #[cbor(n(4), with = "crate::cbor::principal")]
         principal: Principal,
     },
@@ -57,7 +57,7 @@ pub enum EventType {
         #[cbor(n(2), with = "crate::cbor::u256")]
         amount0_received: U256,
         #[cbor(n(3), with = "crate::cbor::u256")]
-        amount1_recieved: U256,
+        amount1_received: U256,
         #[cbor(n(4), with = "crate::cbor::principal")]
         principal: Principal,
     },

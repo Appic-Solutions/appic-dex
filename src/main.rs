@@ -4,6 +4,7 @@ use appic_dex::{
     balances::types::{UserBalance, UserBalanceKey},
     burn::execute_burn_position,
     candid_types::{
+        events::{CandidEvent, GetEventsArg, GetEventsResult},
         pool::{CandidPoolId, CandidPoolState, CreatePoolArgs, CreatePoolError},
         position::{
             BurnPositionArgs, BurnPositionError, CandidPositionInfo, CandidPositionKey,
@@ -139,6 +140,26 @@ fn get_positions_by_owner(owner: Principal) -> Vec<(CandidPositionKey, CandidPos
             (candid_key, candid_info)
         })
         .collect()
+}
+
+#[query]
+fn get_events(args: GetEventsArg) -> GetEventsResult {
+    const MAX_EVENTS_PER_RESPONSE: u64 = 100;
+
+    let (total_event_count, events) = read_state(|s| {
+        (
+            s.total_event_count(),
+            s.get_events(args.start, args.length.min(MAX_EVENTS_PER_RESPONSE))
+                .into_iter()
+                .map(|event| CandidEvent::from(event))
+                .collect::<Vec<CandidEvent>>(),
+        )
+    });
+
+    GetEventsResult {
+        events,
+        total_event_count,
+    }
 }
 
 #[update]

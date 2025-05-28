@@ -1,5 +1,3 @@
-use minicbor::{Decode, Encode};
-
 use crate::position::types::PositionKey;
 
 use super::{pool::CandidPoolId, *};
@@ -35,6 +33,17 @@ impl TryFrom<CandidPositionKey> for PositionKey {
             tick_lower,
             tick_upper,
         })
+    }
+}
+
+impl From<PositionKey> for CandidPositionKey {
+    fn from(value: PositionKey) -> Self {
+        Self {
+            owner: value.owner,
+            pool: value.pool_id.into(),
+            tick_lower: value.tick_lower.into(),
+            tick_upper: value.tick_upper.into(),
+        }
     }
 }
 

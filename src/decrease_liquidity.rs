@@ -74,7 +74,7 @@ pub fn execute_decrease_liquidity(
 
     // safe operation no overflow can happen since the balance_delta is always negative
     let amount0_received = success_result.balance_delta.amount0().abs().as_u256();
-    let amount1_recieved = success_result.balance_delta.amount1().abs().as_u256();
+    let amount1_received = success_result.balance_delta.amount1().abs().as_u256();
 
     let event = Event {
         timestamp: ic_cdk::api::time(),
@@ -82,7 +82,7 @@ pub fn execute_decrease_liquidity(
             modified_position: success_result.buffer_state.position.clone().unwrap().0,
             liquidity_delta: validated_args.liquidity_delta.abs() as u128,
             amount0_received,
-            amount1_recieved,
+            amount1_received,
             principal: caller,
         },
     };

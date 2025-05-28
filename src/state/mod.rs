@@ -273,7 +273,21 @@ impl State {
     }
 
     pub fn record_event(&mut self, event: Event) {
-        self.events.append(&event);
+        self.events
+            .append(&event)
+            .expect("Recording an event should be successful");
+    }
+
+    pub fn get_events(&self, start: u64, length: u64) -> Vec<Event> {
+        self.events
+            .iter()
+            .skip(start as usize)
+            .take(length as usize)
+            .collect()
+    }
+
+    pub fn total_event_count(&self) -> u64 {
+        self.events.len()
     }
 }
 

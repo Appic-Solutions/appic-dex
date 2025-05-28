@@ -10,6 +10,7 @@ use crate::{
     pool::types::{PoolFee, PoolId},
 };
 
+pub mod events;
 pub mod pool;
 pub mod position;
 pub mod quote;
