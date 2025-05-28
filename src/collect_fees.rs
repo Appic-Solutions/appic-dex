@@ -4,9 +4,10 @@ use ethnum::I256;
 use crate::{
     balances::types::{UserBalance, UserBalanceKey},
     candid_types::position::CollectFeesError,
+    events::{Event, EventType},
     libraries::balance_delta::BalanceDelta,
     pool::{
-        modify_liquidity::{ModifyLiquidityParams, modify_liquidity},
+        modify_liquidity::{modify_liquidity, ModifyLiquidityParams},
         types::PoolTickSpacing,
     },
     position::types::PositionKey,
@@ -56,6 +57,19 @@ pub fn execute_collect_fees(
         .add(success_result.fee_delta)
         .map_err(|_| CollectFeesError::FeeOverflow)?;
 
+    // safe operation no overflow can happen since the balance_delta is always negative
+    let amount0_collected = success_result.fee_delta.amount0().abs().as_u256();
+    let amount1_collected = success_result.fee_delta.amount1().abs().as_u256();
+
+    let event = Event {
+        timestamp: ic_cdk::api::time(),
+        payload: EventType::CollectedFees {
+            position: position_key.clone(),
+            amount0_collected,
+            amount1_collected,
+            principal: caller,
+        },
+    };
     //Batch state updates
     mutate_state(|s| {
         s.update_user_balance(
@@ -73,6 +87,8 @@ pub fn execute_collect_fees(
             UserBalance(final_balance.amount1().as_u256()),
         );
         s.apply_modify_liquidity_buffer_state(success_result.buffer_state);
+
+        s.record_event(event);
     });
 
     Ok(success_result.fee_delta)

@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use candid::Principal;
 use ethnum::I256;
 use icrc_ledger_types::icrc1::account::Subaccount;
+use minicbor::{Decode, Encode};
 
 use crate::{
     candid_types::swap::{SwapArgs, SwapError},
@@ -15,42 +16,72 @@ use crate::{
     swap::get_token_in_out,
 };
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, Clone)]
 pub enum ValidatedSwapArgs {
+    #[n(0)]
     ExactInputSingle {
+        #[n(0)]
         pool_id: PoolId,
+        #[n(1)]
         zero_for_one: bool,
+        #[cbor(n(2), with = "crate::cbor::i256")]
         amount_in: I256,
+        #[cbor(n(3), with = "crate::cbor::i256")]
         amount_out_minimum: I256,
+        #[n(4)]
         from_subaccount: Option<Subaccount>,
+        #[cbor(n(5), with = "crate::cbor::principal")]
         token_in: Principal,
+        #[cbor(n(6), with = "crate::cbor::principal")]
         token_out: Principal,
     },
+    #[n(1)]
     ExactInput {
         // order should be preserved
+        #[n(0)]
         path: Vec<Swap>,
+        #[cbor(n(1), with = "crate::cbor::i256")]
         amount_in: I256,
+        #[cbor(n(2), with = "crate::cbor::i256")]
         amount_out_minimum: I256,
+        #[n(3)]
         from_subaccount: Option<Subaccount>,
+        #[cbor(n(4), with = "crate::cbor::principal")]
         token_in: Principal,
+        #[cbor(n(5), with = "crate::cbor::principal")]
         token_out: Principal,
     },
+    #[n(2)]
     ExactOutputSingle {
+        #[n(0)]
         pool_id: PoolId,
+        #[n(1)]
         zero_for_one: bool,
+        #[cbor(n(2), with = "crate::cbor::i256")]
         amount_out: I256,
+        #[cbor(n(3), with = "crate::cbor::i256")]
         amount_in_maximum: I256,
+        #[n(4)]
         from_subaccount: Option<Subaccount>,
+        #[cbor(n(5), with = "crate::cbor::principal")]
         token_in: Principal,
+        #[cbor(n(6), with = "crate::cbor::principal")]
         token_out: Principal,
     },
+    #[n(3)]
     ExactOutput {
         // order should be preserved
+        #[n(0)]
         path: Vec<Swap>,
+        #[cbor(n(1), with = "crate::cbor::i256")]
         amount_out: I256,
+        #[cbor(n(2), with = "crate::cbor::i256")]
         amount_in_maximum: I256,
+        #[n(3)]
         from_subaccount: Option<Subaccount>,
+        #[cbor(n(4), with = "crate::cbor::principal")]
         token_in: Principal,
+        #[cbor(n(5), with = "crate::cbor::principal")]
         token_out: Principal,
     },
 }

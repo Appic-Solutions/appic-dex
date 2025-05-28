@@ -37,6 +37,12 @@ pub struct CandidPoolState {
     pub fee_protocol: Nat,             // Max protocol fee is 0.1% (1000 pips)
     pub token0_transfer_fee: Nat,
     pub token1_transfer_fee: Nat,
+    pub swap_volume0_all_time: Nat,
+    pub swap_volume1_all_time: Nat,
+    pub pool_reserves0: Nat,
+    pub pool_reserves1: Nat,
+    pub generated_swap_fee0: Nat,
+    pub generated_swap_fee1: Nat,
 }
 
 impl TryFrom<CandidPoolId> for PoolId {
@@ -70,6 +76,12 @@ impl From<PoolState> for CandidPoolState {
             fee_protocol: value.fee_protocol.into(),
             token0_transfer_fee: u256_to_nat(value.token0_transfer_fee),
             token1_transfer_fee: u256_to_nat(value.token1_transfer_fee),
+            swap_volume0_all_time: u256_to_nat(value.swap_volume0_all_time),
+            swap_volume1_all_time: u256_to_nat(value.swap_volume1_all_time),
+            pool_reserves0: u256_to_nat(value.pool_reserve0),
+            pool_reserves1: u256_to_nat(value.pool_reserve1),
+            generated_swap_fee0: u256_to_nat(value.generated_swap_fee0),
+            generated_swap_fee1: u256_to_nat(value.generated_swap_fee1),
         }
     }
 }

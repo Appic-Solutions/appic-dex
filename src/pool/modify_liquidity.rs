@@ -174,8 +174,19 @@ pub fn modify_liquidity(
         }
     }
 
+    let mut pool_reserves = BalanceDelta::new(
+        buffer_state.pool.1.pool_reserve0.as_i256(),
+        buffer_state.pool.1.pool_reserve1.as_i256(),
+    );
+
+    // fee delta is aways positive, so the operation is safe
+    // we have to deduct the fees that is being sent to user from pool reserves
+    pool_reserves = pool_reserves
+        .sub(fee_delta)
+        .map_err(|_| ModifyLiquidityError::FeeOwedOverflow)?;
+
     // Calculate balance delta based on tick range
-    let balance_delta = calculate_balance_delta_and_update_pool_liquidity(
+    let balance_delta = calculate_balance_delta_and_update_pool_state(
         &params,
         &mut buffer_state,
         params.tick_lower,
@@ -183,7 +194,12 @@ pub fn modify_liquidity(
         params.liquidity_delta,
         pool.tick,
         pool.sqrt_price_x96,
+        &mut pool_reserves,
     )?;
+
+    // update pool_reserves
+    buffer_state.pool.1.pool_reserve0 = pool_reserves.amount0().as_u256();
+    buffer_state.pool.1.pool_reserve1 = pool_reserves.amount1().as_u256();
 
     Ok(ModifyLiquiditySuccess {
         balance_delta,
@@ -349,7 +365,7 @@ fn update_position_and_fees(
 }
 
 /// Calculates balance delta based on the current tick and position range.
-fn calculate_balance_delta_and_update_pool_liquidity(
+fn calculate_balance_delta_and_update_pool_state(
     params: &ModifyLiquidityParams,
     buffer_state: &mut ModifyLiquidityBufferState,
     tick_lower: i32,
@@ -357,6 +373,7 @@ fn calculate_balance_delta_and_update_pool_liquidity(
     liquidity_delta: i128,
     tick_current: i32,
     sqrt_price_x96: U256,
+    pool_reserves: &mut BalanceDelta,
 ) -> Result<BalanceDelta, ModifyLiquidityError> {
     if liquidity_delta == 0 {
         return Ok(BalanceDelta::ZERO_DELTA);
@@ -370,15 +387,29 @@ fn calculate_balance_delta_and_update_pool_liquidity(
         let amount0_delta =
             get_amount_0_delta_signed(sqrt_price_a_x96, sqrt_price_b_x96, liquidity_delta)
                 .map_err(|_| ModifyLiquidityError::AmountDeltaOverflow)?;
+
+        // update pool reserves, in case of minting the delta is negative and in case of burning
+        // the delta is positive
+        // safe overflow can not happen
+        pool_reserves
+            .sub_from_self(BalanceDelta::new(amount0_delta, I256::ZERO))
+            .map_err(|_| ModifyLiquidityError::AmountDeltaOverflow)?;
+
         Ok(BalanceDelta::new(amount0_delta, I256::ZERO))
     } else if tick_current < tick_upper {
         // In range: both tokens needed
         let amount0_delta =
             get_amount_0_delta_signed(sqrt_price_x96, sqrt_price_b_x96, liquidity_delta)
                 .map_err(|_| ModifyLiquidityError::AmountDeltaOverflow)?;
+
         let amount1_delta =
             get_amount_1_delta_signed(sqrt_price_a_x96, sqrt_price_x96, liquidity_delta)
                 .map_err(|_| ModifyLiquidityError::AmountDeltaOverflow)?;
+
+        // safe overflow can not happen
+        pool_reserves
+            .sub_from_self(BalanceDelta::new(amount0_delta, amount1_delta))
+            .map_err(|_| ModifyLiquidityError::AmountDeltaOverflow)?;
 
         // Add liquidity delta to pool state
         let pool_liquidity = buffer_state.pool.1.liquidity;
@@ -391,6 +422,12 @@ fn calculate_balance_delta_and_update_pool_liquidity(
         let amount1_delta =
             get_amount_1_delta_signed(sqrt_price_a_x96, sqrt_price_b_x96, liquidity_delta)
                 .map_err(|_| ModifyLiquidityError::AmountDeltaOverflow)?;
+
+        // safe overflow can not happen
+        pool_reserves
+            .sub_from_self(BalanceDelta::new(I256::ZERO, amount1_delta))
+            .map_err(|_| ModifyLiquidityError::AmountDeltaOverflow)?;
+
         Ok(BalanceDelta::new(I256::ZERO, amount1_delta))
     }
 }

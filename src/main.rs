@@ -1,7 +1,10 @@
+use std::time::Duration;
+
 use appic_dex::{
     balances::types::{UserBalance, UserBalanceKey},
     burn::execute_burn_position,
     candid_types::{
+        events::{CandidEvent, GetEventsArg, GetEventsResult},
         pool::{CandidPoolId, CandidPoolState, CreatePoolArgs, CreatePoolError},
         position::{
             BurnPositionArgs, BurnPositionError, CandidPositionInfo, CandidPositionKey,
@@ -10,13 +13,14 @@ use appic_dex::{
         },
         quote::{QuoteArgs, QuoteError},
         swap::{CandidSwapSuccess, SwapArgs, SwapError},
-        DepositArgs, DepositError, UserBalanceArgs, WithdrawalError,
+        Balance, DepositArgs, DepositError, UserBalanceArgs, WithdrawArgs, WithdrawError,
     },
     collect_fees::execute_collect_fees,
     decrease_liquidity::execute_decrease_liquidity,
     guard::PrincipalGuard,
+    historical::capture_historical_data,
     icrc_client::{
-        memo::{DepositMemo, WithdrawalMemo},
+        memo::{DepositMemo, WithdrawMemo},
         LedgerClient, LedgerTransferError,
     },
     increase_liquidity::execute_increase_liquidity,
@@ -45,7 +49,7 @@ use appic_dex::{
 
 use candid::{Nat, Principal};
 use ethnum::{I256, U256};
-use ic_cdk::{init, query, update};
+use ic_cdk::{init, post_upgrade, query, update};
 use icrc_ledger_types::icrc1::account::Account;
 
 fn validate_caller_not_anonymous() -> candid::Principal {
@@ -56,8 +60,12 @@ fn validate_caller_not_anonymous() -> candid::Principal {
     principal
 }
 
+fn set_up_timers() {
+    ic_cdk_timers::set_timer_interval(Duration::from_secs(10 * 60), capture_historical_data);
+}
+
 #[init]
-async fn init() {
+fn init() {
     let fee_to_tick_spacing = vec![
         (100_u32, 1_i32),
         (500_u32, 10i32),
@@ -68,6 +76,13 @@ async fn init() {
     for (fee, tick_spacing) in fee_to_tick_spacing {
         mutate_state(|s| s.set_tick_spacing(PoolFee(fee), PoolTickSpacing(tick_spacing)));
     }
+
+    set_up_timers();
+}
+
+#[post_upgrade]
+fn post_upgrade() {
+    set_up_timers();
 }
 
 #[query]
@@ -125,6 +140,70 @@ fn get_positions_by_owner(owner: Principal) -> Vec<(CandidPositionKey, CandidPos
             (candid_key, candid_info)
         })
         .collect()
+}
+
+/// Quotes the output amount for an exact input or input amount for an exact output swap.
+/// Returns the quoted amount as a `Nat`. Uses `swap_inner` to simulate swaps without modifying state.
+/// Executes as a query, ensuring no state changes on the Internet Computer.
+#[query]
+pub fn quote(args: QuoteArgs) -> Result<Nat, QuoteError> {
+    let quote_amount = match args {
+        //  Single-Hop Exact Input
+        QuoteArgs::QuoteExactInputSingleParams(params) => process_single_hop_exact_input(params)?,
+        //  Multi-Hop Exact Input
+        QuoteArgs::QuoteExactInputParams(params) => process_multi_hop_exact_input(params)?,
+        //  Single-Hop Exact Output
+        QuoteArgs::QuoteExactOutputSingleParams(params) => process_single_hop_exact_output(params)?,
+        //  Multi-Hop Exact Output
+        QuoteArgs::QuoteExactOutput(params) => process_multi_hop_exact_output(params)?,
+    };
+
+    // Convert result to Nat for Candid output
+    Ok(Nat::from(u256_to_big_uint(quote_amount)))
+}
+
+#[query]
+pub fn user_balances(user: Principal) -> Vec<Balance> {
+    read_state(|s| s.get_user_balances(user))
+        .into_iter()
+        .map(|(token, balance)| Balance {
+            token,
+            amount: u256_to_nat(balance),
+        })
+        .collect()
+}
+
+#[query]
+fn user_balance(args: UserBalanceArgs) -> Nat {
+    u256_to_nat(
+        read_state(|s| {
+            s.get_user_balance(&UserBalanceKey {
+                user: args.user,
+                token: args.token,
+            })
+        })
+        .0,
+    )
+}
+
+#[query]
+fn get_events(args: GetEventsArg) -> GetEventsResult {
+    const MAX_EVENTS_PER_RESPONSE: u64 = 100;
+
+    let (total_event_count, events) = read_state(|s| {
+        (
+            s.total_event_count(),
+            s.get_events(args.start, args.length.min(MAX_EVENTS_PER_RESPONSE))
+                .into_iter()
+                .map(|event| CandidEvent::from(event))
+                .collect::<Vec<CandidEvent>>(),
+        )
+    });
+
+    GetEventsResult {
+        events,
+        total_event_count,
+    }
 }
 
 #[update]
@@ -348,7 +427,7 @@ async fn burn(args: BurnPositionArgs) -> Result<(), BurnPositionError> {
         token0,
         user_balance_after_burn.amount0().as_u256(),
         &to_account,
-        &mut WithdrawalMemo::BurnPotions {
+        &mut WithdrawMemo::BurnPotions {
             receiver: caller,
             amount: U256::ZERO,
         },
@@ -362,7 +441,7 @@ async fn burn(args: BurnPositionArgs) -> Result<(), BurnPositionError> {
         token1,
         user_balance_after_burn.amount1().as_u256(),
         &to_account,
-        &mut WithdrawalMemo::BurnPotions {
+        &mut WithdrawMemo::BurnPotions {
             receiver: caller,
             amount: U256::ZERO,
         },
@@ -410,7 +489,7 @@ async fn decrease_liquidity(args: DecreaseLiquidityArgs) -> Result<(), DecreaseL
         token0,
         user_balance_after_burn.amount0().as_u256(),
         &to_account,
-        &mut WithdrawalMemo::BurnPotions {
+        &mut WithdrawMemo::BurnPotions {
             receiver: caller,
             amount: U256::ZERO,
         },
@@ -424,7 +503,7 @@ async fn decrease_liquidity(args: DecreaseLiquidityArgs) -> Result<(), DecreaseL
         token1,
         user_balance_after_burn.amount1().as_u256(),
         &to_account,
-        &mut WithdrawalMemo::BurnPotions {
+        &mut WithdrawMemo::BurnPotions {
             receiver: caller,
             amount: U256::ZERO,
         },
@@ -491,7 +570,7 @@ async fn swap(args: SwapArgs) -> Result<CandidSwapSuccess, SwapError> {
                 token_out,
                 swap_delta.1.as_u256(),
                 &user_address,
-                &mut WithdrawalMemo::SwapOut {
+                &mut WithdrawMemo::SwapOut {
                     receiver: caller,
                     amount: U256::ZERO,
                 },
@@ -564,7 +643,7 @@ async fn collect_fees(position: CandidPositionKey) -> Result<CollectFeesSuccess,
             position_key.pool_id.token0,
             fee_delta.amount0().as_u256(),
             &caller.into(),
-            &mut WithdrawalMemo::CollectFees {
+            &mut WithdrawMemo::CollectFees {
                 receiver: caller,
                 amount: U256::ZERO,
             },
@@ -578,7 +657,7 @@ async fn collect_fees(position: CandidPositionKey) -> Result<CollectFeesSuccess,
             position_key.pool_id.token1,
             fee_delta.amount1().as_u256(),
             &caller.into(),
-            &mut WithdrawalMemo::CollectFees {
+            &mut WithdrawMemo::CollectFees {
                 receiver: caller,
                 amount: U256::ZERO,
             },
@@ -596,142 +675,16 @@ async fn collect_fees(position: CandidPositionKey) -> Result<CollectFeesSuccess,
     }
 }
 
-/// Quotes the output amount for an exact input or input amount for an exact output swap.
-/// Returns the quoted amount as a `Nat`. Uses `swap_inner` to simulate swaps without modifying state.
-/// Executes as a query, ensuring no state changes on the Internet Computer.
-#[query]
-pub fn quote(args: QuoteArgs) -> Result<Nat, QuoteError> {
-    let quote_amount = match args {
-        //  Single-Hop Exact Input
-        QuoteArgs::QuoteExactInputSingleParams(params) => process_single_hop_exact_input(params)?,
-        //  Multi-Hop Exact Input
-        QuoteArgs::QuoteExactInputParams(params) => process_multi_hop_exact_input(params)?,
-        //  Single-Hop Exact Output
-        QuoteArgs::QuoteExactOutputSingleParams(params) => process_single_hop_exact_output(params)?,
-        //  Multi-Hop Exact Output
-        QuoteArgs::QuoteExactOutput(params) => process_multi_hop_exact_output(params)?,
-    };
-
-    // Convert result to Nat for Candid output
-    Ok(Nat::from(u256_to_big_uint(quote_amount)))
-}
-
-/// refund, a wrapper around _withdraw for better readability
-/// return refunded amount(initial refund amount - transfer fee)
-async fn _refund(
-    caller: Principal,
-    token: Principal,
-    amount: U256,
-    to: &Account,
-) -> Result<U256, WithdrawalError> {
-    let transfer_fee = big_uint_to_u256(
-        LedgerClient::new(token)
-            .icrc_fee()
-            .await
-            .map_err(|_| WithdrawalError::FeeUnknown)?
-            .0,
-    )
-    .map_err(|_| WithdrawalError::FeeUnknown)?;
-
-    _withdraw(
-        caller,
-        token,
-        amount,
-        to,
-        &mut WithdrawalMemo::Refund {
-            receiver: to.owner,
-            amount: U256::ZERO,
-        },
-        transfer_fee,
-    )
-    .await
-}
-
-/// withdraws tokens if there is sufficient user balance, and update the user state balance
-/// returns withdrew amount(initial withdraw amount - transfer fee)
-async fn _withdraw(
-    caller: Principal,
-    token: Principal,
-    amount: U256,
-    to: &Account,
-    memo: &mut WithdrawalMemo,
-    transfer_fee: U256,
-) -> Result<U256, WithdrawalError> {
-    let user_balance = get_user_balance(caller, token);
-
-    if amount.checked_sub(transfer_fee).is_none() {
-        return Err(WithdrawalError::AmountTooLow {
-            min_withdrawal_amount: Nat::from(u256_to_big_uint(transfer_fee)),
-        });
-    }
-
-    if amount > user_balance {
-        return Err(WithdrawalError::InsufficientBalance {
-            balance: Nat::from(u256_to_big_uint(user_balance)),
-        });
-    }
-
-    // we first deduct the use balance
-    // in case of transfer failure, we increase the user balance
-    // this is done to prevent double spending
-    mutate_state(|s| {
-        s.update_user_balance(
-            UserBalanceKey {
-                user: caller,
-                token,
-            },
-            UserBalance(user_balance - amount),
-        );
-    });
-
-    let withdrawal_amount = amount - transfer_fee;
-    let icrc_fee = u256_to_big_uint(transfer_fee);
-    memo.set_amount(amount);
-    match LedgerClient::new(token)
-        .withdraw(
-            *to,
-            u256_to_big_uint(withdrawal_amount),
-            memo.clone(),
-            icrc_fee,
-        )
-        .await
-    {
-        Ok(_) => return Ok(withdrawal_amount),
-        Err(err) => {
-            // transfer failed we need to add the remove balance to user
-            let latest_user_balance = get_user_balance(caller, token);
-            mutate_state(|s| {
-                s.update_user_balance(
-                    UserBalanceKey {
-                        user: caller,
-                        token,
-                    },
-                    UserBalance(latest_user_balance.checked_add(amount).unwrap_or(U256::MAX)),
-                );
-            });
-
-            match err {
-                LedgerTransferError::BadFee { expected_fee } => {
-                    let new_transfer_fee = big_uint_to_u256(expected_fee.0)
-                        .map_err(|_| WithdrawalError::FeeUnknown)?;
-
-                    // update token transfer fee across all pools
-                    mutate_state(|s| {
-                        s.update_token_transfer_fee_across_all_pools(token, new_transfer_fee)
-                    });
-                    return Err(WithdrawalError::FeeUnknown);
-                }
-                _ => {
-                    return Err(err.into());
-                }
-            }
-        }
-    };
-}
-
 #[update]
 async fn deposit(deposit_args: DepositArgs) -> Result<(), DepositError> {
     let caller = validate_caller_not_anonymous();
+
+    // Principal Lock to prevent double processing(double spending, over paying, and under
+    // paying)
+    let _principal_guard = match PrincipalGuard::new_general_guard(caller) {
+        Ok(guard) => guard,
+        Err(_) => return Err(DepositError::LockedPrincipal),
+    };
 
     let mut from = Account::from(caller);
     if let Some(subaccount) = deposit_args.from_subaccount {
@@ -740,6 +693,7 @@ async fn deposit(deposit_args: DepositArgs) -> Result<(), DepositError> {
 
     let amount =
         big_uint_to_u256(deposit_args.amount.0).map_err(|_| DepositError::AmountOverflow)?;
+
     _deposit(
         caller,
         deposit_args.token,
@@ -753,17 +707,42 @@ async fn deposit(deposit_args: DepositArgs) -> Result<(), DepositError> {
     .await
 }
 
-#[query]
-fn user_balance(args: UserBalanceArgs) -> Nat {
-    u256_to_nat(
-        read_state(|s| {
-            s.get_user_balance(&UserBalanceKey {
-                user: args.user,
-                token: args.token,
-            })
-        })
-        .0,
+#[update]
+async fn withdraw(withdraw_args: WithdrawArgs) -> Result<Nat, WithdrawError> {
+    let caller = validate_caller_not_anonymous();
+
+    // Principal Lock to prevent double processing(double spending, over paying, and under
+    // paying)
+    let _principal_guard = match PrincipalGuard::new_general_guard(caller) {
+        Ok(guard) => guard,
+        Err(_) => return Err(WithdrawError::LockedPrincipal),
+    };
+
+    let transfer_fee = big_uint_to_u256(
+        LedgerClient::new(withdraw_args.token)
+            .icrc_fee()
+            .await
+            .map_err(|_| WithdrawError::FeeUnknown)?
+            .0,
     )
+    .map_err(|_| WithdrawError::FeeUnknown)?;
+
+    let amount =
+        big_uint_to_u256(withdraw_args.amount.0).map_err(|_| WithdrawError::AmountOverflow)?;
+
+    _withdraw(
+        caller,
+        withdraw_args.token,
+        amount,
+        &caller.into(),
+        &mut WithdrawMemo::Withdraw {
+            receiver: caller,
+            amount: U256::ZERO,
+        },
+        transfer_fee,
+    )
+    .await
+    .map(|ledger_index| u256_to_nat(ledger_index))
 }
 
 /// Deposits tokens, then update user balance on success.
@@ -822,6 +801,120 @@ async fn _deposit_if_needed(
         return Ok(desired_user_balance);
     }
     Ok(user_current_balance)
+}
+
+/// refund, a wrapper around _withdraw for better readability
+/// return refunded amount(initial refund amount - transfer fee)
+async fn _refund(
+    caller: Principal,
+    token: Principal,
+    amount: U256,
+    to: &Account,
+) -> Result<U256, WithdrawError> {
+    let transfer_fee = big_uint_to_u256(
+        LedgerClient::new(token)
+            .icrc_fee()
+            .await
+            .map_err(|_| WithdrawError::FeeUnknown)?
+            .0,
+    )
+    .map_err(|_| WithdrawError::FeeUnknown)?;
+
+    _withdraw(
+        caller,
+        token,
+        amount,
+        to,
+        &mut WithdrawMemo::Refund {
+            receiver: to.owner,
+            amount: U256::ZERO,
+        },
+        transfer_fee,
+    )
+    .await
+}
+
+/// withdraws tokens if there is sufficient user balance, and update the user state balance
+/// returns withdrew amount(initial withdraw amount - transfer fee)
+async fn _withdraw(
+    caller: Principal,
+    token: Principal,
+    amount: U256,
+    to: &Account,
+    memo: &mut WithdrawMemo,
+    transfer_fee: U256,
+) -> Result<U256, WithdrawError> {
+    let user_balance = get_user_balance(caller, token);
+
+    if amount.checked_sub(transfer_fee).is_none() {
+        return Err(WithdrawError::AmountTooLow {
+            min_withdrawal_amount: Nat::from(u256_to_big_uint(transfer_fee)),
+        });
+    }
+
+    if amount > user_balance {
+        return Err(WithdrawError::InsufficientBalance {
+            balance: u256_to_nat(user_balance),
+        });
+    }
+
+    // we first deduct the user balance
+    // in case of transfer failure, we increase the user balance
+    // this is done to prevent double spending
+
+    mutate_state(|s| {
+        s.update_user_balance(
+            UserBalanceKey {
+                user: caller,
+                token,
+            },
+            UserBalance(user_balance - amount),
+        );
+    });
+
+    let withdrawal_amount = amount - transfer_fee;
+    let icrc_fee = u256_to_big_uint(transfer_fee);
+    memo.set_amount(amount);
+    match LedgerClient::new(token)
+        .withdraw(
+            *to,
+            u256_to_big_uint(withdrawal_amount),
+            memo.clone(),
+            icrc_fee,
+        )
+        .await
+    {
+        Ok(_) => return Ok(withdrawal_amount),
+        Err(err) => {
+            // transfer failed we need to add the remove balance to user
+            let latest_user_balance = get_user_balance(caller, token);
+            mutate_state(|s| {
+                s.update_user_balance(
+                    UserBalanceKey {
+                        user: caller,
+                        token,
+                    },
+                    UserBalance(latest_user_balance.checked_add(amount).unwrap_or(U256::MAX)),
+                );
+            });
+
+            match err {
+                LedgerTransferError::BadFee { expected_fee } => {
+                    let new_transfer_fee =
+                        big_uint_to_u256(expected_fee.0).map_err(|_| WithdrawError::FeeUnknown)?;
+
+                    // update token transfer fee across all pools
+                    mutate_state(|s| {
+                        s.update_token_transfer_fee_across_all_pools(token, new_transfer_fee)
+                    });
+                    return Err(WithdrawError::FeeUnknown);
+                }
+                _ => {
+                    return Err(err.into());
+                }
+            }
+        }
+    };
 }
 
 pub fn get_user_balance(user: Principal, token: Principal) -> U256 {

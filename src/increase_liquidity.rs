@@ -4,10 +4,11 @@ use ethnum::I256;
 use crate::{
     balances::types::{UserBalance, UserBalanceKey},
     candid_types::position::IncreaseLiquidity,
+    events::{Event, EventType},
     libraries::{balance_delta::BalanceDelta, slippage_check::validate_max_in},
     mint::calculate_liquidity,
     pool::{
-        modify_liquidity::{ModifyLiquidityError, ModifyLiquidityParams, modify_liquidity},
+        modify_liquidity::{modify_liquidity, ModifyLiquidityError, ModifyLiquidityParams},
         types::PoolId,
     },
     state::{mutate_state, read_state},
@@ -87,6 +88,21 @@ pub fn execute_increase_liquidity(
         .add(success_result.fee_delta)
         .map_err(|_| IncreaseLiquidity::AmountOverflow)?;
 
+    // safe operation no overflow can happen since the balance_delta is always negative
+    let amount0_paid = success_result.balance_delta.amount0().abs().as_u256();
+    let amount1_paid = success_result.balance_delta.amount1().abs().as_u256();
+
+    let event = Event {
+        timestamp: ic_cdk::api::time(),
+        payload: EventType::IncreasedLiquidity {
+            modified_position: success_result.buffer_state.position.clone().unwrap().0,
+            liquidity_delta: liquidity_delta as u128,
+            amount0_paid,
+            amount1_paid,
+            principal: caller,
+        },
+    };
+
     //Batch state updates
     mutate_state(|s| {
         s.update_user_balance(
@@ -104,6 +120,8 @@ pub fn execute_increase_liquidity(
             UserBalance(final_balance.amount1().as_u256()),
         );
         s.apply_modify_liquidity_buffer_state(success_result.buffer_state);
+
+        s.record_event(event);
     });
 
     Ok(liquidity_delta as u128)

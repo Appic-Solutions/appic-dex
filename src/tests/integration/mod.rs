@@ -15,7 +15,7 @@ const TWO_HUNDRED_ETH: u128 = 200_000_000_000_000_000_000_u128;
 pub mod modify_liquidity;
 pub mod swap_tests;
 
-use candid::{CandidType, Int, Nat, Principal};
+use candid::{CandidType, Nat, Principal};
 use ethnum::U256;
 use ic_icrc1_ledger::FeatureFlags as LedgerFeatureFlags;
 use icrc_ledger_types::{
@@ -34,9 +34,9 @@ use ic_icrc1_ledger::{ArchiveOptions, InitArgs as LedgerInitArgs, LedgerArgument
 
 use crate::{
     candid_types::{
-        UserBalanceArgs,
         pool::{CandidPoolId, CreatePoolArgs, CreatePoolError},
         position::{MintPositionArgs, MintPositionError},
+        UserBalanceArgs,
     },
     libraries::{safe_cast::u256_to_nat, sqrt_price_math::tests::SQRT_PRICE_1_1},
 };
@@ -509,21 +509,21 @@ pub fn create_pool_with_liquidity(pic: &PocketIc, token_0: Principal, token_1: P
     )
     .unwrap();
 
-    let balance0 = query_call::<LedgerAccount, Nat>(
+    let _balance0 = query_call::<LedgerAccount, Nat>(
         &pic,
         token_0,
         "icrc1_balance_of",
         LedgerAccount::from(sender_principal()),
     );
 
-    let balance1 = query_call::<LedgerAccount, Nat>(
+    let _balance1 = query_call::<LedgerAccount, Nat>(
         &pic,
         token_1,
         "icrc1_balance_of",
         LedgerAccount::from(sender_principal()),
     );
 
-    let allowance0 = query_call::<AllowanceArgs, Allowance>(
+    let _allowance0 = query_call::<AllowanceArgs, Allowance>(
         &pic,
         token_0,
         "icrc2_allowance",
@@ -539,7 +539,7 @@ pub fn create_pool_with_liquidity(pic: &PocketIc, token_0: Principal, token_1: P
         },
     );
 
-    let allowance1 = query_call::<AllowanceArgs, Allowance>(
+    let _allowance1 = query_call::<AllowanceArgs, Allowance>(
         &pic,
         token_1,
         "icrc2_allowance",
@@ -555,16 +555,11 @@ pub fn create_pool_with_liquidity(pic: &PocketIc, token_0: Principal, token_1: P
         },
     );
 
-    println!(
-        "{:?}{:?}{:?}{:?}",
-        balance0, balance1, allowance0, allowance1
-    );
-
     five_ticks(&pic);
     five_ticks(&pic);
     five_ticks(&pic);
 
-    let user_balance0 = query_call::<UserBalanceArgs, Nat>(
+    let _user_balance0 = query_call::<UserBalanceArgs, Nat>(
         &pic,
         appic_dex_canister_id(),
         "user_balance",
@@ -573,7 +568,7 @@ pub fn create_pool_with_liquidity(pic: &PocketIc, token_0: Principal, token_1: P
             user: sender_principal(),
         },
     );
-    let user_balance1 = query_call::<UserBalanceArgs, Nat>(
+    let _user_balance1 = query_call::<UserBalanceArgs, Nat>(
         &pic,
         appic_dex_canister_id(),
         "user_balance",
@@ -581,11 +576,6 @@ pub fn create_pool_with_liquidity(pic: &PocketIc, token_0: Principal, token_1: P
             token: token_1,
             user: sender_principal(),
         },
-    );
-
-    println!(
-        "user balance in dex: {:?}{:?}",
-        user_balance0, user_balance1
     );
 
     let mint_args = MintPositionArgs {
@@ -601,15 +591,13 @@ pub fn create_pool_with_liquidity(pic: &PocketIc, token_0: Principal, token_1: P
         from_subaccount: None,
     };
 
-    let mint_result = update_call::<MintPositionArgs, Result<Nat, MintPositionError>>(
+    let _mint_result = update_call::<MintPositionArgs, Result<Nat, MintPositionError>>(
         &pic,
         appic_dex_canister_id(),
         "mint_position",
         mint_args,
         None,
     );
-
-    println!("{:?}", mint_result);
 }
 
 pub fn set_up() -> PocketIc {

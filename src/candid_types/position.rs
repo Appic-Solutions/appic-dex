@@ -36,6 +36,17 @@ impl TryFrom<CandidPositionKey> for PositionKey {
     }
 }
 
+impl From<PositionKey> for CandidPositionKey {
+    fn from(value: PositionKey) -> Self {
+        Self {
+            owner: value.owner,
+            pool: value.pool_id.into(),
+            tick_lower: value.tick_lower.into(),
+            tick_upper: value.tick_upper.into(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize)]
 pub struct CandidPositionInfo {
     pub liquidity: Nat,                     // Position liquidity
@@ -66,7 +77,7 @@ pub enum BurnPositionError {
     FeeOverflow,
     AmountOverflow,
     InsufficientBalance,
-    BurntPositionWithdrawalFailed(WithdrawalError),
+    BurntPositionWithdrawalFailed(WithdrawError),
 }
 
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize)]
@@ -79,7 +90,7 @@ pub struct MintPositionArgs {
     pub from_subaccount: Option<Subaccount>,
 }
 
-#[derive(Debug, Clone, CandidType, Deserialize, Serialize)]
+#[derive(Debug, Clone, CandidType, Deserialize, Serialize, Eq, PartialEq)]
 pub enum MintPositionError {
     LockedPrincipal,
     InvalidPoolFee,
@@ -144,7 +155,7 @@ pub enum DecreaseLiquidityError {
     AmountOverflow,
     InvalidAmount,
     InsufficientBalance,
-    DecreasedPositionWithdrawalFailed(WithdrawalError),
+    DecreasedPositionWithdrawalFailed(WithdrawError),
 }
 
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize)]
@@ -159,5 +170,5 @@ pub enum CollectFeesError {
     PositionNotFound,
     FeeOverflow,
     NoFeeToCollect,
-    CollectedFeesWithdrawalFailed(WithdrawalError),
+    CollectedFeesWithdrawalFailed(WithdrawError),
 }

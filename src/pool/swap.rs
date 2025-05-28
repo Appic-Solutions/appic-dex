@@ -76,6 +76,7 @@ pub struct SwapSuccess {
     pub amount_to_protocol: U256,
     pub fee_token: Principal,
     pub swap_fee: u32,
+    pub total_swap_fee_amount: U256,
     pub buffer_state: SwapBufferState,
 }
 
@@ -112,6 +113,9 @@ pub fn swap_inner(params: SwapParams) -> Result<SwapSuccess, InnerSwapError> {
 
     // protocol fee after the swap, initially set to 0
     let mut amount_to_protocol: U256 = U256::ZERO;
+
+    let mut total_swap_fee_amount: U256 = U256::ZERO;
+
     let mut buffer_state = SwapBufferState {
         pool: (params.pool_id.clone(), pool_state_initial.clone()),
         shifted_ticks: vec![],
@@ -133,6 +137,7 @@ pub fn swap_inner(params: SwapParams) -> Result<SwapSuccess, InnerSwapError> {
             swap_fee,
             buffer_state,
             fee_token,
+            total_swap_fee_amount,
         });
     };
 
@@ -210,6 +215,9 @@ pub fn swap_inner(params: SwapParams) -> Result<SwapSuccess, InnerSwapError> {
             &mut calculated_amount,
             &step,
         )?;
+
+        // update total_swap_fee_amount
+        total_swap_fee_amount += step.fee_amount;
 
         // Apply protocol fee if applicable.
         if protocol_fee > 0 {
@@ -304,6 +312,14 @@ pub fn swap_inner(params: SwapParams) -> Result<SwapSuccess, InnerSwapError> {
         }
     }
 
+    // Compute Swap Delta
+    let swap_delta = compute_swap_delta(
+        params.zero_for_one,
+        params.amount_specified,
+        remaining_amount,
+        calculated_amount,
+    );
+
     // Update Buffered State
     update_buffer_state(
         &mut buffer_state,
@@ -311,14 +327,8 @@ pub fn swap_inner(params: SwapParams) -> Result<SwapSuccess, InnerSwapError> {
         &pool_state_initial,
         &step,
         params.zero_for_one,
-    );
-
-    // Compute Swap Delta
-    let swap_delta = compute_swap_delta(
-        params.zero_for_one,
-        params.amount_specified,
-        remaining_amount,
-        calculated_amount,
+        &swap_delta,
+        total_swap_fee_amount,
     );
 
     // check if pool is illiquid
@@ -337,6 +347,7 @@ pub fn swap_inner(params: SwapParams) -> Result<SwapSuccess, InnerSwapError> {
         token_out_transfer_fee,
         amount_to_protocol,
         swap_fee,
+        total_swap_fee_amount,
         buffer_state,
         fee_token,
     })
@@ -425,16 +436,74 @@ fn update_buffer_state(
     pool_state_initial: &PoolState,
     step: &StepComputations,
     zero_for_one: bool,
+    swap_delta: &BalanceDelta,
+    total_swap_fee_amount: U256,
 ) {
+    // update sqrt_price and tick
     buffer_state.pool.1.sqrt_price_x96 = swap_result.sqrt_price_x96;
     buffer_state.pool.1.tick = swap_result.tick;
+
+    // update pool reserves
+    let old_pool_reserves = BalanceDelta::new(
+        buffer_state.pool.1.pool_reserve0.as_i256(),
+        buffer_state.pool.1.pool_reserve1.as_i256(),
+    );
+
+    // amount in is negative and amount out is positive, so pool_reserves - swap_delta = new
+    // pool reserves
+    let pool_reserves_after = old_pool_reserves
+        .sub(*swap_delta)
+        .expect("Bug: this operation should be fail, since swap was successful");
+
+    buffer_state.pool.1.pool_reserve0 = pool_reserves_after.amount0().as_u256();
+    buffer_state.pool.1.pool_reserve1 = pool_reserves_after.amount1().as_u256();
+
+    // update liqudity
     if pool_state_initial.liquidity != swap_result.liquidity {
         buffer_state.pool.1.liquidity = swap_result.liquidity;
     }
+
+    // update fee_growth_global_x128, accumulated swap volume, and accumulated swap fee
     if zero_for_one {
         buffer_state.pool.1.fee_growth_global_0_x128 = step.fee_growth_global_x128;
+
+        let generated_swap_fee0 = buffer_state
+            .pool
+            .1
+            .generated_swap_fee0
+            .checked_add(total_swap_fee_amount)
+            .unwrap_or(U256::MAX);
+
+        buffer_state.pool.1.generated_swap_fee0 = generated_swap_fee0;
+
+        let swap_volume0_all_time = buffer_state
+            .pool
+            .1
+            .swap_volume0_all_time
+            .as_i256()
+            .checked_sub(swap_delta.amount0())
+            .unwrap_or(I256::MAX);
+        buffer_state.pool.1.swap_volume0_all_time = swap_volume0_all_time.as_u256();
     } else {
         buffer_state.pool.1.fee_growth_global_1_x128 = step.fee_growth_global_x128;
+
+        let generated_swap_fee1 = buffer_state
+            .pool
+            .1
+            .generated_swap_fee1
+            .checked_add(total_swap_fee_amount)
+            .unwrap_or(U256::MAX);
+
+        buffer_state.pool.1.generated_swap_fee1 = generated_swap_fee1;
+
+        let swap_volume1_all_time = buffer_state
+            .pool
+            .1
+            .swap_volume1_all_time
+            .as_i256()
+            .checked_sub(swap_delta.amount1())
+            .unwrap_or(I256::MAX);
+        buffer_state.pool.1.swap_volume1_all_time = swap_volume1_all_time.as_u256();
     }
 }
 

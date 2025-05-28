@@ -245,7 +245,7 @@ fn flow_test() {
             zero_for_one,
         });
 
-        let swap_result = update_call::<SwapArgs, Result<CandidSwapSuccess, SwapError>>(
+        let _swap_result = update_call::<SwapArgs, Result<CandidSwapSuccess, SwapError>>(
             &pic,
             appic_dex_canister_id(),
             "swap",
@@ -254,7 +254,7 @@ fn flow_test() {
         )
         .unwrap();
 
-        let pool_state = query_call::<CandidPoolId, Option<CandidPoolState>>(
+        let _pool_state = query_call::<CandidPoolId, Option<CandidPoolState>>(
             &pic,
             appic_dex_canister_id(),
             "get_pool",
@@ -262,8 +262,21 @@ fn flow_test() {
         )
         .unwrap();
 
-        println!("swap_result {:?}, pool_state {:?}", swap_result, pool_state);
+        //println!("swap_result {:?}, pool_state {:?}", swap_result, pool_state);
     }
+
+    // pool state after swap
+    let pool_state_after_swap = query_call::<CandidPoolId, Option<CandidPoolState>>(
+        &pic,
+        appic_dex_canister_id(),
+        "get_pool",
+        CandidPoolId {
+            token0: token0_principal(),
+            token1: token1_principal(),
+            fee: Nat::from(3000_u32),
+        },
+    )
+    .unwrap();
 
     let position = query_call::<CandidPositionKey, Option<CandidPositionInfo>>(
         &pic,
@@ -309,6 +322,42 @@ fn flow_test() {
         .unwrap();
 
     println!("{:?}", fee_collection_result);
+
+    five_ticks(&pic);
+    five_ticks(&pic);
+    five_ticks(&pic);
+
+    // pool state after fee collection
+    let pool_state_after_fee_collection = query_call::<CandidPoolId, Option<CandidPoolState>>(
+        &pic,
+        appic_dex_canister_id(),
+        "get_pool",
+        CandidPoolId {
+            token0: token0_principal(),
+            token1: token1_principal(),
+            fee: Nat::from(3000_u32),
+        },
+    )
+    .unwrap();
+
+    five_ticks(&pic);
+    five_ticks(&pic);
+    five_ticks(&pic);
+
+    println!(
+        "after swap {:?} after fee collection {:?}",
+        pool_state_after_swap, pool_state_after_fee_collection
+    );
+
+    assert_eq!(
+        pool_state_after_fee_collection.pool_reserves0 + position.fees_token0_owed,
+        pool_state_after_swap.pool_reserves0
+    );
+
+    assert_eq!(
+        pool_state_after_fee_collection.pool_reserves1 + position.fees_token1_owed,
+        pool_state_after_swap.pool_reserves1
+    );
 
     let position = query_call::<CandidPositionKey, Option<CandidPositionInfo>>(
         &pic,

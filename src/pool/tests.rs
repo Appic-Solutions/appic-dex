@@ -11,7 +11,7 @@ mod modify_liquidity_tests {
             tick_math,
         },
         pool::{
-            modify_liquidity::{ModifyLiquidityError, ModifyLiquidityParams, modify_liquidity},
+            modify_liquidity::{modify_liquidity, ModifyLiquidityError, ModifyLiquidityParams},
             types::{PoolFee, PoolId, PoolState, PoolTickSpacing},
         },
         position::types::PositionKey,
@@ -66,6 +66,12 @@ mod modify_liquidity_tests {
                     fee_protocol: 500,
                     token1_transfer_fee: U256::ZERO,
                     token0_transfer_fee: U256::ZERO,
+                    swap_volume0_all_time: U256::ZERO,
+                    swap_volume1_all_time: U256::ZERO,
+                    pool_reserve0: U256::ZERO,
+                    pool_reserve1: U256::ZERO,
+                    generated_swap_fee0: U256::ZERO,
+                    generated_swap_fee1: U256::ZERO,
                 },
             )
         });
@@ -86,6 +92,12 @@ mod modify_liquidity_tests {
                     fee_protocol: 0,
                     token1_transfer_fee: U256::ZERO,
                     token0_transfer_fee: U256::ZERO,
+                    swap_volume0_all_time: U256::ZERO,
+                    swap_volume1_all_time: U256::ZERO,
+                    pool_reserve0: U256::ZERO,
+                    pool_reserve1: U256::ZERO,
+                    generated_swap_fee0: U256::ZERO,
+                    generated_swap_fee1: U256::ZERO,
                 },
             )
         });
@@ -185,9 +197,8 @@ mod modify_liquidity_tests {
 
         println!("{:?}", result);
 
-        //
         mutate_state(|s| s.apply_modify_liquidity_buffer_state(result.buffer_state.clone()));
-        //
+
         let position = read_state(|s| s.get_position(&test_position_key_3000()));
         assert_eq!(
             position.liquidity,
@@ -249,6 +260,69 @@ mod modify_liquidity_tests {
             tick_upper_info.liquidity_gross,
             test_modify_liquidity_params().liquidity_delta as u128
         );
+    }
+
+    #[test]
+    fn modify_liquidty_updates_pool_reserves() {
+        initialize_test_pool_3000();
+        let position = read_state(|s| s.get_position(&test_position_key_3000()));
+        assert_eq!(position.liquidity, 0);
+
+        let amount_0_max = U256::from(10000_u32);
+        let amount_1_max = U256::from(10000_u32);
+        let price_a = tick_math::TickMath::get_sqrt_ratio_at_tick(-887220);
+        let price_b = tick_math::TickMath::get_sqrt_ratio_at_tick(887220);
+
+        let liquidity_delta = get_liquidity_for_amounts(
+            sqrt_price_1_1(),
+            price_a,
+            price_b,
+            amount_0_max,
+            amount_1_max,
+        )
+        .unwrap();
+
+        let modify_liquidity_params_mint = ModifyLiquidityParams {
+            owner: test_position_key().owner,
+            pool_id: test_pool_3000(),
+            tick_lower: -887220,
+            tick_upper: 887220,
+            liquidity_delta: liquidity_delta as i128,
+            tick_spacing: PoolTickSpacing(60),
+        };
+
+        let result = modify_liquidity(modify_liquidity_params_mint.clone()).unwrap();
+
+        assert_eq!(result.clone().balance_delta.amount0(), -10000);
+        assert_eq!(result.balance_delta.amount1(), -10000);
+
+        mutate_state(|s| s.apply_modify_liquidity_buffer_state(result.buffer_state.clone()));
+
+        let pool_state = read_state(|s| s.get_pool(&test_pool_3000())).unwrap();
+
+        assert_eq!(pool_state.pool_reserve0, U256::from(10000_u128));
+        assert_eq!(pool_state.pool_reserve1, U256::from(10000_u128));
+
+        let modify_liquidity_params_burn = ModifyLiquidityParams {
+            owner: test_position_key().owner,
+            pool_id: test_pool_3000(),
+            tick_lower: -887220,
+            tick_upper: 887220,
+            liquidity_delta: -5000_i128,
+            tick_spacing: PoolTickSpacing(60),
+        };
+
+        let result = modify_liquidity(modify_liquidity_params_burn.clone()).unwrap();
+
+        assert_eq!(result.clone().balance_delta.amount0(), 4999);
+        assert_eq!(result.balance_delta.amount1(), 4999);
+
+        mutate_state(|s| s.apply_modify_liquidity_buffer_state(result.buffer_state.clone()));
+
+        let pool_state = read_state(|s| s.get_pool(&test_pool_3000())).unwrap();
+
+        assert_eq!(pool_state.pool_reserve0, U256::from(5001_u128));
+        assert_eq!(pool_state.pool_reserve1, U256::from(5001_u128));
     }
 
     proptest! {

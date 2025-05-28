@@ -31,6 +31,44 @@ impl BalanceDelta {
         self.amount1
     }
 
+    pub fn set_amount0(&mut self, amount: I256) {
+        self.amount0 = amount;
+    }
+
+    pub fn set_amount1(&mut self, amount: I256) {
+        self.amount1 = amount;
+    }
+
+    pub fn add_to_self(&mut self, other: BalanceDelta) -> Result<(), BalanceDeltaError> {
+        let amount0 = self
+            .amount0
+            .checked_add(other.amount0)
+            .ok_or(BalanceDeltaError::Overflow)?;
+        let amount1 = self
+            .amount1
+            .checked_add(other.amount1)
+            .ok_or(BalanceDeltaError::Overflow)?;
+        self.amount0 = amount0;
+        self.amount1 = amount1;
+
+        Ok(())
+    }
+
+    pub fn sub_from_self(&mut self, other: BalanceDelta) -> Result<(), BalanceDeltaError> {
+        let amount0 = self
+            .amount0
+            .checked_sub(other.amount0)
+            .ok_or(BalanceDeltaError::Underflow)?;
+        let amount1 = self
+            .amount1
+            .checked_sub(other.amount1)
+            .ok_or(BalanceDeltaError::Underflow)?;
+        self.amount0 = amount0;
+        self.amount1 = amount1;
+
+        Ok(())
+    }
+
     pub fn add(self, other: BalanceDelta) -> Result<BalanceDelta, BalanceDeltaError> {
         let amount0 = self
             .amount0

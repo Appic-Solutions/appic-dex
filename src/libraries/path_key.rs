@@ -1,4 +1,5 @@
 use candid::Principal;
+use minicbor::{Decode, Encode};
 
 use crate::pool::types::{PoolFee, PoolId};
 
@@ -8,10 +9,12 @@ pub struct PathKey {
     pub fee: PoolFee,
 }
 
-#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Encode, Decode)]
 pub struct Swap {
+    #[n(0)]
     pub pool_id: PoolId,
     // in case of exactOutput this will be oneForZero
+    #[n(1)]
     pub zero_for_one: bool,
 }
 

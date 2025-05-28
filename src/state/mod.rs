@@ -9,7 +9,8 @@
 
 use crate::{
     balances::types::{UserBalance, UserBalanceKey},
-    historical::PoolHistory,
+    events::{Event, EventType},
+    historical::types::PoolHistory,
     libraries::{constants::Q128, full_math::mul_div},
     pool::{
         modify_liquidity::ModifyLiquidityBufferState,
@@ -22,11 +23,11 @@ use crate::{
 
 use candid::Principal;
 use ethnum::U256;
-use ic_stable_structures::BTreeMap;
+use ic_stable_structures::{BTreeMap, Log};
 use memory_manager::{
-    pool_history_memory_id, pools_memory_id, positions_memory_id, protocol_balance_memory_id,
-    tick_bitmaps_memory_id, tick_spacings_memory_id, ticks_memory_id, user_balances_memory_id,
-    StableMemory,
+    events_data_memory_id, events_index_memoery_id, pool_history_memory_id, pools_memory_id,
+    positions_memory_id, protocol_balance_memory_id, tick_bitmaps_memory_id,
+    tick_spacings_memory_id, ticks_memory_id, user_balances_memory_id, StableMemory,
 };
 use std::cell::RefCell;
 
@@ -43,6 +44,7 @@ thread_local! {
         tick_bitmaps: BTreeMap::init(tick_bitmaps_memory_id()),
         tick_spacings:BTreeMap::init(tick_spacings_memory_id()),
         pool_history:BTreeMap::init(pool_history_memory_id()),
+        events:Log::init(events_data_memory_id(), events_index_memoery_id()).expect("Failed to initialize events log")
     }));
 }
 
@@ -57,6 +59,7 @@ pub struct State {
 
     // historical data storage
     pool_history: BTreeMap<PoolId, PoolHistory, StableMemory>,
+    events: Log<Event, StableMemory, StableMemory>,
 }
 
 impl State {
@@ -168,6 +171,19 @@ impl State {
             .unwrap_or(UserBalance(U256::ZERO))
     }
 
+    pub fn get_user_balances(&self, user: Principal) -> Vec<(Principal, U256)> {
+        self.user_balances
+            .iter()
+            .filter_map(|(key, balance)| {
+                if key.user == user {
+                    Some((key.token, balance.0))
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
     pub fn update_user_balance(&mut self, key: UserBalanceKey, value: UserBalance) {
         self.user_balances.insert(key, value);
     }
@@ -259,6 +275,32 @@ impl State {
             };
             self.pools.insert(pool.0, new_pool_state);
         }
+    }
+
+    pub fn get_pool_history(&self, pool_id: &PoolId) -> PoolHistory {
+        self.pool_history.get(pool_id).unwrap_or_default()
+    }
+
+    pub fn set_pool_history(&mut self, pool_id: PoolId, pool_history: PoolHistory) {
+        self.pool_history.insert(pool_id, pool_history);
+    }
+
+    pub fn record_event(&mut self, event: Event) {
+        self.events
+            .append(&event)
+            .expect("Recording an event should be successful");
+    }
+
+    pub fn get_events(&self, start: u64, length: u64) -> Vec<Event> {
+        self.events
+            .iter()
+            .skip(start as usize)
+            .take(length as usize)
+            .collect()
+    }
+
+    pub fn total_event_count(&self) -> u64 {
+        self.events.len()
     }
 }
 
