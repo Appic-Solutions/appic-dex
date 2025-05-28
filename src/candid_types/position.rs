@@ -77,7 +77,7 @@ pub enum BurnPositionError {
     FeeOverflow,
     AmountOverflow,
     InsufficientBalance,
-    BurntPositionWithdrawalFailed(WithdrawalError),
+    BurntPositionWithdrawalFailed(WithdrawError),
 }
 
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize)]
@@ -155,7 +155,7 @@ pub enum DecreaseLiquidityError {
     AmountOverflow,
     InvalidAmount,
     InsufficientBalance,
-    DecreasedPositionWithdrawalFailed(WithdrawalError),
+    DecreasedPositionWithdrawalFailed(WithdrawError),
 }
 
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize)]
@@ -170,5 +170,5 @@ pub enum CollectFeesError {
     PositionNotFound,
     FeeOverflow,
     NoFeeToCollect,
-    CollectedFeesWithdrawalFailed(WithdrawalError),
+    CollectedFeesWithdrawalFailed(WithdrawError),
 }

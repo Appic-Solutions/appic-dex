@@ -11,7 +11,7 @@ use icrc_ledger_types::{
     },
     icrc2::transfer_from::{TransferFromArgs, TransferFromError},
 };
-use memo::{DepositMemo, WithdrawalMemo};
+use memo::{DepositMemo, WithdrawMemo};
 
 use crate::logs::DEBUG;
 
@@ -159,7 +159,7 @@ impl LedgerClient {
         &self,
         to: Account,
         amount: A,
-        memo: WithdrawalMemo,
+        memo: WithdrawMemo,
         fee: B,
     ) -> Result<TransferIndex, LedgerTransferError> {
         let amount = amount.into();

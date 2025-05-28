@@ -72,7 +72,7 @@ impl From<DepositMemo> for Memo {
 }
 
 #[derive(Decode, Encode, Debug, Eq, PartialEq, Clone)]
-pub enum WithdrawalMemo {
+pub enum WithdrawMemo {
     /// User received funds after position burnt.
     #[n(0)]
     BurnPotions {
@@ -131,38 +131,51 @@ pub enum WithdrawalMemo {
         /// amount
         amount: U256,
     },
+    #[n(6)]
+    Withdraw {
+        #[cbor(n(0), with = "crate::cbor::principal")]
+        /// The receiver of the token.
+        receiver: Principal,
+        #[cbor(n(2), with = "crate::cbor::u256")]
+        /// amount
+        amount: U256,
+    },
 }
 
-impl From<WithdrawalMemo> for Memo {
-    fn from(value: WithdrawalMemo) -> Self {
+impl From<WithdrawMemo> for Memo {
+    fn from(value: WithdrawMemo) -> Self {
         Memo::from(encode(&value))
     }
 }
 
-impl WithdrawalMemo {
+impl WithdrawMemo {
     pub fn set_amount(&mut self, new_amount: U256) {
         match self {
-            WithdrawalMemo::BurnPotions {
+            WithdrawMemo::BurnPotions {
                 receiver: _,
                 amount,
             } => *amount = new_amount,
-            WithdrawalMemo::DecreasePosition {
+            WithdrawMemo::DecreasePosition {
                 receiver: _,
                 amount,
             } => *amount = new_amount,
-            WithdrawalMemo::SwapOut {
+            WithdrawMemo::SwapOut {
                 receiver: _,
                 amount,
             } => *amount = new_amount,
-            WithdrawalMemo::WithdrawBalance {
+            WithdrawMemo::WithdrawBalance {
                 receiver: _,
                 amount,
             } => *amount = new_amount,
-            WithdrawalMemo::Refund {
+            WithdrawMemo::Refund {
                 receiver: _,
                 amount,
             } => *amount = new_amount,
-            WithdrawalMemo::CollectFees {
+            WithdrawMemo::CollectFees {
+                receiver: _,
+                amount,
+            } => *amount = new_amount,
+            WithdrawMemo::Withdraw {
                 receiver: _,
                 amount,
             } => *amount = new_amount,

@@ -171,6 +171,19 @@ impl State {
             .unwrap_or(UserBalance(U256::ZERO))
     }
 
+    pub fn get_user_balances(&self, user: Principal) -> Vec<(Principal, U256)> {
+        self.user_balances
+            .iter()
+            .filter_map(|(key, balance)| {
+                if key.user == user {
+                    Some((key.token, balance.0))
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
     pub fn update_user_balance(&mut self, key: UserBalanceKey, value: UserBalance) {
         self.user_balances.insert(key, value);
     }
