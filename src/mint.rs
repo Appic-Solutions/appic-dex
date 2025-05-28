@@ -7,7 +7,9 @@ use crate::{
     candid_types::position::MintPositionError,
     events::{Event, EventType},
     libraries::{
-        balance_delta::BalanceDelta, liquidity_amounts, slippage_check::validate_max_in,
+        balance_delta::{self, BalanceDelta},
+        liquidity_amounts,
+        slippage_check::validate_max_in,
         tick_math::TickMath,
     },
     pool::{
@@ -85,6 +87,21 @@ pub fn execute_mint_position(
         .add(success_result.balance_delta)
         .map_err(|_| MintPositionError::AmountOverflow)?;
 
+    // safe operation no overflow can happen since the balance_delta is always negative
+    let amount0_paid = success_result.balance_delta.amount0().abs().as_u256();
+    let amount1_paid = success_result.balance_delta.amount1().abs().as_u256();
+
+    let event = Event {
+        timestamp: ic_cdk::api::time(),
+        payload: EventType::MintedPosition {
+            created_position: success_result.buffer_state.position.clone().unwrap().0,
+            liquidity: liquidity_delta as u128,
+            amount0_paid,
+            amount1_paid,
+            principal: caller,
+        },
+    };
+
     //Batch state updates
     mutate_state(|s| {
         s.update_user_balance(
@@ -101,7 +118,10 @@ pub fn execute_mint_position(
             },
             UserBalance(final_balance.amount1().as_u256()),
         );
+
         s.apply_modify_liquidity_buffer_state(success_result.buffer_state);
+
+        s.record_event(event);
     });
 
     Ok(liquidity_delta as u128)

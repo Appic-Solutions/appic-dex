@@ -40,7 +40,7 @@ pub enum EventType {
         #[n(0)]
         burnt_position: PositionKey,
         #[cbor(n(1), with = "crate::cbor::u128")]
-        liqudity: u128,
+        liquidity: u128,
         #[cbor(n(2), with = "crate::cbor::u256")]
         amount0_received: U256,
         #[cbor(n(3), with = "crate::cbor::u256")]
@@ -49,7 +49,7 @@ pub enum EventType {
         principal: Principal,
     },
     #[n(3)]
-    DecreasedLiqudity {
+    DecreasedLiquidity {
         #[n(0)]
         modified_position: PositionKey,
         #[cbor(n(1), with = "crate::cbor::u128")]
