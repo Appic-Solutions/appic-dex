@@ -6,6 +6,7 @@ use appic_dex::{
     candid_types::{
         events::{CandidEvent, GetEventsArg, GetEventsResult},
         pool::{CandidPoolId, CandidPoolState, CreatePoolArgs, CreatePoolError},
+        pool_history::CandidPoolHistory,
         position::{
             BurnPositionArgs, BurnPositionError, CandidPositionInfo, CandidPositionKey,
             CollectFeesError, CollectFeesSuccess, DecreaseLiquidityArgs, DecreaseLiquidityError,
@@ -100,6 +101,17 @@ fn get_pools() -> Vec<(CandidPoolId, CandidPoolState)> {
         .into_iter()
         .map(|(id, state)| (CandidPoolId::from(id), CandidPoolState::from(state)))
         .collect()
+}
+
+#[query]
+fn get_pool_history(pool_id: CandidPoolId) -> Option<CandidPoolHistory> {
+    let pool_id: PoolId = pool_id.try_into().ok()?;
+    let pool_history = read_state(|s| s.get_pool_history(&pool_id));
+    if pool_history.hourly_frame.len() == 0 {
+        None
+    } else {
+        Some(CandidPoolHistory::from(pool_history))
+    }
 }
 
 #[query]
@@ -208,6 +220,10 @@ fn get_events(args: GetEventsArg) -> GetEventsResult {
 
 #[update]
 async fn create_pool(args: CreatePoolArgs) -> Result<CandidPoolId, CreatePoolError> {
+    if args.token_a == args.token_b {
+        return Err(CreatePoolError::DuplicatedTokens);
+    }
+
     // get the transfer fee for both tokens, meanwhile by getting the fee we also partially
     // validate token's standard
     let token_a_fee = big_uint_to_u256(

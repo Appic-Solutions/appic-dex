@@ -12,6 +12,7 @@ use crate::{
 
 pub mod events;
 pub mod pool;
+pub mod pool_history;
 pub mod position;
 pub mod quote;
 pub mod swap;

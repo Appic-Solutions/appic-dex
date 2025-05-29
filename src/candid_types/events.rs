@@ -20,6 +20,11 @@ pub struct GetEventsResult {
 /// The event describing the  minter state transition.
 #[derive(CandidType, Deserialize, Debug, Clone)]
 pub enum CandidEventType {
+    CreatedPool {
+        token0: Principal,
+        token1: Principal,
+        pool_fee: Nat,
+    },
     MintedPosition {
         created_position: CandidPositionKey,
         liquidity: Nat,
@@ -83,6 +88,15 @@ pub struct CandidEvent {
 impl From<Event> for CandidEvent {
     fn from(value: Event) -> Self {
         let payload = match value.payload {
+            crate::events::EventType::CreatedPool {
+                token0,
+                token1,
+                pool_fee,
+            } => CandidEventType::CreatedPool {
+                token0,
+                token1,
+                pool_fee: pool_fee.into(),
+            },
             crate::events::EventType::MintedPosition {
                 created_position,
                 liquidity,

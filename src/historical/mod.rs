@@ -11,6 +11,7 @@ use crate::{
     pool::types::PoolState,
     state::{mutate_state, read_state},
 };
+use ethnum::U256;
 use types::{HistoryBucket, PoolHistory};
 
 pub mod types;
@@ -85,20 +86,31 @@ fn capture_bucket(
     timestamp: u64,
     timeframe: TimeFrame,
 ) {
-    let (start_timestamp, end_timestamp) = calculate_start_and_end_timestamp(timestamp, &timeframe);
+    let (start_timestamp, during_bucket_timestamp) =
+        calculate_start_and_during_bucket_timestamp(timestamp, &timeframe);
     let frame = pool_history.get_frame_mut(timeframe);
 
     if let Some(bucket) = frame.last_mut() {
         // Update existing bucket if it matches the timeframe
-        if bucket.start_timestamp == start_timestamp && bucket.end_timestamp == end_timestamp {
+        if bucket.start_timestamp == start_timestamp
+            && bucket.end_timestamp == during_bucket_timestamp
+        {
             update_bucket(bucket, pool_state);
         } else {
             // Create new bucket
-            frame.push(create_bucket(start_timestamp, end_timestamp, pool_state));
+            frame.push(create_bucket(
+                start_timestamp,
+                during_bucket_timestamp,
+                pool_state,
+            ));
         }
     } else {
         // Initialize first bucket
-        frame.push(create_bucket(start_timestamp, end_timestamp, pool_state));
+        frame.push(create_bucket(
+            start_timestamp,
+            during_bucket_timestamp,
+            pool_state,
+        ));
     }
 
     // Limit the number of buckets
@@ -115,17 +127,15 @@ fn create_bucket(
         start_timestamp,
         end_timestamp,
         swap_volume_token0_start: pool_state.swap_volume0_all_time,
-        swap_volume_token0_end: pool_state.swap_volume0_all_time,
+        swap_volume_token0_during_bucket: U256::ZERO,
         swap_volume_token1_start: pool_state.swap_volume1_all_time,
-        swap_volume_token1_end: pool_state.swap_volume1_all_time,
+        swap_volume_token1_during_bucket: U256::ZERO,
         fee_generated_token0_start: pool_state.generated_swap_fee0,
-        fee_generated_token0_end: pool_state.generated_swap_fee0,
+        fee_generated_token0_during_bucket: U256::ZERO,
         fee_generated_token1_start: pool_state.generated_swap_fee1,
-        fee_generated_token1_end: pool_state.generated_swap_fee1,
-        token0_reserves_start: pool_state.pool_reserve0,
-        token0_reserves_end: pool_state.pool_reserve0,
-        token1_reserves_start: pool_state.pool_reserve1,
-        token1_reserves_end: pool_state.pool_reserve1,
+        fee_generated_token1_during_bucket: U256::ZERO,
+        token0_reserves: pool_state.pool_reserve0,
+        token1_reserves: pool_state.pool_reserve1,
         last_sqrtx96_price: pool_state.sqrt_price_x96,
         inrange_liquidity: pool_state.liquidity,
         active_tick: pool_state.tick,
@@ -134,19 +144,26 @@ fn create_bucket(
 
 /// Updates an existing HistoryBucket with current pool state.
 fn update_bucket(bucket: &mut HistoryBucket, pool_state: &PoolState) {
-    bucket.swap_volume_token0_end = pool_state.swap_volume0_all_time;
-    bucket.swap_volume_token1_end = pool_state.swap_volume1_all_time;
-    bucket.fee_generated_token0_end = pool_state.generated_swap_fee0;
-    bucket.fee_generated_token1_end = pool_state.generated_swap_fee1;
-    bucket.token0_reserves_end = pool_state.pool_reserve0;
-    bucket.token1_reserves_end = pool_state.pool_reserve1;
+    bucket.swap_volume_token0_during_bucket =
+        pool_state.swap_volume0_all_time - bucket.swap_volume_token0_start;
+    bucket.swap_volume_token1_during_bucket =
+        pool_state.swap_volume1_all_time - bucket.swap_volume_token1_start;
+    bucket.fee_generated_token0_during_bucket =
+        pool_state.generated_swap_fee0 - bucket.fee_generated_token0_start;
+    bucket.fee_generated_token1_during_bucket =
+        pool_state.generated_swap_fee1 - bucket.fee_generated_token1_start;
+    bucket.token0_reserves = pool_state.pool_reserve0;
+    bucket.token1_reserves = pool_state.pool_reserve1;
     bucket.last_sqrtx96_price = pool_state.sqrt_price_x96;
     bucket.inrange_liquidity = pool_state.liquidity;
     bucket.active_tick = pool_state.tick;
 }
 
-/// Calculates start and end timestamps for a bucket, aligned to the timeframe.
-fn calculate_start_and_end_timestamp(timestamp: u64, timeframe: &TimeFrame) -> (u64, u64) {
+/// Calculates start and during_bucket timestamps for a bucket, aligned to the timeframe.
+fn calculate_start_and_during_bucket_timestamp(
+    timestamp: u64,
+    timeframe: &TimeFrame,
+) -> (u64, u64) {
     let start_time = align_timestamp_to_bucket(timestamp, timeframe);
     let duration_secs = match timeframe {
         TimeFrame::Hourly => 60 * 60,            // 1 hour

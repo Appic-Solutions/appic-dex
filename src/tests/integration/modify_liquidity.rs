@@ -1,5 +1,9 @@
+use std::time::Duration;
+
 use crate::candid_types::{
+    events::{GetEventsArg, GetEventsResult},
     pool::CandidPoolState,
+    pool_history::{self, CandidPoolHistory},
     position::{
         BurnPositionArgs, BurnPositionError, CandidPositionInfo, CandidPositionKey,
         CollectFeesError, CollectFeesSuccess, DecreaseLiquidityArgs, DecreaseLiquidityError,
@@ -36,6 +40,26 @@ fn flow_test() {
     .unwrap();
 
     println!("{:?}", pool_id);
+
+    // advancing time for more than 10 min to check historical data recording
+    pic.advance_time(Duration::from_secs(700));
+
+    five_ticks(&pic);
+    five_ticks(&pic);
+    five_ticks(&pic);
+
+    let hisotrical_data_before = query_call::<CandidPoolId, Option<CandidPoolHistory>>(
+        &pic,
+        appic_dex_canister_id(),
+        "get_pool_history",
+        CandidPoolId {
+            token0: token0_principal(),
+            token1: token1_principal(),
+            fee: Nat::from(3000_u32),
+        },
+    );
+
+    println!(" \n \n{:?}", hisotrical_data_before);
 
     // Approval Section
     // Calling icrc2_approve and giving the permission to appic_dex for taking funds from users principal
@@ -349,6 +373,8 @@ fn flow_test() {
         pool_state_after_swap, pool_state_after_fee_collection
     );
 
+    assert!(false);
+
     assert_eq!(
         pool_state_after_fee_collection.pool_reserves0 + position.fees_token0_owed,
         pool_state_after_swap.pool_reserves0
@@ -450,5 +476,44 @@ fn flow_test() {
 
     assert_eq!(position.liquidity, Nat::from(0_u8));
 
-    println!("{:?}", position);
+    let events = query_call::<GetEventsArg, GetEventsResult>(
+        &pic,
+        appic_dex_canister_id(),
+        "get_events",
+        GetEventsArg {
+            start: 0_u64,
+            length: 100u64,
+        },
+    );
+
+    assert_eq!(16, events.total_event_count);
+
+    // advancing time for more than 10 min to check historical data recording
+    pic.advance_time(Duration::from_secs(700));
+
+    five_ticks(&pic);
+    five_ticks(&pic);
+
+    let hisotrical_data_after = query_call::<CandidPoolId, Option<CandidPoolHistory>>(
+        &pic,
+        appic_dex_canister_id(),
+        "get_pool_history",
+        CandidPoolId {
+            token0: token0_principal(),
+            token1: token1_principal(),
+            fee: Nat::from(3000_u32),
+        },
+    )
+    .unwrap();
+
+    println!(" \n \n{:?}", hisotrical_data_after);
+
+    assert_eq!(
+        hisotrical_data_after.hourly_frame[0].swap_volume_token0_during_bucket,
+        Nat::from(50000000000000000000_u128)
+    );
+    assert_eq!(
+        hisotrical_data_after.hourly_frame[0].swap_volume_token1_during_bucket,
+        Nat::from(50000000000000000000_u128)
+    );
 }

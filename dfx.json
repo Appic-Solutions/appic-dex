@@ -1,0 +1,25 @@
+{
+  "canisters": {
+    "appic_dex": {
+      "type": "custom",
+      "wasm": "target/wasm32-unknown-unknown/release/appic_dex.wasm",
+      "candid": "appic_dex.did",
+      "shrink": true,
+      "build":["make build"],
+      "metadata": [
+        {
+          "name": "candid:service"
+        }
+      ]
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}
+

@@ -10,6 +10,15 @@ use crate::{position::types::PositionKey, validation::swap_args::ValidatedSwapAr
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub enum EventType {
     #[n(0)]
+    CreatedPool {
+        #[cbor(n(0), with = "crate::cbor::principal")]
+        token0: Principal,
+        #[cbor(n(1), with = "crate::cbor::principal")]
+        token1: Principal,
+        #[n(2)]
+        pool_fee: u32,
+    },
+    #[n(1)]
     MintedPosition {
         #[n(0)]
         created_position: PositionKey,
@@ -22,7 +31,7 @@ pub enum EventType {
         #[cbor(n(4), with = "crate::cbor::principal")]
         principal: Principal,
     },
-    #[n(1)]
+    #[n(2)]
     IncreasedLiquidity {
         #[n(0)]
         modified_position: PositionKey,
@@ -35,7 +44,7 @@ pub enum EventType {
         #[cbor(n(4), with = "crate::cbor::principal")]
         principal: Principal,
     },
-    #[n(2)]
+    #[n(3)]
     BurntPosition {
         #[n(0)]
         burnt_position: PositionKey,
@@ -48,7 +57,7 @@ pub enum EventType {
         #[cbor(n(4), with = "crate::cbor::principal")]
         principal: Principal,
     },
-    #[n(3)]
+    #[n(4)]
     DecreasedLiquidity {
         #[n(0)]
         modified_position: PositionKey,
@@ -61,7 +70,7 @@ pub enum EventType {
         #[cbor(n(4), with = "crate::cbor::principal")]
         principal: Principal,
     },
-    #[n(4)]
+    #[n(5)]
     CollectedFees {
         #[n(0)]
         position: PositionKey,
@@ -72,7 +81,7 @@ pub enum EventType {
         #[cbor(n(3), with = "crate::cbor::principal")]
         principal: Principal,
     },
-    #[n(5)]
+    #[n(6)]
     Swap {
         #[cbor(n(0), with = "crate::cbor::u256")]
         final_amount_in: U256,

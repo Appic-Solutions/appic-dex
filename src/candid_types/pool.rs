@@ -12,6 +12,7 @@ pub struct CreatePoolArgs {
 
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize)]
 pub enum CreatePoolError {
+    DuplicatedTokens,
     InvalidFeeAmount,
     InvalidSqrtPriceX96,
     InvalidToken(Principal),

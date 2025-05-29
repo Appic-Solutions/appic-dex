@@ -29,11 +29,6 @@ type CandidEventType = variant {
     token_out : principal;
     swap_type : SwapType;
   };
-  CreatedPool : record {
-    token0 : principal;
-    token1 : principal;
-    pool_fee : nat;
-  };
   BurntPosition : record {
     amount0_received : nat;
     "principal" : principal;
@@ -69,30 +64,7 @@ type CandidEventType = variant {
     amount1_paid : nat;
   };
 };
-type CandidHistoryBucket = record {
-  token0_reserves : nat;
-  end_timestamp : nat64;
-  swap_volume_token0_during_bucket : nat;
-  fee_generated_token1_during_bucket : nat;
-  fee_generated_token0_start : nat;
-  start_timestamp : nat64;
-  inrange_liquidity : nat;
-  fee_generated_token1_start : nat;
-  swap_volume_token0_start : nat;
-  swap_volume_token1_start : nat;
-  fee_generated_token0_during_bucket : nat;
-  last_sqrtx96_price : nat;
-  swap_volume_token1_during_bucket : nat;
-  token1_reserves : nat;
-  active_tick : int;
-};
 type CandidPathKey = record { fee : nat; intermediary_token : principal };
-type CandidPoolHistory = record {
-  hourly_frame : vec CandidHistoryBucket;
-  monthly_frame : vec CandidHistoryBucket;
-  yearly_frame : vec CandidHistoryBucket;
-  daily_frame : vec CandidHistoryBucket;
-};
 type CandidPoolId = record {
   fee : nat;
   token0 : principal;
@@ -150,7 +122,6 @@ type CreatePoolArgs = record {
 type CreatePoolError = variant {
   InvalidSqrtPriceX96;
   InvalidFeeAmount;
-  DuplicatedTokens;
   InvalidToken : principal;
   PoolAlreadyExists;
 };
@@ -372,7 +343,6 @@ service : () -> {
   deposit : (DepositArgs) -> (Result_4);
   get_events : (GetEventsArg) -> (GetEventsResult) query;
   get_pool : (CandidPoolId) -> (opt CandidPoolState) query;
-  get_pool_history : (CandidPoolId) -> (opt CandidPoolHistory) query;
   get_pools : () -> (vec record { CandidPoolId; CandidPoolState }) query;
   get_position : (CandidPositionKey) -> (opt CandidPositionInfo) query;
   get_positions_by_owner : (principal) -> (

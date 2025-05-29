@@ -2,6 +2,7 @@ use ethnum::U256;
 
 use crate::{
     candid_types::pool::{CreatePoolArgs, CreatePoolError},
+    events::Event,
     libraries::{
         constants::{DEFAULT_PROTOCOL_FEE, MAX_SQRT_RATIO, MIN_SQRT_RATIO},
         safe_cast::big_uint_to_u256,
@@ -73,7 +74,19 @@ pub fn create_pool_inner(
         generated_swap_fee0: U256::ZERO,
         generated_swap_fee1: U256::ZERO,
     };
-    mutate_state(|s| s.set_pool(pool_id.clone(), pool_state));
+
+    let event = Event {
+        timestamp: ic_cdk::api::time(),
+        payload: crate::events::EventType::CreatedPool {
+            token0,
+            token1,
+            pool_fee: fee.0,
+        },
+    };
+    mutate_state(|s| {
+        s.set_pool(pool_id.clone(), pool_state);
+        s.record_event(event);
+    });
 
     return Ok(pool_id);
 }

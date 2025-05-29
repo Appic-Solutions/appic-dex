@@ -11,32 +11,28 @@ pub struct HistoryBucket {
     #[cbor(n(2), with = "crate::cbor::u256")]
     pub swap_volume_token0_start: U256,
     #[cbor(n(3), with = "crate::cbor::u256")]
-    pub swap_volume_token0_end: U256,
+    pub swap_volume_token0_during_bucket: U256,
     #[cbor(n(4), with = "crate::cbor::u256")]
     pub swap_volume_token1_start: U256,
     #[cbor(n(5), with = "crate::cbor::u256")]
-    pub swap_volume_token1_end: U256,
+    pub swap_volume_token1_during_bucket: U256,
     #[cbor(n(6), with = "crate::cbor::u256")]
     pub fee_generated_token0_start: U256,
     #[cbor(n(7), with = "crate::cbor::u256")]
-    pub fee_generated_token0_end: U256,
+    pub fee_generated_token0_during_bucket: U256,
     #[cbor(n(8), with = "crate::cbor::u256")]
     pub fee_generated_token1_start: U256,
     #[cbor(n(9), with = "crate::cbor::u256")]
-    pub fee_generated_token1_end: U256,
+    pub fee_generated_token1_during_bucket: U256,
     #[cbor(n(10), with = "crate::cbor::u256")]
-    pub token0_reserves_start: U256,
+    pub token0_reserves: U256,
     #[cbor(n(11), with = "crate::cbor::u256")]
-    pub token0_reserves_end: U256,
+    pub token1_reserves: U256,
     #[cbor(n(12), with = "crate::cbor::u256")]
-    pub token1_reserves_start: U256,
-    #[cbor(n(13), with = "crate::cbor::u256")]
-    pub token1_reserves_end: U256,
-    #[cbor(n(14), with = "crate::cbor::u256")]
     pub last_sqrtx96_price: U256,
-    #[cbor(n(15), with = "crate::cbor::u128")]
+    #[cbor(n(13), with = "crate::cbor::u128")]
     pub inrange_liquidity: u128,
-    #[n(16)]
+    #[n(14)]
     pub active_tick: i32,
 }
 
@@ -44,13 +40,11 @@ pub struct HistoryBucket {
 #[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash, Default)]
 pub struct PoolHistory {
     #[n(0)]
-    pub ten_minute_frame: Vec<HistoryBucket>,
-    #[n(1)]
     pub hourly_frame: Vec<HistoryBucket>,
-    #[n(2)]
+    #[n(1)]
     pub daily_frame: Vec<HistoryBucket>,
-    #[n(3)]
+    #[n(2)]
     pub monthly_frame: Vec<HistoryBucket>,
-    #[n(4)]
+    #[n(3)]
     pub yearly_frame: Vec<HistoryBucket>,
 }

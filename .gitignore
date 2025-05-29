@@ -29,3 +29,5 @@ vendor/                 # Vendored dependencies (if using `cargo vendor`)
 # Added by cargo
 /target
 
+
+.env
