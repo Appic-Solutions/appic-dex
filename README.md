@@ -4,6 +4,7 @@
 
 Appic DEX is a decentralized exchange built in Rust, deployed on the Internet Computer (ICP). It enables trustless, permission-less trading of tokens with features like automated market maker (AMM) pools, liquidity provision, and fee collection. This project leverages the scalability and security of ICP to provide a fast and cost-efficient trading experience.
 
+canister_id on mainnet: [nbepk-iyaaa-aaaad-qhlma-cai](https://dashboard.internetcomputer.org/canister/nbepk-iyaaa-aaaad-qhlma-cai)
 ## Features
 
 - **Pool Creation and Management**: Create and manage AMM pools with customizable fees and initial price settings.
