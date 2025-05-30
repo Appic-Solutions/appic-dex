@@ -21,6 +21,7 @@ pub fn execute_burn_position(
     token0: Principal,
     token1: Principal,
     validated_args: ValidatedBurnPositionArgs,
+    timestamp: u64,
 ) -> Result<BalanceDelta, BurnPositionError> {
     // Fetch pool state
     let pool = read_state(|s| s.get_pool(&pool_id)).ok_or(BurnPositionError::PoolNotInitialized)?;
@@ -76,7 +77,7 @@ pub fn execute_burn_position(
     let amount1_received = success_result.balance_delta.amount1().abs().as_u256();
 
     let event = Event {
-        timestamp: ic_cdk::api::time(),
+        timestamp,
         payload: EventType::BurntPosition {
             burnt_position: success_result.buffer_state.position.clone().unwrap().0,
             liquidity: validated_args.liquidity_delta.abs() as u128,

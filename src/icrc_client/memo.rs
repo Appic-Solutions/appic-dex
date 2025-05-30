@@ -15,7 +15,7 @@ fn encode<T: minicbor::Encode<()>>(t: &T) -> Vec<u8> {
 pub enum DepositMemo {
     /// The pool manager received funds to mint a new position.
     #[n(0)]
-    MintPotion {
+    MintPosition {
         #[cbor(n(0), with = "crate::cbor::principal")]
         /// The sender of the token.
         sender: Principal,
@@ -57,7 +57,7 @@ pub enum DepositMemo {
 impl DepositMemo {
     pub fn set_amount(&mut self, new_amount: U256) {
         match self {
-            DepositMemo::MintPotion { sender: _, amount } => *amount = new_amount,
+            DepositMemo::MintPosition { sender: _, amount } => *amount = new_amount,
             DepositMemo::IncreasePosition { sender: _, amount } => *amount = new_amount,
             DepositMemo::SwapIn { sender: _, amount } => *amount = new_amount,
             DepositMemo::Deposit { sender: _, amount } => *amount = new_amount,
@@ -75,7 +75,7 @@ impl From<DepositMemo> for Memo {
 pub enum WithdrawMemo {
     /// User received funds after position burnt.
     #[n(0)]
-    BurnPotions {
+    BurnPosition {
         #[cbor(n(0), with = "crate::cbor::principal")]
         /// The receiver of the token.
         receiver: Principal,
@@ -151,7 +151,7 @@ impl From<WithdrawMemo> for Memo {
 impl WithdrawMemo {
     pub fn set_amount(&mut self, new_amount: U256) {
         match self {
-            WithdrawMemo::BurnPotions {
+            WithdrawMemo::BurnPosition {
                 receiver: _,
                 amount,
             } => *amount = new_amount,

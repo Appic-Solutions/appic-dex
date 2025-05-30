@@ -25,6 +25,7 @@ pub fn execute_mint_position(
     token0: Principal,
     token1: Principal,
     validated_args: ValidatedMintPositionArgs,
+    timestamp: u64,
 ) -> Result<u128, MintPositionError> {
     // Fetch pool state
     let pool = read_state(|s| s.get_pool(&pool_id)).ok_or(MintPositionError::PoolNotInitialized)?;
@@ -89,7 +90,7 @@ pub fn execute_mint_position(
     let amount1_paid = success_result.balance_delta.amount1().abs().as_u256();
 
     let event = Event {
-        timestamp: ic_cdk::api::time(),
+        timestamp,
         payload: EventType::MintedPosition {
             created_position: success_result.buffer_state.position.clone().unwrap().0,
             liquidity: liquidity_delta as u128,

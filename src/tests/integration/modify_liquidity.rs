@@ -374,8 +374,6 @@ fn flow_test() {
         pool_state_after_swap, pool_state_after_fee_collection
     );
 
-    assert!(false);
-
     assert_eq!(
         pool_state_after_fee_collection.pool_reserves0 + position.fees_token0_owed,
         pool_state_after_swap.pool_reserves0

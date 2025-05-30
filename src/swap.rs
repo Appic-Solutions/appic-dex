@@ -6,7 +6,7 @@ use crate::{
     candid_types::swap::SwapFailedReason,
     events::{Event, EventType},
     pool::{
-        swap::{swap_inner, SwapParams, SwapSuccess},
+        swap::{SwapParams, SwapSuccess, swap_inner},
         types::PoolId,
     },
     quote::{get_sqrt_price_limit, select_amount},
@@ -31,6 +31,7 @@ pub fn execute_swap(
     token_in: Principal,
     token_out: Principal,
     caller: Principal,
+    timestamp: u64,
 ) -> Result<(I256, I256, U256), SwapFailedReason> {
     //  Initialize User Balance Keys
     let token_in_key = UserBalanceKey {
@@ -211,7 +212,7 @@ pub fn execute_swap(
     };
 
     let event = Event {
-        timestamp: ic_cdk::api::time(),
+        timestamp,
         payload: EventType::Swap {
             final_amount_in: swap_result.amount_in.as_u256(),
             final_amount_out: swap_result.amount_out.as_u256(),

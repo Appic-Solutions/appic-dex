@@ -21,6 +21,7 @@ pub fn execute_decrease_liquidity(
     token0: Principal,
     token1: Principal,
     validated_args: ValidatedDecreaseLiquidityArgs,
+    timestamp: u64,
 ) -> Result<BalanceDelta, DecreaseLiquidityError> {
     // Fetch pool state
     let pool =
@@ -77,7 +78,7 @@ pub fn execute_decrease_liquidity(
     let amount1_received = success_result.balance_delta.amount1().abs().as_u256();
 
     let event = Event {
-        timestamp: ic_cdk::api::time(),
+        timestamp,
         payload: EventType::DecreasedLiquidity {
             modified_position: success_result.buffer_state.position.clone().unwrap().0,
             liquidity_delta: validated_args.liquidity_delta.abs() as u128,

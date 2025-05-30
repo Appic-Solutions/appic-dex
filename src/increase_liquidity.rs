@@ -22,6 +22,7 @@ pub fn execute_increase_liquidity(
     token0: Principal,
     token1: Principal,
     validated_args: ValidatedIncreaseLiquidityArgs,
+    timestamp: u64,
 ) -> Result<u128, IncreaseLiquidityError> {
     // Fetch pool state
     let pool =
@@ -93,7 +94,7 @@ pub fn execute_increase_liquidity(
     let amount1_paid = success_result.balance_delta.amount1().abs().as_u256();
 
     let event = Event {
-        timestamp: ic_cdk::api::time(),
+        timestamp,
         payload: EventType::IncreasedLiquidity {
             modified_position: success_result.buffer_state.position.clone().unwrap().0,
             liquidity_delta: liquidity_delta as u128,
@@ -119,6 +120,7 @@ pub fn execute_increase_liquidity(
             },
             UserBalance(final_balance.amount1().as_u256()),
         );
+
         s.apply_modify_liquidity_buffer_state(success_result.buffer_state);
 
         s.record_event(event);

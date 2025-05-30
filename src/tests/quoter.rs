@@ -681,7 +681,7 @@ pub mod quoter {
     }
 
     pub fn create_pool(args: CreatePoolArgs) -> PoolId {
-        create_pool_inner(args, U256::ZERO, U256::ZERO).expect("Pool creation failed")
+        create_pool_inner(args, U256::ZERO, U256::ZERO, 1748619822).expect("Pool creation failed")
     }
 
     pub fn set_up_pool(pool_id: PoolId) {

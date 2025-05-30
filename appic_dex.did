@@ -4,7 +4,7 @@ type BurnPositionArgs = record {
   pool : CandidPoolId;
   amount0_min : nat;
   tick_lower : int;
-  tick_upper : int
+  tick_upper : int;
 };
 type BurnPositionError = variant {
   PositionNotFound;
@@ -18,7 +18,7 @@ type BurnPositionError = variant {
   BurntPositionWithdrawalFailed : WithdrawError;
   InvalidTick;
   LockedPrincipal;
-  AmountOverflow
+  AmountOverflow;
 };
 type CandidEvent = record { timestamp : nat64; payload : CandidEventType };
 type CandidEventType = variant {
@@ -28,47 +28,47 @@ type CandidEventType = variant {
     final_amount_in : nat;
     final_amount_out : nat;
     token_out : principal;
-    swap_type : SwapType
+    swap_type : SwapType;
   };
   CreatedPool : record {
     token0 : principal;
     token1 : principal;
-    pool_fee : nat
+    pool_fee : nat;
   };
   BurntPosition : record {
     amount0_received : nat;
     "principal" : principal;
     burnt_position : CandidPositionKey;
     liquidity : nat;
-    amount1_received : nat
+    amount1_received : nat;
   };
   IncreasedLiquidity : record {
     "principal" : principal;
     amount0_paid : nat;
     liquidity_delta : nat;
     amount1_paid : nat;
-    modified_position : CandidPositionKey
+    modified_position : CandidPositionKey;
   };
   CollectedFees : record {
     "principal" : principal;
     amount1_collected : nat;
     position : CandidPositionKey;
-    amount0_collected : nat
+    amount0_collected : nat;
   };
   DecreasedLiquidity : record {
     amount0_received : nat;
     "principal" : principal;
     liquidity_delta : nat;
     amount1_received : nat;
-    modified_position : CandidPositionKey
+    modified_position : CandidPositionKey;
   };
   MintedPosition : record {
     "principal" : principal;
     amount0_paid : nat;
     liquidity : nat;
     created_position : CandidPositionKey;
-    amount1_paid : nat
-  }
+    amount1_paid : nat;
+  };
 };
 type CandidHistoryBucket = record {
   token0_reserves : nat;
@@ -85,19 +85,19 @@ type CandidHistoryBucket = record {
   last_sqrtx96_price : nat;
   swap_volume_token1_during_bucket : nat;
   token1_reserves : nat;
-  active_tick : int
+  active_tick : int;
 };
 type CandidPathKey = record { fee : nat; intermediary_token : principal };
 type CandidPoolHistory = record {
   hourly_frame : vec CandidHistoryBucket;
   monthly_frame : vec CandidHistoryBucket;
   yearly_frame : vec CandidHistoryBucket;
-  daily_frame : vec CandidHistoryBucket
+  daily_frame : vec CandidHistoryBucket;
 };
 type CandidPoolId = record {
   fee : nat;
   token0 : principal;
-  token1 : principal
+  token1 : principal;
 };
 type CandidPoolState = record {
   sqrt_price_x96 : nat;
@@ -115,20 +115,20 @@ type CandidPoolState = record {
   fee_growth_global_0_x128 : nat;
   max_liquidity_per_tick : nat;
   token1_transfer_fee : nat;
-  tick_spacing : int
+  tick_spacing : int;
 };
 type CandidPositionInfo = record {
   fees_token0_owed : nat;
   fee_growth_inside_1_last_x128 : nat;
   liquidity : nat;
   fees_token1_owed : nat;
-  fee_growth_inside_0_last_x128 : nat
+  fee_growth_inside_0_last_x128 : nat;
 };
 type CandidPositionKey = record {
   owner : principal;
   pool : CandidPoolId;
   tick_lower : int;
-  tick_upper : int
+  tick_upper : int;
 };
 type CandidSwapSuccess = record { amount_out : nat; amount_in : nat };
 type CollectFeesError = variant {
@@ -136,24 +136,24 @@ type CollectFeesError = variant {
   FeeOverflow;
   LockedPrincipal;
   CollectedFeesWithdrawalFailed : WithdrawError;
-  NoFeeToCollect
+  NoFeeToCollect;
 };
 type CollectFeesSuccess = record {
   token0_collected : nat;
-  token1_collected : nat
+  token1_collected : nat;
 };
 type CreatePoolArgs = record {
   fee : nat;
   sqrt_price_x96 : nat;
   token_a : principal;
-  token_b : principal
+  token_b : principal;
 };
 type CreatePoolError = variant {
   InvalidSqrtPriceX96;
   InvalidFeeAmount;
   DuplicatedTokens;
   InvalidToken : principal;
-  PoolAlreadyExists
+  PoolAlreadyExists;
 };
 type DecreaseLiquidityArgs = record {
   amount1_min : nat;
@@ -161,7 +161,7 @@ type DecreaseLiquidityArgs = record {
   liquidity : nat;
   amount0_min : nat;
   tick_lower : int;
-  tick_upper : int
+  tick_upper : int;
 };
 type DecreaseLiquidityError = variant {
   PositionNotFound;
@@ -176,12 +176,12 @@ type DecreaseLiquidityError = variant {
   InvalidLiquidity;
   LockedPrincipal;
   AmountOverflow;
-  DecreasedPositionWithdrawalFailed : WithdrawError
+  DecreasedPositionWithdrawalFailed : WithdrawError;
 };
 type DepositArgs = record {
   token : principal;
   from_subaccount : opt blob;
-  amount : nat
+  amount : nat;
 };
 type DepositError = variant {
   TemporarilyUnavailable : text;
@@ -190,40 +190,40 @@ type DepositError = variant {
   AmountTooLow : record { min_withdrawal_amount : nat };
   LockedPrincipal;
   AmountOverflow;
-  InsufficientFunds : record { balance : nat }
+  InsufficientFunds : record { balance : nat };
 };
 type ExactInputParams = record {
   token_in : principal;
   path : vec CandidPathKey;
   from_subaccount : opt blob;
   amount_out_minimum : nat;
-  amount_in : nat
+  amount_in : nat;
 };
 type ExactInputSingleParams = record {
   zero_for_one : bool;
   from_subaccount : opt blob;
   amount_out_minimum : nat;
   amount_in : nat;
-  pool_id : CandidPoolId
+  pool_id : CandidPoolId;
 };
 type ExactOutputParams = record {
   amount_in_maximum : nat;
   path : vec CandidPathKey;
   from_subaccount : opt blob;
   amount_out : nat;
-  token_out : principal
+  token_out : principal;
 };
 type ExactOutputSingleParams = record {
   amount_in_maximum : nat;
   zero_for_one : bool;
   from_subaccount : opt blob;
   amount_out : nat;
-  pool_id : CandidPoolId
+  pool_id : CandidPoolId;
 };
 type GetEventsArg = record { start : nat64; length : nat64 };
 type GetEventsResult = record {
   total_event_count : nat64;
-  events : vec CandidEvent
+  events : vec CandidEvent;
 };
 type IncreaseLiquidityArgs = record {
   amount1_max : nat;
@@ -231,7 +231,7 @@ type IncreaseLiquidityArgs = record {
   from_subaccount : opt blob;
   amount0_max : nat;
   tick_lower : int;
-  tick_upper : int
+  tick_upper : int;
 };
 type IncreaseLiquidityError = variant {
   DepositError : DepositError;
@@ -246,7 +246,7 @@ type IncreaseLiquidityError = variant {
   InvalidTick;
   PositionDoesNotExist;
   LockedPrincipal;
-  AmountOverflow
+  AmountOverflow;
 };
 type MintPositionArgs = record {
   amount1_max : nat;
@@ -254,7 +254,7 @@ type MintPositionArgs = record {
   from_subaccount : opt blob;
   amount0_max : nat;
   tick_lower : int;
-  tick_upper : int
+  tick_upper : int;
 };
 type MintPositionError = variant {
   DepositError : DepositError;
@@ -269,13 +269,13 @@ type MintPositionError = variant {
   PositionAlreadyExists;
   InvalidTick;
   LockedPrincipal;
-  AmountOverflow
+  AmountOverflow;
 };
 type QuoteArgs = variant {
   QuoteExactOutput : QuoteExactParams;
   QuoteExactOutputSingleParams : QuoteExactSingleParams;
   QuoteExactInputParams : QuoteExactParams;
-  QuoteExactInputSingleParams : QuoteExactSingleParams
+  QuoteExactInputSingleParams : QuoteExactSingleParams;
 };
 type QuoteError = variant {
   InvalidAmount;
@@ -286,17 +286,17 @@ type QuoteError = variant {
   IlliquidPool;
   PriceLimitAlreadyExceeded;
   InvalidFeeForExactOutput;
-  CalculationOverflow
+  CalculationOverflow;
 };
 type QuoteExactParams = record {
   path : vec CandidPathKey;
   exact_token : principal;
-  exact_amount : nat
+  exact_amount : nat;
 };
 type QuoteExactSingleParams = record {
   zero_for_one : bool;
   pool_id : CandidPoolId;
-  exact_amount : nat
+  exact_amount : nat;
 };
 type Result = variant { Ok; Err : BurnPositionError };
 type Result_1 = variant { Ok : CollectFeesSuccess; Err : CollectFeesError };
@@ -312,13 +312,13 @@ type SwapArgs = variant {
   ExactOutput : ExactOutputParams;
   ExactInput : ExactInputParams;
   ExactOutputSingle : ExactOutputSingleParams;
-  ExactInputSingle : ExactInputSingleParams
+  ExactInputSingle : ExactInputSingleParams;
 };
 type SwapError = variant {
   FailedToWithdraw : record {
     amount_out : nat;
     amount_in : nat;
-    reason : WithdrawError
+    reason : WithdrawError;
   };
   InvalidAmountOut;
   DepositError : DepositError;
@@ -335,8 +335,8 @@ type SwapError = variant {
   SwapFailedRefunded : record {
     refund_error : opt WithdrawError;
     refund_amount : opt nat;
-    failed_reason : SwapFailedReason
-  }
+    failed_reason : SwapFailedReason;
+  };
 };
 type SwapFailedReason = variant {
   TooMuchRequested;
@@ -349,13 +349,13 @@ type SwapFailedReason = variant {
   NoInRangeLiquidity;
   PriceLimitAlreadyExceeded;
   InvalidFeeForExactOutput;
-  CalculationOverflow
+  CalculationOverflow;
 };
 type SwapType = variant {
   ExactOutput : vec CandidPoolId;
   ExactInput : vec CandidPoolId;
   ExactOutputSingle : CandidPoolId;
-  ExactInputSingle : CandidPoolId
+  ExactInputSingle : CandidPoolId;
 };
 type UserBalanceArgs = record { token : principal; user : principal };
 type WithdrawError = variant {
@@ -366,7 +366,7 @@ type WithdrawError = variant {
   InsufficientBalance : record { balance : nat };
   AmountTooLow : record { min_withdrawal_amount : nat };
   LockedPrincipal;
-  AmountOverflow
+  AmountOverflow;
 };
 service : () -> {
   burn : (BurnPositionArgs) -> (Result);
@@ -380,13 +380,13 @@ service : () -> {
   get_pools : () -> (vec record { CandidPoolId; CandidPoolState }) query;
   get_position : (CandidPositionKey) -> (opt CandidPositionInfo) query;
   get_positions_by_owner : (principal) -> (
-    vec record { CandidPositionKey; CandidPositionInfo }
-  ) query;
+      vec record { CandidPositionKey; CandidPositionInfo },
+    ) query;
   increase_liquidity : (IncreaseLiquidityArgs) -> (Result_5);
   mint_position : (MintPositionArgs) -> (Result_6);
   quote : (QuoteArgs) -> (Result_7) query;
   swap : (SwapArgs) -> (Result_8);
   user_balance : (UserBalanceArgs) -> (nat) query;
   user_balances : (principal) -> (vec Balance) query;
-  withdraw : (Balance) -> (Result_9)
+  withdraw : (Balance) -> (Result_9);
 }

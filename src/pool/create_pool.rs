@@ -18,6 +18,7 @@ pub fn create_pool_inner(
     args: CreatePoolArgs,
     token_a_transfer_fee: U256,
     token_b_transfer_fee: U256,
+    timestamp: u64,
 ) -> Result<PoolId, CreatePoolError> {
     let sqrt_price_x96 = big_uint_to_u256(args.sqrt_price_x96.0)
         .map_err(|_e| CreatePoolError::InvalidSqrtPriceX96)?;
@@ -76,13 +77,14 @@ pub fn create_pool_inner(
     };
 
     let event = Event {
-        timestamp: ic_cdk::api::time(),
+        timestamp,
         payload: crate::events::EventType::CreatedPool {
             token0,
             token1,
             pool_fee: fee.0,
         },
     };
+
     mutate_state(|s| {
         s.set_pool(pool_id.clone(), pool_state);
         s.record_event(event);
