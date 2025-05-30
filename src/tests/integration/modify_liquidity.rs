@@ -3,11 +3,11 @@ use std::time::Duration;
 use crate::candid_types::{
     events::{GetEventsArg, GetEventsResult},
     pool::CandidPoolState,
-    pool_history::{self, CandidPoolHistory},
+    pool_history::CandidPoolHistory,
     position::{
         BurnPositionArgs, BurnPositionError, CandidPositionInfo, CandidPositionKey,
         CollectFeesError, CollectFeesSuccess, DecreaseLiquidityArgs, DecreaseLiquidityError,
-        IncreaseLiquidity, IncreaseLiquidityArgs,
+        IncreaseLiquidityArgs, IncreaseLiquidityError,
     },
     swap::{CandidSwapSuccess, ExactInputSingleParams, SwapArgs, SwapError},
 };
@@ -48,7 +48,7 @@ fn flow_test() {
     five_ticks(&pic);
     five_ticks(&pic);
 
-    let hisotrical_data_before = query_call::<CandidPoolId, Option<CandidPoolHistory>>(
+    let historical_data_before = query_call::<CandidPoolId, Option<CandidPoolHistory>>(
         &pic,
         appic_dex_canister_id(),
         "get_pool_history",
@@ -59,7 +59,7 @@ fn flow_test() {
         },
     );
 
-    println!(" \n \n{:?}", hisotrical_data_before);
+    println!(" \n \n{:?}", historical_data_before);
 
     // Approval Section
     // Calling icrc2_approve and giving the permission to appic_dex for taking funds from users principal
@@ -163,21 +163,22 @@ fn flow_test() {
     five_ticks(&pic);
 
     // increase liquidity
-    let liquidity_delta = update_call::<IncreaseLiquidityArgs, Result<Nat, IncreaseLiquidity>>(
-        &pic,
-        appic_dex_canister_id(),
-        "increase_liquidity",
-        IncreaseLiquidityArgs {
-            pool: pool_id.clone(),
-            tick_lower: candid::Int::from(-887220),
-            tick_upper: candid::Int::from(887220),
-            amount0_max: Nat::from(TWO_HUNDRED_ETH / 2),
-            amount1_max: Nat::from(TWO_HUNDRED_ETH / 2),
-            from_subaccount: None,
-        },
-        Some(liquidity_provider_principal()),
-    )
-    .unwrap();
+    let liquidity_delta =
+        update_call::<IncreaseLiquidityArgs, Result<Nat, IncreaseLiquidityError>>(
+            &pic,
+            appic_dex_canister_id(),
+            "increase_liquidity",
+            IncreaseLiquidityArgs {
+                pool: pool_id.clone(),
+                tick_lower: candid::Int::from(-887220),
+                tick_upper: candid::Int::from(887220),
+                amount0_max: Nat::from(TWO_HUNDRED_ETH / 2),
+                amount1_max: Nat::from(TWO_HUNDRED_ETH / 2),
+                from_subaccount: None,
+            },
+            Some(liquidity_provider_principal()),
+        )
+        .unwrap();
 
     assert_eq!(liquidity_delta, TWO_HUNDRED_ETH / 2 + 5);
 
@@ -494,7 +495,7 @@ fn flow_test() {
     five_ticks(&pic);
     five_ticks(&pic);
 
-    let hisotrical_data_after = query_call::<CandidPoolId, Option<CandidPoolHistory>>(
+    let historical_data_after = query_call::<CandidPoolId, Option<CandidPoolHistory>>(
         &pic,
         appic_dex_canister_id(),
         "get_pool_history",
@@ -506,14 +507,14 @@ fn flow_test() {
     )
     .unwrap();
 
-    println!(" \n \n{:?}", hisotrical_data_after);
+    println!(" \n \n{:?}", historical_data_after);
 
     assert_eq!(
-        hisotrical_data_after.hourly_frame[0].swap_volume_token0_during_bucket,
+        historical_data_after.hourly_frame[0].swap_volume_token0_during_bucket,
         Nat::from(50000000000000000000_u128)
     );
     assert_eq!(
-        hisotrical_data_after.hourly_frame[0].swap_volume_token1_during_bucket,
+        historical_data_after.hourly_frame[0].swap_volume_token1_during_bucket,
         Nat::from(50000000000000000000_u128)
     );
 }

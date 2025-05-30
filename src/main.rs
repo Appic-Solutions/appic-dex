@@ -4,25 +4,25 @@ use appic_dex::{
     balances::types::{UserBalance, UserBalanceKey},
     burn::execute_burn_position,
     candid_types::{
+        Balance, DepositArgs, DepositError, UserBalanceArgs, WithdrawArgs, WithdrawError,
         events::{CandidEvent, GetEventsArg, GetEventsResult},
         pool::{CandidPoolId, CandidPoolState, CreatePoolArgs, CreatePoolError},
         pool_history::CandidPoolHistory,
         position::{
             BurnPositionArgs, BurnPositionError, CandidPositionInfo, CandidPositionKey,
             CollectFeesError, CollectFeesSuccess, DecreaseLiquidityArgs, DecreaseLiquidityError,
-            IncreaseLiquidity, IncreaseLiquidityArgs, MintPositionArgs, MintPositionError,
+            IncreaseLiquidityArgs, IncreaseLiquidityError, MintPositionArgs, MintPositionError,
         },
         quote::{QuoteArgs, QuoteError},
         swap::{CandidSwapSuccess, SwapArgs, SwapError},
-        Balance, DepositArgs, DepositError, UserBalanceArgs, WithdrawArgs, WithdrawError,
     },
     collect_fees::execute_collect_fees,
     decrease_liquidity::execute_decrease_liquidity,
     guard::PrincipalGuard,
     historical::capture_historical_data,
     icrc_client::{
-        memo::{DepositMemo, WithdrawMemo},
         LedgerClient, LedgerTransferError,
+        memo::{DepositMemo, WithdrawMemo},
     },
     increase_liquidity::execute_increase_liquidity,
     libraries::{
@@ -330,7 +330,7 @@ async fn mint_position(args: MintPositionArgs) -> Result<Nat, MintPositionError>
 
 /// returns liquidity delta
 #[update]
-async fn increase_liquidity(args: IncreaseLiquidityArgs) -> Result<Nat, IncreaseLiquidity> {
+async fn increase_liquidity(args: IncreaseLiquidityArgs) -> Result<Nat, IncreaseLiquidityError> {
     // Validate inputs and caller
     let caller = validate_caller_not_anonymous();
 
@@ -338,7 +338,7 @@ async fn increase_liquidity(args: IncreaseLiquidityArgs) -> Result<Nat, Increase
     // paying)
     let _principal_guard = match PrincipalGuard::new_general_guard(caller) {
         Ok(guard) => guard,
-        Err(_) => return Err(IncreaseLiquidity::LockedPrincipal),
+        Err(_) => return Err(IncreaseLiquidityError::LockedPrincipal),
     };
 
     let validated_args = validate_increase_liquidity_args(args.clone(), caller)?;
@@ -386,7 +386,7 @@ async fn increase_liquidity(args: IncreaseLiquidityArgs) -> Result<Nat, Increase
         },
     )
     .await
-    .map_err(|e| IncreaseLiquidity::DepositError(e.into()))?;
+    .map_err(|e| IncreaseLiquidityError::DepositError(e.into()))?;
 
     _deposit_if_needed(
         caller,
@@ -400,7 +400,7 @@ async fn increase_liquidity(args: IncreaseLiquidityArgs) -> Result<Nat, Increase
         },
     )
     .await
-    .map_err(|e| IncreaseLiquidity::DepositError(e.into()))?;
+    .map_err(|e| IncreaseLiquidityError::DepositError(e.into()))?;
 
     // Execute minting
     execute_increase_liquidity(caller, pool_id, token0, token1, validated_args)

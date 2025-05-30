@@ -4,9 +4,7 @@ use crate::{
         position::{CandidPositionInfo, CandidPositionKey},
         swap::{CandidPathKey, CandidSwapSuccess, SwapArgs, SwapError, SwapFailedReason},
     },
-    cbor::u256,
     libraries::sqrt_price_math::tests::ONE_ETHER,
-    position::types::PositionInfo,
 };
 
 use super::*;
@@ -124,7 +122,7 @@ fn test_exact_input_single_amount_check_swap_fees() {
     assert_eq!(
         position.fees_token0_owed,
         pool_state_after.generated_swap_fee0 - 1_u8
-    ); // impercision due to calculation rounding is accepted
+    ); // imprecision due to calculation rounding is accepted
 }
 
 #[test]
@@ -134,7 +132,7 @@ fn test_exact_input_single_amount() {
     five_ticks(&pic);
     five_ticks(&pic);
 
-    // balances brefore swap
+    // balances before swap
     let pool_balance_before_token0 = get_balance(&pic, token0_principal(), appic_dex_canister_id());
     let pool_balance_before_token1 = get_balance(&pic, token1_principal(), appic_dex_canister_id());
 
@@ -499,7 +497,7 @@ fn test_exact_output_single_balances() {
     five_ticks(&pic);
     five_ticks(&pic);
 
-    // balances brefore swap
+    // balances before swap
     let pool_balance_before_token0 = get_balance(&pic, token0_principal(), appic_dex_canister_id());
     let pool_balance_before_token1 = get_balance(&pic, token1_principal(), appic_dex_canister_id());
 

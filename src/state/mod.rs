@@ -9,7 +9,7 @@
 
 use crate::{
     balances::types::{UserBalance, UserBalanceKey},
-    events::{Event, EventType},
+    events::Event,
     historical::types::PoolHistory,
     libraries::{constants::Q128, full_math::mul_div},
     pool::{
@@ -25,9 +25,9 @@ use candid::Principal;
 use ethnum::U256;
 use ic_stable_structures::{BTreeMap, Log};
 use memory_manager::{
-    events_data_memory_id, events_index_memoery_id, pool_history_memory_id, pools_memory_id,
-    positions_memory_id, protocol_balance_memory_id, tick_bitmaps_memory_id,
-    tick_spacings_memory_id, ticks_memory_id, user_balances_memory_id, StableMemory,
+    StableMemory, events_data_memory_id, events_index_memory_id, pool_history_memory_id,
+    pools_memory_id, positions_memory_id, protocol_balance_memory_id, tick_bitmaps_memory_id,
+    tick_spacings_memory_id, ticks_memory_id, user_balances_memory_id,
 };
 use std::cell::RefCell;
 
@@ -44,7 +44,7 @@ thread_local! {
         tick_bitmaps: BTreeMap::init(tick_bitmaps_memory_id()),
         tick_spacings:BTreeMap::init(tick_spacings_memory_id()),
         pool_history:BTreeMap::init(pool_history_memory_id()),
-        events:Log::init(events_data_memory_id(), events_index_memoery_id()).expect("Failed to initialize events log")
+        events:Log::init(events_data_memory_id(), events_index_memory_id()).expect("Failed to initialize events log")
     }));
 }
 

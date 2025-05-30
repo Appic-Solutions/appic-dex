@@ -7,7 +7,7 @@ use crate::{
     events::{Event, EventType},
     libraries::{balance_delta::BalanceDelta, slippage_check::validate_min_out},
     pool::{
-        modify_liquidity::{modify_liquidity, ModifyLiquidityError, ModifyLiquidityParams},
+        modify_liquidity::{ModifyLiquidityError, ModifyLiquidityParams, modify_liquidity},
         types::PoolId,
     },
     state::{mutate_state, read_state},
@@ -64,7 +64,7 @@ pub fn execute_decrease_liquidity(
         user_balance.amount0().as_u256(),
         user_balance.amount1().as_u256(),
     )
-    .map_err(|_| DecreaseLiquidityError::InsufficientBalance)?;
+    .map_err(|_| DecreaseLiquidityError::SlippageFailed)?;
 
     let final_balance = user_balance
         .add(success_result.fee_delta)

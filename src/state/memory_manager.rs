@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 
 use ic_stable_structures::{
-    memory_manager::{MemoryId, MemoryManager, VirtualMemory},
     DefaultMemoryImpl,
+    memory_manager::{MemoryId, MemoryManager, VirtualMemory},
 };
 
 pub type StableMemory = VirtualMemory<DefaultMemoryImpl>;
@@ -63,7 +63,7 @@ pub fn pool_history_memory_id() -> StableMemory {
 
 const EVENTS_INDEX_MEMORY_ID: MemoryId = MemoryId::new(8);
 
-pub fn events_index_memoery_id() -> StableMemory {
+pub fn events_index_memory_id() -> StableMemory {
     MEMORY_MANAGER.with(|m| m.borrow().get(EVENTS_INDEX_MEMORY_ID))
 }
 

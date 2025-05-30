@@ -78,6 +78,7 @@ pub enum BurnPositionError {
     AmountOverflow,
     InsufficientBalance,
     BurntPositionWithdrawalFailed(WithdrawError),
+    SlippageFailed,
 }
 
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize)]
@@ -104,6 +105,7 @@ pub enum MintPositionError {
     FeeOverflow,
     AmountOverflow,
     InsufficientBalance,
+    SlippageFailed,
 }
 
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize)]
@@ -117,7 +119,7 @@ pub struct IncreaseLiquidityArgs {
 }
 
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize)]
-pub enum IncreaseLiquidity {
+pub enum IncreaseLiquidityError {
     LockedPrincipal,
     InvalidPoolFee,
     PoolNotInitialized,
@@ -130,6 +132,7 @@ pub enum IncreaseLiquidity {
     FeeOverflow,
     AmountOverflow,
     InsufficientBalance,
+    SlippageFailed,
 }
 
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize)]
@@ -156,6 +159,7 @@ pub enum DecreaseLiquidityError {
     InvalidAmount,
     InsufficientBalance,
     DecreasedPositionWithdrawalFailed(WithdrawError),
+    SlippageFailed,
 }
 
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize)]

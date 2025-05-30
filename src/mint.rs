@@ -7,13 +7,11 @@ use crate::{
     candid_types::position::MintPositionError,
     events::{Event, EventType},
     libraries::{
-        balance_delta::{self, BalanceDelta},
-        liquidity_amounts,
-        slippage_check::validate_max_in,
+        balance_delta::BalanceDelta, liquidity_amounts, slippage_check::validate_max_in,
         tick_math::TickMath,
     },
     pool::{
-        modify_liquidity::{modify_liquidity, ModifyLiquidityError, ModifyLiquidityParams},
+        modify_liquidity::{ModifyLiquidityError, ModifyLiquidityParams, modify_liquidity},
         types::PoolId,
     },
     state::{mutate_state, read_state},
@@ -80,8 +78,7 @@ pub fn execute_mint_position(
         user_balance.amount0().as_u256(),
         user_balance.amount1().as_u256(),
     )
-    .unwrap();
-    //.map_err(|_| MintPositionError::InsufficientBalance)?;
+    .map_err(|_| MintPositionError::SlippageFailed)?;
 
     let final_balance = user_balance
         .add(success_result.balance_delta)

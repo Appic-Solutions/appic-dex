@@ -3,12 +3,12 @@ use ethnum::I256;
 
 use crate::{
     balances::types::{UserBalance, UserBalanceKey},
-    candid_types::position::IncreaseLiquidity,
+    candid_types::position::IncreaseLiquidityError,
     events::{Event, EventType},
     libraries::{balance_delta::BalanceDelta, slippage_check::validate_max_in},
     mint::calculate_liquidity,
     pool::{
-        modify_liquidity::{modify_liquidity, ModifyLiquidityError, ModifyLiquidityParams},
+        modify_liquidity::{ModifyLiquidityError, ModifyLiquidityParams, modify_liquidity},
         types::PoolId,
     },
     state::{mutate_state, read_state},
@@ -22,9 +22,10 @@ pub fn execute_increase_liquidity(
     token0: Principal,
     token1: Principal,
     validated_args: ValidatedIncreaseLiquidityArgs,
-) -> Result<u128, IncreaseLiquidity> {
+) -> Result<u128, IncreaseLiquidityError> {
     // Fetch pool state
-    let pool = read_state(|s| s.get_pool(&pool_id)).ok_or(IncreaseLiquidity::PoolNotInitialized)?;
+    let pool =
+        read_state(|s| s.get_pool(&pool_id)).ok_or(IncreaseLiquidityError::PoolNotInitialized)?;
 
     // Compute liquidity for the position
     let liquidity_delta = calculate_liquidity(
@@ -34,7 +35,7 @@ pub fn execute_increase_liquidity(
         validated_args.amount0_max,
         validated_args.amount1_max,
     )
-    .map_err(|_| IncreaseLiquidity::LiquidityOverflow)?;
+    .map_err(|_| IncreaseLiquidityError::LiquidityOverflow)?;
 
     // Prepare and execute liquidity modification
     let modify_params = ModifyLiquidityParams {
@@ -76,17 +77,16 @@ pub fn execute_increase_liquidity(
         user_balance.amount0().as_u256(),
         user_balance.amount1().as_u256(),
     )
-    .unwrap();
-    //.map_err(|_| IncreaseLiquidity::InsufficientBalance)?;
+    .map_err(|_| IncreaseLiquidityError::SlippageFailed)?;
 
     let final_balance = user_balance
         .add(success_result.balance_delta)
-        .map_err(|_| IncreaseLiquidity::AmountOverflow)?;
+        .map_err(|_| IncreaseLiquidityError::AmountOverflow)?;
 
     // add generated fees
     let final_balance = final_balance
         .add(success_result.fee_delta)
-        .map_err(|_| IncreaseLiquidity::AmountOverflow)?;
+        .map_err(|_| IncreaseLiquidityError::AmountOverflow)?;
 
     // safe operation no overflow can happen since the balance_delta is always negative
     let amount0_paid = success_result.balance_delta.amount0().abs().as_u256();
@@ -127,19 +127,19 @@ pub fn execute_increase_liquidity(
     Ok(liquidity_delta as u128)
 }
 
-/// Maps ModifyLiquidityError to IncreaseLiquidity.
-fn map_modify_liquidity_error(error: ModifyLiquidityError) -> IncreaseLiquidity {
+/// Maps ModifyLiquidityError to IncreaseLiquidityError.
+fn map_modify_liquidity_error(error: ModifyLiquidityError) -> IncreaseLiquidityError {
     match error {
-        ModifyLiquidityError::InvalidTick => IncreaseLiquidity::InvalidTick,
+        ModifyLiquidityError::InvalidTick => IncreaseLiquidityError::InvalidTick,
         ModifyLiquidityError::TickNotAlignedWithTickSpacing => {
-            IncreaseLiquidity::TickNotAlignedWithTickSpacing
+            IncreaseLiquidityError::TickNotAlignedWithTickSpacing
         }
-        ModifyLiquidityError::PoolNotInitialized => IncreaseLiquidity::PoolNotInitialized,
+        ModifyLiquidityError::PoolNotInitialized => IncreaseLiquidityError::PoolNotInitialized,
         ModifyLiquidityError::LiquidityOverflow
         | ModifyLiquidityError::TickLiquidityOverflow
-        | ModifyLiquidityError::PositionOverflow => IncreaseLiquidity::LiquidityOverflow,
-        ModifyLiquidityError::FeeOwedOverflow => IncreaseLiquidity::FeeOverflow,
-        ModifyLiquidityError::AmountDeltaOverflow => IncreaseLiquidity::AmountOverflow,
+        | ModifyLiquidityError::PositionOverflow => IncreaseLiquidityError::LiquidityOverflow,
+        ModifyLiquidityError::FeeOwedOverflow => IncreaseLiquidityError::FeeOverflow,
+        ModifyLiquidityError::AmountDeltaOverflow => IncreaseLiquidityError::AmountOverflow,
         ModifyLiquidityError::InvalidTickSpacing | ModifyLiquidityError::ZeroLiquidityPosition => {
             ic_cdk::trap("Bug: Invalid tick spacing or zero liquidity in mint");
         }
