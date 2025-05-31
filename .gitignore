@@ -31,3 +31,7 @@ vendor/                 # Vendored dependencies (if using `cargo vendor`)
 
 
 .env
+.git 
+.dfx 
+.github
+
