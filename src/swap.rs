@@ -6,7 +6,7 @@ use crate::{
     candid_types::swap::SwapFailedReason,
     events::{Event, EventType},
     pool::{
-        swap::{SwapParams, SwapSuccess, swap_inner},
+        swap::{swap_inner, SwapParams, SwapSuccess},
         types::PoolId,
     },
     quote::{get_sqrt_price_limit, select_amount},
@@ -307,7 +307,7 @@ fn update_balances_and_states(
 ) -> Result<(), SwapFailedReason> {
     let token_in_balance_after = UserBalance(
         token_in_balance_before
-            .checked_add(swap_result.amount_in)
+            .checked_sub(swap_result.amount_in)
             .ok_or(SwapFailedReason::BalanceOverflow)?
             .as_u256(),
     );
