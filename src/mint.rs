@@ -11,7 +11,7 @@ use crate::{
         tick_math::TickMath,
     },
     pool::{
-        modify_liquidity::{ModifyLiquidityError, ModifyLiquidityParams, modify_liquidity},
+        modify_liquidity::{modify_liquidity, ModifyLiquidityError, ModifyLiquidityParams},
         types::PoolId,
     },
     state::{mutate_state, read_state},
@@ -76,8 +76,8 @@ pub fn execute_mint_position(
     // fee delta can be ignored as this is a new position
     validate_max_in(
         success_result.balance_delta,
-        user_balance.amount0().as_u256(),
-        user_balance.amount1().as_u256(),
+        validated_args.amount0_max,
+        validated_args.amount1_max,
     )
     .map_err(|_| MintPositionError::SlippageFailed)?;
 

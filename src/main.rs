@@ -29,6 +29,7 @@ use appic_dex::{
         balance_delta::BalanceDelta,
         safe_cast::{big_uint_to_u256, u256_to_big_uint, u256_to_nat},
     },
+    logs::DEBUG,
     mint::execute_mint_position,
     pool::{
         create_pool::create_pool_inner,
@@ -50,6 +51,7 @@ use appic_dex::{
 
 use candid::{Nat, Principal};
 use ethnum::{I256, U256};
+use ic_canister_log::log;
 use ic_cdk::{init, post_upgrade, query, update};
 use icrc_ledger_types::icrc1::account::Account;
 
@@ -781,6 +783,15 @@ async fn _deposit(
     memo: &mut DepositMemo,
 ) -> Result<(), DepositError> {
     // Sets deposit amount in memo for ledger tracking
+
+    log!(
+        DEBUG,
+        "Depositing token {:?} with amount {:?} from user {:?}",
+        token.to_text(),
+        amount,
+        caller.to_text(),
+    );
+
     memo.set_amount(amount);
     LedgerClient::new(token)
         .deposit(*from, u256_to_big_uint(amount), memo.clone())
@@ -813,6 +824,15 @@ async fn _deposit_if_needed(
     if desired_user_balance > user_current_balance {
         // Calculates additional amount needed and deposits it
         let deposit_amount = desired_user_balance - user_current_balance;
+
+        log!(
+            DEBUG,
+            "Depositing token {:?} with amount {:?} from user {:?}",
+            token.to_text(),
+            deposit_amount,
+            caller.to_text(),
+        );
+
         memo.set_amount(deposit_amount);
         LedgerClient::new(token)
             .deposit(*from, u256_to_big_uint(deposit_amount), memo.clone())
@@ -871,6 +891,12 @@ async fn _withdraw(
     transfer_fee: U256,
 ) -> Result<U256, WithdrawError> {
     let user_balance = get_user_balance(caller, token);
+
+    log!(
+        DEBUG,
+        "Withdrawing token {:?} with amount {:?} with transfer fee {:?} to user {:?} with balance {:?}",
+        token.to_text(), amount, transfer_fee, caller.to_text(),user_balance
+    );
 
     // Ensures amount covers transfer fee
     if amount.checked_sub(transfer_fee).is_none() {
