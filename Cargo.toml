@@ -8,6 +8,21 @@ lto = true
 opt-level = 'z'
 
 
+[[bin]]
+name = "sqrtx96_to_tick"
+path = "./bin/sqrtx96_to_tick.rs"
+
+
+[[bin]]
+name = "price_to_tick"
+path = "./bin/price_to_tick.rs"
+
+[[bin]]
+name = "token_order"
+path = "./bin/token_order.rs"
+
+
+
 [dependencies]
 
 candid = "0.10"

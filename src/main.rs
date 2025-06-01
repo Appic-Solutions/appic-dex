@@ -1,11 +1,9 @@
-use core::time;
 use std::time::Duration;
 
 use appic_dex::{
     balances::types::{UserBalance, UserBalanceKey},
     burn::execute_burn_position,
     candid_types::{
-        Balance, DepositArgs, DepositError, UserBalanceArgs, WithdrawArgs, WithdrawError,
         events::{CandidEvent, GetEventsArg, GetEventsResult},
         pool::{CandidPoolId, CandidPoolState, CreatePoolArgs, CreatePoolError},
         pool_history::CandidPoolHistory,
@@ -16,14 +14,15 @@ use appic_dex::{
         },
         quote::{QuoteArgs, QuoteError},
         swap::{CandidSwapSuccess, SwapArgs, SwapError},
+        Balance, DepositArgs, DepositError, UserBalanceArgs, WithdrawArgs, WithdrawError,
     },
     collect_fees::execute_collect_fees,
     decrease_liquidity::execute_decrease_liquidity,
     guard::PrincipalGuard,
     historical::capture_historical_data,
     icrc_client::{
-        LedgerClient, LedgerTransferError,
         memo::{DepositMemo, WithdrawMemo},
+        LedgerClient, LedgerTransferError,
     },
     increase_liquidity::execute_increase_liquidity,
     libraries::{
@@ -74,7 +73,7 @@ fn init() {
     let fee_to_tick_spacing = vec![
         (100_u32, 1_i32),      // 0.01% fee, 1 tick spacing
         (500_u32, 10i32),      // 0.05% fee, 10 tick spacing
-        (1_000_u32, 10i32),    // 0.1% fee, 10 tick spacing
+        (1_000_u32, 20i32),    // 0.1% fee, 20 tick spacing
         (3_000_u32, 60_i32),   // 0.3% fee, 60 tick spacing
         (10_000_u32, 200_i32), // 1% fee, 200 tick spacing
     ];
@@ -313,7 +312,6 @@ async fn mint_position(args: MintPositionArgs) -> Result<Nat, MintPositionError>
         max_deposit.amount0().as_u256(),
         &mut DepositMemo::MintPosition {
             // Typo: Should be MintPosition
-            sender: caller,
             amount: U256::ZERO,
         },
     )
@@ -328,7 +326,6 @@ async fn mint_position(args: MintPositionArgs) -> Result<Nat, MintPositionError>
         max_deposit.amount1().as_u256(),
         &mut DepositMemo::MintPosition {
             // Typo: Should be MintPosition
-            sender: caller,
             amount: U256::ZERO,
         },
     )
@@ -394,7 +391,6 @@ async fn increase_liquidity(args: IncreaseLiquidityArgs) -> Result<Nat, Increase
         max_deposit.amount0().as_u256(),
         &mut DepositMemo::MintPosition {
             // Typo: Should be MintPosition
-            sender: caller,
             amount: U256::ZERO,
         },
     )
@@ -409,7 +405,6 @@ async fn increase_liquidity(args: IncreaseLiquidityArgs) -> Result<Nat, Increase
         max_deposit.amount1().as_u256(),
         &mut DepositMemo::MintPosition {
             // Typo: Should be MintPosition
-            sender: caller,
             amount: U256::ZERO,
         },
     )
@@ -471,7 +466,6 @@ async fn burn(args: BurnPositionArgs) -> Result<(), BurnPositionError> {
         &to_account,
         &mut WithdrawMemo::BurnPosition {
             // Typo: Should be BurnPosition
-            receiver: caller,
             amount: U256::ZERO,
         },
         token0_transfer_fee,
@@ -487,7 +481,6 @@ async fn burn(args: BurnPositionArgs) -> Result<(), BurnPositionError> {
         &to_account,
         &mut WithdrawMemo::BurnPosition {
             // Typo: Should be BurnPosition
-            receiver: caller,
             amount: U256::ZERO,
         },
         token1_transfer_fee,
@@ -546,7 +539,6 @@ async fn decrease_liquidity(args: DecreaseLiquidityArgs) -> Result<(), DecreaseL
         &to_account,
         &mut WithdrawMemo::BurnPosition {
             // Typo: Should be BurnPosition
-            receiver: caller,
             amount: U256::ZERO,
         },
         token0_transfer_fee,
@@ -562,7 +554,6 @@ async fn decrease_liquidity(args: DecreaseLiquidityArgs) -> Result<(), DecreaseL
         &to_account,
         &mut WithdrawMemo::BurnPosition {
             // Typo: Should be BurnPosition
-            receiver: caller,
             amount: U256::ZERO,
         },
         token1_transfer_fee,
@@ -602,10 +593,7 @@ async fn swap(args: SwapArgs) -> Result<CandidSwapSuccess, SwapError> {
         token_in,
         &user_address,
         deposit_amount.as_u256(),
-        &mut DepositMemo::SwapIn {
-            sender: caller,
-            amount: U256::ZERO,
-        },
+        &mut DepositMemo::SwapIn { amount: U256::ZERO },
     )
     .await
     .map_err(|e| SwapError::DepositError(e))?;
@@ -622,10 +610,7 @@ async fn swap(args: SwapArgs) -> Result<CandidSwapSuccess, SwapError> {
                 token_out,
                 swap_delta.1.as_u256(),
                 &user_address,
-                &mut WithdrawMemo::SwapOut {
-                    receiver: caller,
-                    amount: U256::ZERO,
-                },
+                &mut WithdrawMemo::SwapOut { amount: U256::ZERO },
                 swap_delta.2,
             )
             .await
@@ -698,10 +683,7 @@ async fn collect_fees(position: CandidPositionKey) -> Result<CollectFeesSuccess,
             position_key.pool_id.token0,
             fee_delta.amount0().as_u256(),
             &caller.into(),
-            &mut WithdrawMemo::CollectFees {
-                receiver: caller,
-                amount: U256::ZERO,
-            },
+            &mut WithdrawMemo::CollectFees { amount: U256::ZERO },
             pool.token0_transfer_fee,
         )
         .await
@@ -713,10 +695,7 @@ async fn collect_fees(position: CandidPositionKey) -> Result<CollectFeesSuccess,
             position_key.pool_id.token1,
             fee_delta.amount1().as_u256(),
             &caller.into(),
-            &mut WithdrawMemo::CollectFees {
-                receiver: caller,
-                amount: U256::ZERO,
-            },
+            &mut WithdrawMemo::CollectFees { amount: U256::ZERO },
             pool.token0_transfer_fee, // Should likely be token1_transfer_fee
         )
         .await
@@ -754,10 +733,7 @@ async fn deposit(deposit_args: DepositArgs) -> Result<(), DepositError> {
         deposit_args.token,
         &from,
         amount,
-        &mut DepositMemo::Deposit {
-            sender: from.owner,
-            amount: U256::ZERO,
-        },
+        &mut DepositMemo::Deposit { amount: U256::ZERO },
     )
     .await
 }
@@ -789,10 +765,7 @@ async fn withdraw(withdraw_args: WithdrawArgs) -> Result<Nat, WithdrawError> {
         withdraw_args.token,
         amount,
         &caller.into(),
-        &mut WithdrawMemo::Withdraw {
-            receiver: caller,
-            amount: U256::ZERO,
-        },
+        &mut WithdrawMemo::Withdraw { amount: U256::ZERO },
         transfer_fee,
     )
     .await
@@ -882,10 +855,7 @@ async fn _refund(
         token,
         amount,
         to,
-        &mut WithdrawMemo::Refund {
-            receiver: to.owner,
-            amount: U256::ZERO,
-        },
+        &mut WithdrawMemo::Refund { amount: U256::ZERO },
         transfer_fee,
     )
     .await
