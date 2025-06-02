@@ -37,7 +37,7 @@ ic-canister-log = "0.2.0"
 hex = { version = "0.4.3", features = ["serde"] }
 
 
-minicbor = { version = "0.26.3",features = ["derive","alloc"] }
+minicbor = { version = "1.0.0",features = ["derive","alloc"] }
 
 num-bigint = "0.4"
 num-traits = "0.2"
