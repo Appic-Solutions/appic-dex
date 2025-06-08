@@ -90,36 +90,7 @@ make test
 
 ## Project Structure
 
-```
-├── src/                          # Rust source code for the DEX logic
-│   ├── balances/                 # Handles user balances and token accounting
-│   ├── candid_types/             # Defines Candid types for canister interfaces
-│   ├── cbor/                     # CBOR encoding/decoding for stable memory
-│   ├── events/                   # Manages event logging
-│   ├── guard/                    # Implements principal guard
-│   ├── historical/               # Stores historical data
-│   ├── icrc_client/              # Interacts with ICRC token standards on ICP
-│   ├── libraries/                # Reusable libraries and utility functions
-│   ├── pool/                     # Manages liquidity pools
-│   ├── position/                 # Handles liquidity positions
-│   ├── state/                    # Manages the canister's state
-│   ├── tests/                    # Unit and integration tests
-│   ├── tick/                     # Manages tick data for the AMM
-│   ├── validation/               # Validation logic for various actions
-│   ├── lib.rs                    # Library module
-│   ├── logs.rs                   # Logging utilities
-│   ├── main.rs                   # Main
-│   ├── mint.rs                   # Mint position execution
-│   ├── burn.rs                   # Burn position execution
-│   ├── increase_liquidity.rs     # Increase liquidity on a position execution
-│   ├── decrease_liquidity.rs     # Decrease liquidity on a position execution
-│   ├── quote.rs                  # Quoting execution
-│   └── swap.rs                   # Swap execution
-├── Cargo.toml                    # Rust dependencies and configuration
-├── dfx.json                      # DFX configuration for canister deployment
-├── makefile                      # Makefile for simplified build and test process
-└── appic_dex.did                 # Candid interface definition for the DEX canister
-```
+[**Project Structure**](./architecture.md)
 
 ## Contributing
 
