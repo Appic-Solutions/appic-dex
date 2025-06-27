@@ -9,6 +9,7 @@
 
 use crate::{
     balances::types::{UserBalance, UserBalanceKey},
+    candid_types::pool,
     events::Event,
     historical::types::PoolHistory,
     libraries::{constants::Q128, full_math::mul_div},
@@ -25,9 +26,9 @@ use candid::Principal;
 use ethnum::U256;
 use ic_stable_structures::{BTreeMap, Log};
 use memory_manager::{
-    StableMemory, events_data_memory_id, events_index_memory_id, pool_history_memory_id,
-    pools_memory_id, positions_memory_id, protocol_balance_memory_id, tick_bitmaps_memory_id,
-    tick_spacings_memory_id, ticks_memory_id, user_balances_memory_id,
+    events_data_memory_id, events_index_memory_id, pool_history_memory_id, pools_memory_id,
+    positions_memory_id, protocol_balance_memory_id, tick_bitmaps_memory_id,
+    tick_spacings_memory_id, ticks_memory_id, user_balances_memory_id, StableMemory,
 };
 use std::cell::RefCell;
 
@@ -65,6 +66,19 @@ pub struct State {
 impl State {
     pub fn get_tick(&self, tick: &TickKey) -> TickInfo {
         self.ticks.get(tick).unwrap_or(TickInfo::default())
+    }
+
+    pub fn get_ticks_for_pool(&self, pool_id: PoolId) -> Vec<(TickKey, TickInfo)> {
+        self.ticks
+            .iter()
+            .filter_map(|(tick_key, tick_info)| {
+                if tick_key.pool_id == pool_id {
+                    Some((tick_key, tick_info))
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
     pub fn update_tick(&mut self, tick: TickKey, info: TickInfo) {

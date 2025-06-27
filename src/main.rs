@@ -14,6 +14,7 @@ use appic_dex::{
         },
         quote::{QuoteArgs, QuoteError},
         swap::{CandidSwapSuccess, SwapArgs, SwapError},
+        tick::CandidTickInfo,
         Balance, DepositArgs, DepositError, UserBalanceArgs, WithdrawArgs, WithdrawError,
     },
     collect_fees::execute_collect_fees,
@@ -110,6 +111,16 @@ fn get_pools() -> Vec<(CandidPoolId, CandidPoolState)> {
     read_state(|s| s.get_pools())
         .into_iter()
         .map(|(id, state)| (CandidPoolId::from(id), CandidPoolState::from(state)))
+        .collect()
+}
+
+#[query]
+fn get_active_ticks(pool_id: CandidPoolId) -> Vec<CandidTickInfo> {
+    let pool_id: PoolId = pool_id.try_into().expect("Invalid pool id");
+
+    read_state(|s| s.get_ticks_for_pool(pool_id))
+        .into_iter()
+        .map(|tick| tick.into())
         .collect()
 }
 

@@ -131,6 +131,13 @@ type CandidPositionKey = record {
   tick_upper : int;
 };
 type CandidSwapSuccess = record { amount_out : nat; amount_in : nat };
+type CandidTickInfo = record {
+  fee_growth_outside_1_x128 : nat;
+  liquidity_gross : nat;
+  tick : int;
+  liquidity_net : int;
+  fee_growth_outside_0_x128 : nat;
+};
 type CollectFeesError = variant {
   PositionNotFound;
   FeeOverflow;
@@ -374,6 +381,7 @@ service : () -> {
   create_pool : (CreatePoolArgs) -> (Result_2);
   decrease_liquidity : (DecreaseLiquidityArgs) -> (Result_3);
   deposit : (DepositArgs) -> (Result_4);
+  get_active_ticks : (CandidPoolId) -> (vec CandidTickInfo) query;
   get_events : (GetEventsArg) -> (GetEventsResult) query;
   get_pool : (CandidPoolId) -> (opt CandidPoolState) query;
   get_pool_history : (CandidPoolId) -> (opt CandidPoolHistory) query;

@@ -16,6 +16,7 @@ pub mod pool_history;
 pub mod position;
 pub mod quote;
 pub mod swap;
+pub mod tick;
 
 #[derive(CandidType, Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
 pub struct Balance {
