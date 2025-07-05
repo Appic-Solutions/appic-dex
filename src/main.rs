@@ -37,6 +37,7 @@ use appic_dex::{
         types::{PoolFee, PoolId, PoolTickSpacing},
     },
     position::types::PositionKey,
+    proxy_canister::validate_icrc_ledger,
     quote::{
         process_multi_hop_exact_input, process_multi_hop_exact_output,
         process_single_hop_exact_input, process_single_hop_exact_output,
@@ -247,24 +248,20 @@ async fn create_pool(args: CreatePoolArgs) -> Result<CandidPoolId, CreatePoolErr
         return Err(CreatePoolError::DuplicatedTokens);
     }
 
-    // Fetches transfer fees to validate token standards and ensure compatibility
-    let token_a_fee = big_uint_to_u256(
-        LedgerClient::new(args.token_a)
-            .icrc_fee()
-            .await
-            .expect("A problem was found in the token canister")
-            .0,
-    )
-    .map_err(|_| CreatePoolError::InvalidToken(args.token_a))?;
+    let token_a_data = validate_icrc_ledger(args.token_a)
+        .await
+        .map_err(|_| CreatePoolError::InvalidToken(args.token_a))?;
 
-    let token_b_fee = big_uint_to_u256(
-        LedgerClient::new(args.token_b) // Should be args.token_b
-            .icrc_fee()
-            .await
-            .expect("A problem was found in the token canister")
-            .0,
-    )
-    .map_err(|_| CreatePoolError::InvalidToken(args.token_b))?;
+    let token_b_data = validate_icrc_ledger(args.token_b)
+        .await
+        .map_err(|_| CreatePoolError::InvalidToken(args.token_b))?;
+
+    // Fetches transfer fees to validate token standards and ensure compatibility
+    let token_a_fee = big_uint_to_u256(token_a_data.fee.0)
+        .map_err(|_| CreatePoolError::InvalidToken(args.token_a))?;
+
+    let token_b_fee = big_uint_to_u256(token_b_data.fee.0)
+        .map_err(|_| CreatePoolError::InvalidToken(args.token_b))?;
 
     let timestamp = ic_cdk::api::time();
     let pool_id = create_pool_inner(args, token_a_fee, token_b_fee, timestamp)?;

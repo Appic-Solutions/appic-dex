@@ -5,6 +5,7 @@
 
 const LEDGER_WASM_BYTES: &[u8] = include_bytes!("./wasm/ledger_canister_u256.wasm.gz");
 const APPIC_DEX_WASM_BYTES: &[u8] = include_bytes!("./wasm/appic_dex.wasm");
+const PROXY_CANISTER_BYTES: &[u8] = include_bytes!("./wasm/proxy_canister.wasm");
 
 const TWENTY_TRILLIONS: u64 = 20_000_000_000_000;
 
@@ -135,6 +136,24 @@ fn install_appic_dex_canister(pic: &PocketIc, canister_id: Principal) {
     pic.install_canister(
         canister_id,
         APPIC_DEX_WASM_BYTES.to_vec(),
+        encode_call_args(()).unwrap(),
+        Some(sender_principal()),
+    );
+}
+
+fn create_proxy_canister(pic: &PocketIc) -> Principal {
+    pic.create_canister_with_id(
+        Some(sender_principal()),
+        None,
+        Principal::from_text("epulg-riaaa-aaaaj-a2erq-cai").unwrap(),
+    )
+    .expect("Should create the canister")
+}
+
+fn install_proxy_canister(pic: &PocketIc, canister_id: Principal) {
+    pic.install_canister(
+        canister_id,
+        PROXY_CANISTER_BYTES.to_vec(),
         encode_call_args(()).unwrap(),
         Some(sender_principal()),
     );
@@ -426,6 +445,12 @@ pub fn create_and_install_canisters(pic: &PocketIc) {
     pic.add_cycles(token3_canister_id, TWENTY_TRILLIONS.into());
     install_token3_canister(&pic, token3_canister_id);
     five_ticks(&pic);
+
+    // Create and install
+    let proxy_canister = create_proxy_canister(&pic);
+    pic.add_cycles(proxy_canister, TWENTY_TRILLIONS.into());
+    install_proxy_canister(&pic, proxy_canister);
+    five_ticks(pic);
 
     // mint tokens
     mint_tokens(&pic, token0_canister_id);

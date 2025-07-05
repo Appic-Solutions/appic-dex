@@ -14,6 +14,7 @@ pub mod logs;
 pub mod mint;
 pub mod pool;
 pub mod position;
+pub mod proxy_canister;
 pub mod quote;
 pub mod state;
 pub mod swap;
