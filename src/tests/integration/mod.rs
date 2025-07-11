@@ -16,6 +16,8 @@ const TWO_HUNDRED_ETH: u128 = 200_000_000_000_000_000_000_u128;
 pub mod modify_liquidity;
 pub mod swap_tests;
 
+use std::panic;
+
 use candid::{CandidType, Nat, Principal};
 use ethnum::U256;
 use ic_icrc1_ledger::FeatureFlags as LedgerFeatureFlags;
@@ -29,7 +31,7 @@ use icrc_ledger_types::{
         approve::{ApproveArgs, ApproveError},
     },
 };
-use pocket_ic::{PocketIc, PocketIcBuilder, WasmResult};
+use pocket_ic::{PocketIc, PocketIcBuilder, RejectResponse};
 
 use ic_icrc1_ledger::{ArchiveOptions, InitArgs as LedgerInitArgs, LedgerArgument};
 
@@ -47,14 +49,12 @@ where
     O: CandidType + for<'a> serde::Deserialize<'a>,
     I: CandidType,
 {
-    let wasm_result = pic
-        .query_call(
-            canister_id,
-            sender_principal(),
-            method,
-            encode_call_args(payload).unwrap(),
-        )
-        .unwrap();
+    let wasm_result = pic.query_call(
+        canister_id,
+        sender_principal(),
+        method,
+        encode_call_args(payload).unwrap(),
+    );
 
     decode_wasm_result::<O>(wasm_result).unwrap()
 }
@@ -74,14 +74,12 @@ where
         Some(p_id) => p_id,
         None => sender_principal(),
     };
-    let wasm_result = pic
-        .update_call(
-            canister_id,
-            sender_principal,
-            method,
-            encode_call_args(payload).unwrap(),
-        )
-        .unwrap();
+    let wasm_result = pic.update_call(
+        canister_id,
+        sender_principal,
+        method,
+        encode_call_args(payload).unwrap(),
+    );
 
     decode_wasm_result::<O>(wasm_result).unwrap()
 }
@@ -93,13 +91,13 @@ where
     Ok(candid::encode_one(args).unwrap())
 }
 
-pub fn decode_wasm_result<O>(wasm_result: WasmResult) -> Result<O, ()>
+pub fn decode_wasm_result<O>(result: Result<Vec<u8>, RejectResponse>) -> Result<O, ()>
 where
     O: CandidType + for<'a> serde::Deserialize<'a>,
 {
-    match wasm_result {
-        pocket_ic::WasmResult::Reply(vec) => Ok(candid::decode_one(&vec).unwrap()),
-        pocket_ic::WasmResult::Reject(_) => Err(()),
+    match result {
+        Ok(bytes) => Ok(candid::decode_one(&bytes).unwrap()),
+        Err(e) => panic!("{:?}", e),
     }
 }
 

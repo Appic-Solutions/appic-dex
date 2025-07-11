@@ -18,13 +18,11 @@ pub fn compress(tick: i32, tick_spacing: i32) -> i32 {
     let remainder = tick % tick_spacing;
 
     // Round down: subtract 1 if tick is negative and remainder exists
-    let compressed = if tick < 0 && remainder != 0 {
+    if tick < 0 && remainder != 0 {
         quotient - 1
     } else {
         quotient
-    };
-
-    compressed
+    }
 }
 
 /// Computes the position in the tick bitmap where the initialized bit for a tick lives.

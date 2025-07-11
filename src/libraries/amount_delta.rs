@@ -204,7 +204,7 @@ mod tests {
             ); // 10 - 7 = 3
 
             // Large values (beyond u128, within uint160)
-            let max_160 = U256::from(1u128) << 160 - 1; // 2^160 - 1
+            let max_160 = U256::from(1u128) << (160 - 1); // 2^160 - 1
             assert_eq!(abs_diff(max_160, U256::ZERO), max_160); // max - 0
             assert_eq!(abs_diff(U256::ZERO, max_160), max_160); // max - 0
 

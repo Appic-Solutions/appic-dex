@@ -581,7 +581,8 @@ async fn swap(args: SwapArgs) -> Result<CandidSwapSuccess, SwapError> {
     ic_cdk::println!("{:?}", validated_swap_args);
     let caller = validate_caller_not_anonymous();
 
-    // Uses swap-specific lock to allow concurrent swaps but block liquidity changes
+    // Uses swap-specific lock to allow concurrent swaps but blocks other operations by the same
+    // user(mint, increase, decrease, collect fees, bunr)
     let _guard = match PrincipalGuard::new_swap_guard(caller) {
         Ok(guard) => guard,
         Err(_err) => return Err(SwapError::LockedPrincipal),
@@ -598,7 +599,7 @@ async fn swap(args: SwapArgs) -> Result<CandidSwapSuccess, SwapError> {
     let token_out = validated_swap_args.token_out();
 
     // Deposits input tokens for the swap
-    let _ = _deposit(
+    _deposit(
         caller,
         token_in,
         &user_address,
@@ -631,10 +632,10 @@ async fn swap(args: SwapArgs) -> Result<CandidSwapSuccess, SwapError> {
             })?;
 
             // Returns input and output amounts on success
-            return Ok(CandidSwapSuccess {
+            Ok(CandidSwapSuccess {
                 amount_in: u256_to_nat(swap_delta.0.as_u256()),
                 amount_out: u256_to_nat(swap_delta.1.as_u256()),
-            });
+            })
         }
         Err(err) => {
             // Refunds input tokens if swap fails
@@ -647,11 +648,11 @@ async fn swap(args: SwapArgs) -> Result<CandidSwapSuccess, SwapError> {
                         refund_error: Some(e),
                     })?;
 
-            return Err(SwapError::SwapFailedRefunded {
+            Err(SwapError::SwapFailedRefunded {
                 failed_reason: err,
                 refund_error: None,
                 refund_amount: Some(u256_to_nat(refunded_amount)),
-            });
+            })
         }
     }
 }
