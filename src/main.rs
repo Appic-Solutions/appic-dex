@@ -59,7 +59,7 @@ use icrc_ledger_types::icrc1::account::Account;
 
 // Ensures caller is not anonymous, panics if anonymous to prevent unauthorized access
 fn validate_caller_not_anonymous() -> candid::Principal {
-    let principal = ic_cdk::caller();
+    let principal = ic_cdk::api::canister_self();
     if principal == candid::Principal::anonymous() {
         panic!("anonymous principal is not allowed");
     }
@@ -100,10 +100,7 @@ fn post_upgrade() {
 #[query]
 fn get_pool(pool_id: CandidPoolId) -> Option<CandidPoolState> {
     let pool_id: PoolId = pool_id.try_into().ok()?;
-    read_state(|s| {
-        s.get_pool(&pool_id)
-            .map(|pool_state| CandidPoolState::from(pool_state))
-    })
+    read_state(|s| s.get_pool(&pool_id).map(CandidPoolState::from))
 }
 
 // Retrieves all pools with their IDs and states, converted to Candid format
@@ -130,7 +127,7 @@ fn get_active_ticks(pool_id: CandidPoolId) -> Vec<CandidTickInfo> {
 fn get_pool_history(pool_id: CandidPoolId) -> Option<CandidPoolHistory> {
     let pool_id: PoolId = pool_id.try_into().ok()?;
     let pool_history = read_state(|s| s.get_pool_history(&pool_id));
-    if pool_history.hourly_frame.len() == 0 {
+    if pool_history.hourly_frame.is_empty() {
         None
     } else {
         Some(CandidPoolHistory::from(pool_history))
@@ -229,7 +226,7 @@ fn get_events(args: GetEventsArg) -> GetEventsResult {
             s.total_event_count(),
             s.get_events(args.start, args.length.min(MAX_EVENTS_PER_RESPONSE))
                 .into_iter()
-                .map(|event| CandidEvent::from(event))
+                .map(CandidEvent::from)
                 .collect::<Vec<CandidEvent>>(),
         )
     });
@@ -326,7 +323,7 @@ async fn mint_position(args: MintPositionArgs) -> Result<Nat, MintPositionError>
         },
     )
     .await
-    .map_err(|e| MintPositionError::DepositError(e.into()))?;
+    .map_err(MintPositionError::DepositError)?;
 
     _deposit_if_needed(
         caller,
@@ -340,13 +337,91 @@ async fn mint_position(args: MintPositionArgs) -> Result<Nat, MintPositionError>
         },
     )
     .await
-    .map_err(|e| MintPositionError::DepositError(e.into()))?;
+    .map_err(MintPositionError::DepositError)?;
 
     let timestamp = ic_cdk::api::time();
 
     // Executes minting and converts liquidity amount to Nat
-    execute_mint_position(caller, pool_id, token0, token1, validated_args, timestamp)
-        .map(|mint_result| Nat::from(mint_result))
+    let liquidity = execute_mint_position(
+        caller,
+        pool_id.clone(),
+        token0,
+        token1,
+        validated_args,
+        timestamp,
+    )
+    .map(Nat::from)?;
+
+    // After mint operation execution we check if there are some extra tokens left in the users
+    // balance due the difference between the max amount deposited and the real amount used for
+    // minting.
+    // If there is some amount left that is withdrawable(amount > token transfer fee) we withdraw
+    // it to the users wallet.
+
+    // Retrieves transfer fees for both tokens from pool state
+    let (token0_transfer_fee, token1_transfer_fee) = read_state(|s| {
+        let pool_state = s.get_pool(&pool_id).unwrap();
+        (
+            pool_state.token0_transfer_fee,
+            pool_state.token1_transfer_fee,
+        )
+    });
+
+    // Fetches user balances, using I256::MAX as fallback for overflow safety
+    let user_balance_after_mint = read_state(|s| {
+        BalanceDelta::new(
+            s.get_user_balance(&UserBalanceKey {
+                user: caller,
+                token: token0,
+            })
+            .0
+            .try_into()
+            .unwrap_or(I256::MAX),
+            s.get_user_balance(&UserBalanceKey {
+                user: caller,
+                token: token1,
+            })
+            .0
+            .try_into()
+            .unwrap_or(I256::MAX),
+        )
+    });
+
+    let to_account = Account::from(caller);
+
+    if user_balance_after_mint
+        .amount0()
+        .as_u256()
+        .gt(&token0_transfer_fee)
+    {
+        let _ = _withdraw(
+            caller,
+            token0,
+            user_balance_after_mint.amount0().as_u256(),
+            &to_account,
+            &mut WithdrawMemo::WithdrawBalance { amount: U256::ZERO },
+            token0_transfer_fee,
+        )
+        .await;
+    }
+
+    if user_balance_after_mint
+        .amount1()
+        .as_u256()
+        .gt(&token1_transfer_fee)
+    {
+        let _ = _withdraw(
+            caller,
+            token1,
+            user_balance_after_mint.amount1().as_u256(),
+            &to_account,
+            &mut WithdrawMemo::WithdrawBalance { amount: U256::ZERO },
+            token1_transfer_fee,
+        )
+        .await;
+    }
+
+    Ok(liquidity)
 }
 
 // Increases liquidity in an existing position, deposits tokens if needed, returns liquidity delta
@@ -405,7 +480,7 @@ async fn increase_liquidity(args: IncreaseLiquidityArgs) -> Result<Nat, Increase
         },
     )
     .await
-    .map_err(|e| IncreaseLiquidityError::DepositError(e.into()))?;
+    .map_err(IncreaseLiquidityError::DepositError)?;
 
     _deposit_if_needed(
         caller,
@@ -419,13 +494,91 @@ async fn increase_liquidity(args: IncreaseLiquidityArgs) -> Result<Nat, Increase
         },
     )
     .await
-    .map_err(|e| IncreaseLiquidityError::DepositError(e.into()))?;
+    .map_err(IncreaseLiquidityError::DepositError)?;
 
     let timestamp = ic_cdk::api::time();
 
     // Increases liquidity and returns the delta
-    execute_increase_liquidity(caller, pool_id, token0, token1, validated_args, timestamp)
-        .map(|liquidity_delta| Nat::from(liquidity_delta))
+    let liquidity_delta = execute_increase_liquidity(
+        caller,
+        pool_id.clone(),
+        token0,
+        token1,
+        validated_args,
+        timestamp,
+    )
+    .map(Nat::from)?;
+
+    // After increase liquidity operation execution we check if there are some extra tokens left in the users
+    // balance due the difference between the max amount deposited and the real amount used for
+    // minting.
+    // If there is some amount left that is withdrawable(amount > token transfer fee) we withdraw
+    // it to the users wallet.
+
+    // Retrieves transfer fees for both tokens from pool state
+    let (token0_transfer_fee, token1_transfer_fee) = read_state(|s| {
+        let pool_state = s.get_pool(&pool_id).unwrap();
+        (
+            pool_state.token0_transfer_fee,
+            pool_state.token1_transfer_fee,
+        )
+    });
+
+    // Fetches user balances, using I256::MAX as fallback for overflow safety
+    let user_balance_after_mint = read_state(|s| {
+        BalanceDelta::new(
+            s.get_user_balance(&UserBalanceKey {
+                user: caller,
+                token: token0,
+            })
+            .0
+            .try_into()
+            .unwrap_or(I256::MAX),
+            s.get_user_balance(&UserBalanceKey {
+                user: caller,
+                token: token1,
+            })
+            .0
+            .try_into()
+            .unwrap_or(I256::MAX),
+        )
+    });
+
+    let to_account = Account::from(caller);
+
+    if user_balance_after_mint
+        .amount0()
+        .as_u256()
+        .gt(&token0_transfer_fee)
+    {
+        let _ = _withdraw(
+            caller,
+            token0,
+            user_balance_after_mint.amount0().as_u256(),
+            &to_account,
+            &mut WithdrawMemo::WithdrawBalance { amount: U256::ZERO },
+            token0_transfer_fee,
+        )
+        .await;
+    }
+
+    if user_balance_after_mint
+        .amount1()
+        .as_u256()
+        .gt(&token1_transfer_fee)
+    {
+        let _ = _withdraw(
+            caller,
+            token1,
+            user_balance_after_mint.amount1().as_u256(),
+            &to_account,
+            &mut WithdrawMemo::WithdrawBalance { amount: U256::ZERO },
+            token1_transfer_fee,
+        )
+        .await;
+    }
+
+    Ok(liquidity_delta)
 }
 
 // Burns a liquidity position, withdraws tokens, returns success or error
@@ -481,7 +634,7 @@ async fn burn(args: BurnPositionArgs) -> Result<(), BurnPositionError> {
         token0_transfer_fee,
     )
     .await
-    .map_err(|e| BurnPositionError::BurntPositionWithdrawalFailed(e.into()))?;
+    .map_err(BurnPositionError::BurntPositionWithdrawalFailed)?;
 
     // Withdraws burned tokens for token1
     let _ = _withdraw(
@@ -496,7 +649,7 @@ async fn burn(args: BurnPositionArgs) -> Result<(), BurnPositionError> {
         token1_transfer_fee,
     )
     .await
-    .map_err(|e| BurnPositionError::BurntPositionWithdrawalFailed(e.into()))?;
+    .map_err(BurnPositionError::BurntPositionWithdrawalFailed)?;
 
     Ok(())
 }
@@ -554,7 +707,7 @@ async fn decrease_liquidity(args: DecreaseLiquidityArgs) -> Result<(), DecreaseL
         token0_transfer_fee,
     )
     .await
-    .map_err(|e| DecreaseLiquidityError::DecreasedPositionWithdrawalFailed(e.into()))?;
+    .map_err(DecreaseLiquidityError::DecreasedPositionWithdrawalFailed)?;
 
     // Withdraws decreased liquidity for token1
     let _ = _withdraw(
@@ -569,7 +722,7 @@ async fn decrease_liquidity(args: DecreaseLiquidityArgs) -> Result<(), DecreaseL
         token1_transfer_fee,
     )
     .await
-    .map_err(|e| DecreaseLiquidityError::DecreasedPositionWithdrawalFailed(e.into()))?;
+    .map_err(DecreaseLiquidityError::DecreasedPositionWithdrawalFailed)?;
 
     Ok(())
 }
@@ -607,7 +760,7 @@ async fn swap(args: SwapArgs) -> Result<CandidSwapSuccess, SwapError> {
         &mut DepositMemo::SwapIn { amount: U256::ZERO },
     )
     .await
-    .map_err(|e| SwapError::DepositError(e))?;
+    .map_err(SwapError::DepositError)?;
 
     let timestamp = ic_cdk::api::time();
 
@@ -698,7 +851,7 @@ async fn collect_fees(position: CandidPositionKey) -> Result<CollectFeesSuccess,
             pool.token0_transfer_fee,
         )
         .await
-        .map_err(|e| CollectFeesError::CollectedFeesWithdrawalFailed(e.into()))?;
+        .map_err(CollectFeesError::CollectedFeesWithdrawalFailed)?;
 
         // Withdraws collected fees for token1, using token0_transfer_fee (likely a bug)
         let _ = _withdraw(
@@ -710,7 +863,7 @@ async fn collect_fees(position: CandidPositionKey) -> Result<CollectFeesSuccess,
             pool.token0_transfer_fee, // Should likely be token1_transfer_fee
         )
         .await
-        .map_err(|e| CollectFeesError::CollectedFeesWithdrawalFailed(e.into()))?;
+        .map_err(CollectFeesError::CollectedFeesWithdrawalFailed)?;
 
         Ok(CollectFeesSuccess {
             token0_collected: u256_to_nat(fee_delta.amount0().as_u256()),
@@ -780,7 +933,7 @@ async fn withdraw(withdraw_args: WithdrawArgs) -> Result<Nat, WithdrawError> {
         transfer_fee,
     )
     .await
-    .map(|ledger_index| u256_to_nat(ledger_index))
+    .map(u256_to_nat)
 }
 
 // Internal function to deposit tokens and update user balance
@@ -904,7 +1057,11 @@ async fn _withdraw(
     log!(
         DEBUG,
         "Withdrawing token {:?} with amount {:?} with transfer fee {:?} to user {:?} with balance {:?}",
-        token.to_text(), amount, transfer_fee, caller.to_text(),user_balance
+        token.to_text(),
+        amount,
+        transfer_fee,
+        caller.to_text(),
+        user_balance
     );
 
     // Ensures amount covers transfer fee
