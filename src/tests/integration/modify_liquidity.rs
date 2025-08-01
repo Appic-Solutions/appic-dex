@@ -69,7 +69,7 @@ fn flow_test() {
         "icrc2_approve",
         ApproveArgs {
             from_subaccount: None,
-            spender: LedgerAccount {
+            spender: Account {
                 owner: appic_dex_canister_id(),
                 subaccount: None,
             },
@@ -94,7 +94,7 @@ fn flow_test() {
         "icrc2_approve",
         ApproveArgs {
             from_subaccount: None,
-            spender: LedgerAccount {
+            spender: Account {
                 owner: appic_dex_canister_id(),
                 subaccount: None,
             },
@@ -210,7 +210,7 @@ fn flow_test() {
         "icrc2_approve",
         ApproveArgs {
             from_subaccount: None,
-            spender: LedgerAccount {
+            spender: Account {
                 owner: appic_dex_canister_id(),
                 subaccount: None,
             },
@@ -235,7 +235,7 @@ fn flow_test() {
         "icrc2_approve",
         ApproveArgs {
             from_subaccount: None,
-            spender: LedgerAccount {
+            spender: Account {
                 owner: appic_dex_canister_id(),
                 subaccount: None,
             },

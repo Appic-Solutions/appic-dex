@@ -45,7 +45,7 @@ fn test_exact_input_single_amount_fails_for_amount_out() {
     five_ticks(&pic);
     five_ticks(&pic);
 
-    println!("{:?}", swap_result);
+    println!("{swap_result:?}");
     assert_eq!(
         swap_result,
         Err(SwapError::SwapFailedRefunded {

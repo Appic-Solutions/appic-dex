@@ -1,9 +1,10 @@
 pub mod memo;
+pub mod runtime;
 
 use candid::{Nat, Principal};
 use ic_canister_log::log;
 // use ic_canister_log::log;
-use icrc_ledger_client_cdk::{CdkRuntime, ICRC1Client};
+use icrc_ledger_client::ICRC1Client;
 use icrc_ledger_types::{
     icrc1::{
         account::Account,
@@ -13,10 +14,10 @@ use icrc_ledger_types::{
 };
 use memo::{DepositMemo, WithdrawMemo};
 
-use crate::logs::DEBUG;
+use crate::{icrc_client::runtime::IcrcBoundedRuntime, logs::DEBUG};
 
 pub struct LedgerClient {
-    client: ICRC1Client<CdkRuntime>,
+    client: ICRC1Client<IcrcBoundedRuntime>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -53,7 +54,7 @@ impl LedgerClient {
     pub fn new(token: Principal) -> Self {
         Self {
             client: ICRC1Client {
-                runtime: CdkRuntime,
+                runtime: IcrcBoundedRuntime,
                 ledger_canister_id: token,
             },
         }
@@ -71,7 +72,7 @@ impl LedgerClient {
             .transfer_from(TransferFromArgs {
                 spender_subaccount: None,
                 from,
-                to: ic_cdk::id().into(),
+                to: ic_cdk::api::canister_self().into(),
                 amount: amount.clone(),
                 fee: None,
                 memo: Some(Memo::from(memo)),

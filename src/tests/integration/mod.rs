@@ -13,6 +13,7 @@ const TOKEN_TRANSFER_FEE: u128 = 10_000_000_000_000_u128;
 
 const TWO_HUNDRED_ETH: u128 = 200_000_000_000_000_000_000_u128;
 
+pub mod ledger_arguments;
 pub mod modify_liquidity;
 pub mod swap_tests;
 
@@ -20,10 +21,10 @@ use std::panic;
 
 use candid::{CandidType, Nat, Principal};
 use ethnum::U256;
-use ic_icrc1_ledger::FeatureFlags as LedgerFeatureFlags;
+//use ic_icrc1_ledger::FeatureFlags as LedgerFeatureFlags;
 use icrc_ledger_types::{
     icrc1::{
-        account::Account as LedgerAccount,
+        account::Account,
         transfer::{TransferArg, TransferError},
     },
     icrc2::{
@@ -33,7 +34,9 @@ use icrc_ledger_types::{
 };
 use pocket_ic::{PocketIc, PocketIcBuilder, RejectResponse};
 
-use ic_icrc1_ledger::{ArchiveOptions, InitArgs as LedgerInitArgs, LedgerArgument};
+use ledger_arguments::{
+    ArchiveOptions, FeatureFlags as LedgerFeatureFlags, InitArgs as LedgerInitArgs, LedgerArgument,
+};
 
 use crate::{
     candid_types::{
@@ -204,8 +207,8 @@ fn install_token0_canister(pic: &PocketIc, canister_id: Principal) {
     const THREE_GIGA_BYTES: u64 = 3_221_225_472;
 
     let ledger_init_bytes = LedgerArgument::Init(LedgerInitArgs {
-        minting_account: LedgerAccount::from(minting_principal()),
-        fee_collector_account: Some(LedgerAccount {
+        minting_account: minting_principal().into(),
+        fee_collector_account: Some(Account {
             owner: Principal::from_slice(&[10]),
             subaccount: Some(LEDGER_FEE_SUBACCOUNT),
         }),
@@ -229,6 +232,7 @@ fn install_token0_canister(pic: &PocketIc, canister_id: Principal) {
         },
         max_memo_length: Some(MAX_MEMO_LENGTH),
         feature_flags: Some(ICRC2_FEATURE),
+        index_principal: None,
     });
     pic.install_canister(
         canister_id,
@@ -249,8 +253,8 @@ fn install_token1_canister(pic: &PocketIc, canister_id: Principal) {
     const THREE_GIGA_BYTES: u64 = 3_221_225_472;
 
     let ledger_init_bytes = LedgerArgument::Init(LedgerInitArgs {
-        minting_account: LedgerAccount::from(minting_principal()),
-        fee_collector_account: Some(LedgerAccount {
+        minting_account: Account::from(minting_principal()),
+        fee_collector_account: Some(Account {
             owner: Principal::from_slice(&[10]),
             subaccount: Some(LEDGER_FEE_SUBACCOUNT),
         }),
@@ -274,6 +278,7 @@ fn install_token1_canister(pic: &PocketIc, canister_id: Principal) {
         },
         max_memo_length: Some(MAX_MEMO_LENGTH),
         feature_flags: Some(ICRC2_FEATURE),
+        index_principal: None,
     });
     pic.install_canister(
         canister_id,
@@ -294,8 +299,8 @@ fn install_token2_canister(pic: &PocketIc, canister_id: Principal) {
     const THREE_GIGA_BYTES: u64 = 3_221_225_472;
 
     let ledger_init_bytes = LedgerArgument::Init(LedgerInitArgs {
-        minting_account: LedgerAccount::from(minting_principal()),
-        fee_collector_account: Some(LedgerAccount {
+        minting_account: Account::from(minting_principal()),
+        fee_collector_account: Some(Account {
             owner: Principal::from_slice(&[10]),
             subaccount: Some(LEDGER_FEE_SUBACCOUNT),
         }),
@@ -319,6 +324,7 @@ fn install_token2_canister(pic: &PocketIc, canister_id: Principal) {
         },
         max_memo_length: Some(MAX_MEMO_LENGTH),
         feature_flags: Some(ICRC2_FEATURE),
+        index_principal: None,
     });
     pic.install_canister(
         canister_id,
@@ -339,8 +345,8 @@ fn install_token3_canister(pic: &PocketIc, canister_id: Principal) {
     const THREE_GIGA_BYTES: u64 = 3_221_225_472;
 
     let ledger_init_bytes = LedgerArgument::Init(LedgerInitArgs {
-        minting_account: LedgerAccount::from(minting_principal()),
-        fee_collector_account: Some(LedgerAccount {
+        minting_account: Account::from(minting_principal()),
+        fee_collector_account: Some(Account {
             owner: Principal::from_slice(&[10]),
             subaccount: Some(LEDGER_FEE_SUBACCOUNT),
         }),
@@ -364,6 +370,7 @@ fn install_token3_canister(pic: &PocketIc, canister_id: Principal) {
         },
         max_memo_length: Some(MAX_MEMO_LENGTH),
         feature_flags: Some(ICRC2_FEATURE),
+        index_principal: None,
     });
     pic.install_canister(
         canister_id,
@@ -490,7 +497,7 @@ pub fn create_pool_with_liquidity(pic: &PocketIc, token_0: Principal, token_1: P
         "icrc2_approve",
         ApproveArgs {
             from_subaccount: None,
-            spender: LedgerAccount {
+            spender: Account {
                 owner: appic_dex_canister_id(),
                 subaccount: None,
             },
@@ -515,7 +522,7 @@ pub fn create_pool_with_liquidity(pic: &PocketIc, token_0: Principal, token_1: P
         "icrc2_approve",
         ApproveArgs {
             from_subaccount: None,
-            spender: LedgerAccount {
+            spender: Account {
                 owner: appic_dex_canister_id(),
                 subaccount: None,
             },
@@ -532,18 +539,18 @@ pub fn create_pool_with_liquidity(pic: &PocketIc, token_0: Principal, token_1: P
     )
     .unwrap();
 
-    let _balance0 = query_call::<LedgerAccount, Nat>(
+    let _balance0 = query_call::<Account, Nat>(
         &pic,
         token_0,
         "icrc1_balance_of",
-        LedgerAccount::from(sender_principal()),
+        Account::from(sender_principal()),
     );
 
-    let _balance1 = query_call::<LedgerAccount, Nat>(
+    let _balance1 = query_call::<Account, Nat>(
         &pic,
         token_1,
         "icrc1_balance_of",
-        LedgerAccount::from(sender_principal()),
+        Account::from(sender_principal()),
     );
 
     let _allowance0 = query_call::<AllowanceArgs, Allowance>(
@@ -551,11 +558,11 @@ pub fn create_pool_with_liquidity(pic: &PocketIc, token_0: Principal, token_1: P
         token_0,
         "icrc2_allowance",
         AllowanceArgs {
-            account: LedgerAccount {
+            account: Account {
                 owner: sender_principal(),
                 subaccount: None,
             },
-            spender: LedgerAccount {
+            spender: Account {
                 owner: appic_dex_canister_id(),
                 subaccount: None,
             },
@@ -567,11 +574,11 @@ pub fn create_pool_with_liquidity(pic: &PocketIc, token_0: Principal, token_1: P
         token_1,
         "icrc2_allowance",
         AllowanceArgs {
-            account: LedgerAccount {
+            account: Account {
                 owner: sender_principal(),
                 subaccount: None,
             },
-            spender: LedgerAccount {
+            spender: Account {
                 owner: appic_dex_canister_id(),
                 subaccount: None,
             },
@@ -643,7 +650,7 @@ pub fn get_balance(pic: &PocketIc, token: Principal, user_principal: Principal) 
         pic,
         token,
         "icrc1_balance_of",
-        LedgerAccount::from(user_principal),
+        Account::from(user_principal),
     )
 }
 
