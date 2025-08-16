@@ -59,7 +59,7 @@ use icrc_ledger_types::icrc1::account::Account;
 
 // Ensures caller is not anonymous, panics if anonymous to prevent unauthorized access
 fn validate_caller_not_anonymous() -> candid::Principal {
-    let principal = ic_cdk::api::canister_self();
+    let principal = ic_cdk::api::msg_caller();
     if principal == candid::Principal::anonymous() {
         panic!("anonymous principal is not allowed");
     }
