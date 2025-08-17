@@ -316,14 +316,11 @@ fn update_position_and_fees(
 ) -> Result<BalanceDelta, ModifyLiquidityError> {
     // Calculate fee growth inside the range
     let (fee_growth_inside_0_x128, fee_growth_inside_1_x128) = get_fee_growth_inside(
-        &buffer_state.tick_lower.0,
-        &buffer_state.tick_upper.0,
+        buffer_state.tick_lower.0.tick,
+        buffer_state.tick_upper.0.tick,
         &buffer_state.tick_lower.1,
         &buffer_state.tick_upper.1,
-        &TickKey {
-            pool_id: params.pool_id.clone(),
-            tick: tick_current,
-        },
+        tick_current,
         fee_growth_global_0_x128,
         fee_growth_global_1_x128,
     );

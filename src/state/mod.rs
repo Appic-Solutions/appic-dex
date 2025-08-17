@@ -9,7 +9,6 @@
 
 use crate::{
     balances::types::{UserBalance, UserBalanceKey},
-    candid_types::pool,
     events::Event,
     historical::types::PoolHistory,
     libraries::{constants::Q128, full_math::mul_div},
@@ -19,7 +18,10 @@ use crate::{
         types::{PoolFee, PoolId, PoolState, PoolTickSpacing},
     },
     position::types::{PositionInfo, PositionKey},
-    tick::types::{BitmapWord, TickBitmapKey, TickInfo, TickKey},
+    tick::{
+        get_fee_growth_inside,
+        types::{BitmapWord, TickBitmapKey, TickInfo, TickKey},
+    },
 };
 
 use candid::Principal;
@@ -65,7 +67,7 @@ pub struct State {
 
 impl State {
     pub fn get_tick(&self, tick: &TickKey) -> TickInfo {
-        self.ticks.get(tick).unwrap_or(TickInfo::default())
+        self.ticks.get(tick).unwrap_or_default()
     }
 
     pub fn get_ticks_for_pool(&self, pool_id: PoolId) -> Vec<(TickKey, TickInfo)> {
@@ -124,15 +126,35 @@ impl State {
         let position = self.positions.get(key)?;
         let pool = self.pools.get(&key.pool_id)?;
 
+        let tick_lower = self.get_tick(&TickKey {
+            pool_id: key.pool_id.clone(),
+            tick: key.tick_lower,
+        });
+
+        let tick_upper = self.get_tick(&TickKey {
+            pool_id: key.pool_id.clone(),
+            tick: key.tick_upper,
+        });
+
+        let (fee_growth_inside_0_x128, fee_growth_inside_1_x128) = get_fee_growth_inside(
+            key.tick_lower,
+            key.tick_upper,
+            &tick_lower,
+            &tick_upper,
+            pool.tick,
+            pool.fee_growth_global_0_x128,
+            pool.fee_growth_global_1_x128,
+        );
+
         let token0_owed = mul_div(
-            pool.fee_growth_global_0_x128 - position.fee_growth_inside_0_last_x128,
+            fee_growth_inside_0_x128 - position.fee_growth_inside_0_last_x128,
             U256::from(position.liquidity),
             *Q128,
         )
         .ok()?;
 
         let token1_owed = mul_div(
-            pool.fee_growth_global_1_x128 - position.fee_growth_inside_1_last_x128,
+            fee_growth_inside_1_x128 - position.fee_growth_inside_1_last_x128,
             U256::from(position.liquidity),
             *Q128,
         )

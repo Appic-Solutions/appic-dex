@@ -19,17 +19,16 @@ pub fn tick_spacing_to_max_liquidity_per_tick(tick_spacing: i32) -> u128 {
 }
 
 pub fn get_fee_growth_inside(
-    tick_lower: &TickKey,
-    tick_upper: &TickKey,
+    tick_lower: i32,
+    tick_upper: i32,
     lower_info: &TickInfo,
     upper_info: &TickInfo,
-    tick_current: &TickKey,
+    tick_current: i32,
     fee_growth_global_0_x128: U256,
     fee_growth_global_1_x128: U256,
 ) -> (U256, U256) {
     // Calculate fee growth inside the tick range based on the current tick position
-    let (fee_growth_below_0_x128, fee_growth_below_1_x128) = if tick_current.tick >= tick_lower.tick
-    {
+    let (fee_growth_below_0_x128, fee_growth_below_1_x128) = if tick_current >= tick_lower {
         (
             lower_info.fee_growth_outside_0_x128,
             lower_info.fee_growth_outside_1_x128,
@@ -41,8 +40,7 @@ pub fn get_fee_growth_inside(
         )
     };
 
-    let (fee_growth_above_0_x128, fee_growth_above_1_x128) = if tick_current.tick < tick_upper.tick
-    {
+    let (fee_growth_above_0_x128, fee_growth_above_1_x128) = if tick_current < tick_upper {
         (
             upper_info.fee_growth_outside_0_x128,
             upper_info.fee_growth_outside_1_x128,

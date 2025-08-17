@@ -97,11 +97,11 @@ mod fee_growth_inside {
     #[test]
     fn fee_growth_inside_uninitialized_ticks_if_current_tick_inside() {
         let result = get_fee_growth_inside(
-            &generate_tick_for_test_pool(-2),
-            &generate_tick_for_test_pool(2),
+            -2,
+            2,
             &TickInfo::default(),
             &TickInfo::default(),
-            &generate_tick_for_test_pool(0),
+            0,
             U256::from(15_u8),
             U256::from(15_u8),
         );
@@ -112,11 +112,11 @@ mod fee_growth_inside {
     #[test]
     fn fee_growth_inside_uninitialized_ticks_if_current_tick_above() {
         let result = get_fee_growth_inside(
-            &generate_tick_for_test_pool(-2),
-            &generate_tick_for_test_pool(2),
+            -2,
+            2,
             &TickInfo::default(),
             &TickInfo::default(),
-            &generate_tick_for_test_pool(4),
+            4,
             U256::from(15_u8),
             U256::from(15_u8),
         );
@@ -127,11 +127,11 @@ mod fee_growth_inside {
     #[test]
     fn fee_growth_inside_uninitialized_ticks_if_current_tick_below() {
         let result = get_fee_growth_inside(
-            &generate_tick_for_test_pool(-2),
-            &generate_tick_for_test_pool(2),
+            -2,
+            2,
             &TickInfo::default(),
             &TickInfo::default(),
-            &generate_tick_for_test_pool(-5),
+            -5,
             U256::from(15_u8),
             U256::from(15_u8),
         );
@@ -146,11 +146,11 @@ mod fee_growth_inside {
         let tick_plus_two = get_tick_from_state(2);
 
         let result = get_fee_growth_inside(
-            &generate_tick_for_test_pool(-2),
-            &generate_tick_for_test_pool(2),
+            -2,
+            2,
             &TickInfo::default(),
             &tick_plus_two,
-            &generate_tick_for_test_pool(0),
+            0,
             U256::from(15_u8),
             U256::from(15_u8),
         );
@@ -164,11 +164,11 @@ mod fee_growth_inside {
         let tick_minus_two = get_tick_from_state(-2);
 
         let result = get_fee_growth_inside(
-            &generate_tick_for_test_pool(-2),
-            &generate_tick_for_test_pool(2),
+            -2,
+            2,
             &tick_minus_two,
             &TickInfo::default(),
-            &generate_tick_for_test_pool(0),
+            0,
             U256::from(15_u8),
             U256::from(15_u8),
         );
@@ -185,11 +185,11 @@ mod fee_growth_inside {
         let tick_minus_two = get_tick_from_state(-2);
 
         let result = get_fee_growth_inside(
-            &generate_tick_for_test_pool(-2),
-            &generate_tick_for_test_pool(2),
+            -2,
+            2,
             &tick_minus_two,
             &tick_plus_two,
-            &generate_tick_for_test_pool(0),
+            0,
             U256::from(15_u8),
             U256::from(15_u8),
         );
@@ -212,11 +212,11 @@ mod fee_growth_inside {
         let tick_minus_two = get_tick_from_state(-2);
 
         let result = get_fee_growth_inside(
-            &generate_tick_for_test_pool(-2),
-            &generate_tick_for_test_pool(2),
+            -2,
+            2,
             &tick_minus_two,
             &tick_plus_two,
-            &generate_tick_for_test_pool(0),
+            0,
             U256::from(15_u8),
             U256::from(15_u8),
         );
@@ -243,7 +243,7 @@ mod update_tick {
         )
         .unwrap();
 
-        assert_eq!(true, result.flipped);
+        assert!(result.flipped);
         assert_eq!(1, result.liquidity_gross_after);
     }
 
@@ -271,7 +271,7 @@ mod update_tick {
         )
         .unwrap();
 
-        assert_eq!(false, result.flipped);
+        assert!(!result.flipped);
         assert_eq!(2, result.liquidity_gross_after);
     }
 
@@ -299,7 +299,7 @@ mod update_tick {
         )
         .unwrap();
 
-        assert_eq!(false, result.flipped);
+        assert!(!result.flipped);
         assert_eq!(1, result.liquidity_gross_after);
     }
 

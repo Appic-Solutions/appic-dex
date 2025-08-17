@@ -10,8 +10,8 @@ impl TryFrom<Nat> for PoolFee {
 
     fn try_from(value: Nat) -> Result<Self, Self::Error> {
         u32::try_from(value.0)
-            .map(|fee| PoolFee(fee))
-            .map_err(|err| format!("{}", err))
+            .map(PoolFee)
+            .map_err(|err| format!("{err}"))
     }
 }
 

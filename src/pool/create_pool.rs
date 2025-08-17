@@ -45,7 +45,7 @@ pub fn create_pool_inner(
     let pool_id = PoolId {
         token0,
         token1,
-        fee: fee.clone(),
+        fee,
     };
 
     if read_state(|s| s.get_pool(&pool_id)).is_some() {
@@ -90,5 +90,5 @@ pub fn create_pool_inner(
         s.record_event(event);
     });
 
-    return Ok(pool_id);
+    Ok(pool_id)
 }
