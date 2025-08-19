@@ -47,7 +47,7 @@ dependencies = [
  "icrc-ledger-client",
  "icrc-ledger-types",
  "lazy_static",
- "minicbor 0.26.3",
+ "minicbor 2.1.0",
  "num-bigint",
  "num-traits",
  "pocket-ic",
@@ -1248,11 +1248,11 @@ dependencies = [
 
 [[package]]
 name = "minicbor"
-version = "0.26.3"
+version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1936e27fffe7d8557c060eb82cb71668608cd1a5fb56b63e66d22ae8d7564321"
+checksum = "2872b0488eb23abe7b4c26afe14581b30d0e1a7beb05286fe44978a58ea34ba2"
 dependencies = [
- "minicbor-derive 0.16.2",
+ "minicbor-derive 0.18.1",
 ]
 
 [[package]]
@@ -1268,9 +1268,9 @@ dependencies = [
 
 [[package]]
 name = "minicbor-derive"
-version = "0.16.2"
+version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a9882ef5c56df184b8ffc107fc6c61e33ee3a654b021961d790a78571bb9d67a"
+checksum = "73b241342fbf809fe5e9ed7fafd25a28c5283618dbcdfce7d9dac8a85728521c"
 dependencies = [
  "proc-macro2",
  "quote",
