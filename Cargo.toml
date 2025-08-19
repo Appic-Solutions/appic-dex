@@ -49,7 +49,7 @@ lazy_static = "1.4"
 serde = { version = "1.0.203", features = ["derive"] }
 serde_json = { version = "^1.0.107" }
 
-async-trait = "0.1.88"
+async-trait = "0.1.89"
 
 [dev-dependencies]
 proptest="1.4.0"
