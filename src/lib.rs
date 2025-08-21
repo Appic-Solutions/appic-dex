@@ -16,6 +16,7 @@ pub mod pool;
 pub mod position;
 pub mod proxy_canister;
 pub mod quote;
+pub mod rlp_decoder;
 pub mod state;
 pub mod swap;
 pub mod tick;

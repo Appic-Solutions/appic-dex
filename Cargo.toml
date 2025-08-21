@@ -40,6 +40,7 @@ hex = { version = "0.4.3", features = ["serde"] }
 
 
 minicbor = { version = "0.26.3",features = ["derive","alloc"] }
+rlp = "0.5"
 
 num-bigint = "0.4"
 num-traits = "0.2"
