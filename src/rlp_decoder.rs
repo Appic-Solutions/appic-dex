@@ -1,5 +1,8 @@
-use rlp::{Rlp, RlpStream, DecoderError};
+use rlp::{Rlp, DecoderError};
 use ethnum::U256;
+use std::collections::HashMap;
+use std::sync::LazyLock;
+use std::time::Instant;
 
 #[derive(Debug)]
 pub struct CrossChainQuote {
@@ -53,6 +56,11 @@ pub enum RlpDecodeError {
     InvalidStructure,
     InvalidDataType,
     MissingField,
+    InvalidChainId(String),
+    InvalidAmount,
+    InvalidTokenAddress(String),
+    DataTooLarge,
+    VersionMismatch,
 }
 
 impl std::fmt::Display for RlpDecodeError {
@@ -62,6 +70,11 @@ impl std::fmt::Display for RlpDecodeError {
             RlpDecodeError::InvalidStructure => write!(f, "Invalid RLP structure"),
             RlpDecodeError::InvalidDataType => write!(f, "Invalid data type"),
             RlpDecodeError::MissingField => write!(f, "Missing required field"),
+            RlpDecodeError::InvalidChainId(chain) => write!(f, "Invalid chain ID: {}", chain),
+            RlpDecodeError::InvalidAmount => write!(f, "Invalid amount value"),
+            RlpDecodeError::InvalidTokenAddress(addr) => write!(f, "Invalid token address: {}", addr),
+            RlpDecodeError::DataTooLarge => write!(f, "Quote data exceeds maximum size limit"),
+            RlpDecodeError::VersionMismatch => write!(f, "RLP format version not supported"),
         }
     }
 }
@@ -72,17 +85,52 @@ impl From<DecoderError> for RlpDecodeError {
     }
 }
 
+static SUPPORTED_CHAINS: LazyLock<HashMap<&str, &str>> = LazyLock::new(|| {
+    let mut m = HashMap::new();
+    m.insert("1", "Ethereum");
+    m.insert("56", "BSC");
+    m.insert("137", "Polygon");
+    m.insert("8453", "Base");
+    m.insert("42161", "Arbitrum");
+    m.insert("10", "Optimism");
+    m.insert("43114", "Avalanche");
+    m.insert("250", "Fantom");
+    m.insert("icp", "Internet Computer");
+    m
+});
+
+const MAX_QUOTE_SIZE: usize = 1024 * 1024; // 1MB limit
+const MAX_STEPS: usize = 10;
+const MAX_HOPS_PER_STEP: usize = 5;
+const NATIVE_TOKEN_ADDRESS: &str = "0x0000000000000000000000000000000000000000";
+
 pub struct RlpDecoder;
 
 impl RlpDecoder {
     pub fn decode_cross_chain_data(encoded_data: &[u8]) -> Result<CrossChainQuote, RlpDecodeError> {
+        let decode_start = Instant::now();
+        
+        Self::validate_input_size(encoded_data)?;
+        
+        let result = Self::decode_cross_chain_data_internal(encoded_data);
+        
+        let decode_duration = decode_start.elapsed();
+        Self::log_decode_metrics(encoded_data.len(), &result, decode_duration);
+        
+        result
+    }
+    
+    fn decode_cross_chain_data_internal(encoded_data: &[u8]) -> Result<CrossChainQuote, RlpDecodeError> {
         match Self::decode_quote_data(encoded_data) {
-            Ok(data) => Ok(CrossChainQuote {
-                success: true,
-                data: Some(data),
-                encoded_data: Some(hex::encode(encoded_data)),
-                error: None,
-            }),
+            Ok(data) => {
+                Self::validate_cross_chain_quote_data(&data)?;
+                Ok(CrossChainQuote {
+                    success: true,
+                    data: Some(data),
+                    encoded_data: Some(hex::encode(encoded_data)),
+                    error: None,
+                })
+            },
             Err(e) => Ok(CrossChainQuote {
                 success: false,
                 data: None,
@@ -230,4 +278,157 @@ impl RlpDecoder {
         })
     }
 
+    fn validate_input_size(data: &[u8]) -> Result<(), RlpDecodeError> {
+        if data.len() > MAX_QUOTE_SIZE {
+            return Err(RlpDecodeError::DataTooLarge);
+        }
+        Ok(())
+    }
+
+    fn validate_chain_id(chain_id: &str) -> Result<(), RlpDecodeError> {
+        if !SUPPORTED_CHAINS.contains_key(chain_id) {
+            return Err(RlpDecodeError::InvalidChainId(chain_id.to_string()));
+        }
+        Ok(())
+    }
+
+    fn validate_token_address(address: &str) -> Result<(), RlpDecodeError> {
+        if address.is_empty() {
+            return Err(RlpDecodeError::InvalidTokenAddress("empty address".to_string()));
+        }
+        
+        // Native token address
+        if address == NATIVE_TOKEN_ADDRESS {
+            return Ok(());
+        }
+        
+        // EVM token address (0x prefixed, 42 chars total)
+        if address.starts_with("0x") && address.len() == 42 {
+            return Ok(());
+        }
+        
+        // ICP canister ID (ends with -cai, 5-63 chars)
+        if address.ends_with("-cai") && address.len() >= 5 && address.len() <= 63 {
+            return Ok(());
+        }
+        
+        // Generic token identifier (allow alphanumeric, hyphens, underscores)
+        if address.len() <= 100 && address.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+            return Ok(());
+        }
+        
+        Err(RlpDecodeError::InvalidTokenAddress(format!("invalid format: {}", address)))
+    }
+
+    fn validate_amount(amount: &U256) -> Result<(), RlpDecodeError> {
+        if *amount == U256::ZERO {
+            return Ok(());
+        }
+        
+        if *amount > U256::from_str_radix("340282366920938463463374607431768211455", 10).unwrap() {
+            return Err(RlpDecodeError::InvalidAmount);
+        }
+        
+        Ok(())
+    }
+
+    fn validate_cross_chain_quote_data(data: &CrossChainQuoteData) -> Result<(), RlpDecodeError> {
+        Self::validate_amount(&data.total_amount_in)?;
+        Self::validate_amount(&data.total_amount_out)?;
+        
+        if let Some(min_amount) = &data.total_min_amount_out {
+            Self::validate_amount(min_amount)?;
+        }
+        
+        if data.steps.len() > MAX_STEPS {
+            return Err(RlpDecodeError::InvalidStructure);
+        }
+        
+        for step in &data.steps {
+            Self::validate_cross_chain_step(step)?;
+        }
+        
+        Ok(())
+    }
+
+    fn validate_cross_chain_step(step: &CrossChainStep) -> Result<(), RlpDecodeError> {
+        Self::validate_chain_id(&step.chain_id)?;
+        Self::validate_amount(&step.amount_in)?;
+        Self::validate_amount(&step.amount_out)?;
+        
+        if let Some(min_amount) = &step.min_amount_out {
+            Self::validate_amount(min_amount)?;
+        }
+        
+        if let Some(gas_limit) = &step.gas_limit {
+            Self::validate_amount(gas_limit)?;
+        }
+        
+        if let Some(max_gas_fee) = &step.max_gas_fee {
+            Self::validate_amount(max_gas_fee)?;
+        }
+        
+        if step.route.len() > MAX_HOPS_PER_STEP {
+            return Err(RlpDecodeError::InvalidStructure);
+        }
+        
+        for hop in &step.route {
+            Self::validate_token_address(&hop.sell_token)?;
+            Self::validate_token_address(&hop.buy_token)?;
+        }
+        
+        Ok(())
+    }
+
+    pub fn get_supported_chains() -> &'static HashMap<&'static str, &'static str> {
+        &SUPPORTED_CHAINS
+    }
+    
+    fn log_decode_metrics(data_size: usize, result: &Result<CrossChainQuote, RlpDecodeError>, duration: std::time::Duration) {
+        match result {
+            Ok(quote) => {
+                if quote.success {
+                    if let Some(ref data) = quote.data {
+                        println!("RLP_DECODE_SUCCESS: size={}b, steps={}, chains={}, duration={:?}", 
+                               data_size, 
+                               data.steps.len(),
+                               data.steps.iter().map(|s| &s.chain_id).collect::<std::collections::HashSet<_>>().len(),
+                               duration);
+                    }
+                } else {
+                    println!("RLP_DECODE_FAILURE: size={}b, error={:?}, duration={:?}", 
+                           data_size, quote.error, duration);
+                }
+            }
+            Err(e) => {
+                println!("RLP_DECODE_ERROR: size={}b, error={}, duration={:?}", 
+                       data_size, e, duration);
+            }
+        }
+        
+        if duration.as_millis() > 10 {
+            println!("RLP_DECODE_SLOW: size={}b, duration={:?} (>10ms)", data_size, duration);
+        }
+        
+        if data_size > 100_000 {
+            println!("RLP_DECODE_LARGE: size={}KB", data_size / 1024);
+        }
+    }
+    
+    pub fn get_decoder_stats() -> DecoderStats {
+        DecoderStats {
+            supported_chains: SUPPORTED_CHAINS.len(),
+            max_quote_size: MAX_QUOTE_SIZE,
+            max_steps: MAX_STEPS,
+            max_hops_per_step: MAX_HOPS_PER_STEP,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct DecoderStats {
+    pub supported_chains: usize,
+    pub max_quote_size: usize,
+    pub max_steps: usize,
+    pub max_hops_per_step: usize,
 }
