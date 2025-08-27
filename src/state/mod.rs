@@ -259,10 +259,7 @@ impl State {
 
         // position state transition
         if let Some((position_key, position_info)) = buffer_state.position {
-            if position_info.liquidity == 0
-                && position_info.fee_growth_inside_0_last_x128 == 0
-                && position_info.fee_growth_inside_1_last_x128 == 0
-            {
+            if position_info.liquidity == 0 {
                 self.positions.remove(&position_key);
             } else {
                 self.positions.insert(position_key, position_info);
