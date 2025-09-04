@@ -190,6 +190,31 @@ pub fn quote(args: QuoteArgs) -> Result<Nat, QuoteError> {
     Ok(Nat::from(u256_to_big_uint(quote_amount)))
 }
 
+#[query]
+pub fn multi_quote(quotes_arg: Vec<QuoteArgs>) -> Vec<Result<Nat, QuoteError>> {
+    if quotes_arg.len() > 10 || quotes_arg.is_empty() {
+        panic!("Invalid quote length");
+    }
+    quotes_arg
+        .into_iter()
+        .map(|args| {
+            let quote_amount = match args {
+                QuoteArgs::QuoteExactInputSingleParams(params) => {
+                    process_single_hop_exact_input(params)?
+                }
+                QuoteArgs::QuoteExactInputParams(params) => process_multi_hop_exact_input(params)?,
+                QuoteArgs::QuoteExactOutputSingleParams(params) => {
+                    process_single_hop_exact_output(params)?
+                }
+                QuoteArgs::QuoteExactOutput(params) => process_multi_hop_exact_output(params)?,
+            };
+
+            // Converts U256 quote amount to Nat for Candid compatibility
+            Ok(Nat::from(u256_to_big_uint(quote_amount)))
+        })
+        .collect()
+}
+
 // Queries all token balances for a user, returned as a list of token-amount pairs
 #[query]
 pub fn user_balances(user: Principal) -> Vec<Balance> {
