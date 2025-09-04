@@ -158,6 +158,8 @@ pub fn swap_inner(params: SwapParams) -> Result<SwapSuccess, InnerSwapError> {
         tick: pool_state_initial.tick,
         liquidity: pool_state_initial.liquidity,
     };
+
+    println!("{swap_result:?}");
     let mut step = StepComputations {
         fee_growth_global_x128: if params.zero_for_one {
             pool_state_initial.fee_growth_global_0_x128
@@ -181,6 +183,7 @@ pub fn swap_inner(params: SwapParams) -> Result<SwapSuccess, InnerSwapError> {
             tick_spacing.0,
             params.zero_for_one,
         );
+        println!("tick next {tick_next}, initialized {initialized} ");
         step.tick_next = clamp_tick(tick_next);
         step.initialized = initialized;
 
@@ -200,7 +203,15 @@ pub fn swap_inner(params: SwapParams) -> Result<SwapSuccess, InnerSwapError> {
             remaining_amount,
             swap_fee,
         )
-        .map_err(|_| InnerSwapError::CalculationOverflow)?;
+        .map_err(|e| {
+            println!("{:?}", e);
+            return InnerSwapError::CalculationOverflow;
+        })?;
+
+        println!(
+            "next sqrt_price_x96 {}, amount_in {} , amount out {}, fee amount {}",
+            next_sqrt_price, amount_in, amount_out, fee_amount
+        );
 
         // Update step and swap result.
         swap_result.sqrt_price_x96 = next_sqrt_price;
@@ -291,6 +302,8 @@ pub fn swap_inner(params: SwapParams) -> Result<SwapSuccess, InnerSwapError> {
                     }
                 };
 
+                println!("Liquidity net:{:?}", liquidity_net);
+
                 // if we're moving leftward, we interpret liquidityNet as the opposite sign
                 // safe because liquidityNet cannot be i128::MIN
                 if params.zero_for_one {
@@ -319,6 +332,8 @@ pub fn swap_inner(params: SwapParams) -> Result<SwapSuccess, InnerSwapError> {
         remaining_amount,
         calculated_amount,
     );
+
+    println!("swap_delta:{:?}", swap_delta);
 
     // Update Buffered State
     update_buffer_state(

@@ -68,6 +68,7 @@ pub struct TickBitmapFlipSuccess {
 pub fn flip_tick(
     tick_key: &TickKey,
     tick_spacing: i32,
+    flipped_ticks: Option<(TickBitmapKey, BitmapWord)>,
 ) -> Result<TickBitmapFlipSuccess, TickBitmapError> {
     // Ensure tick_spacing is positive and non-zero
     if tick_spacing <= 0 {
@@ -97,7 +98,17 @@ pub fn flip_tick(
         word_pos,
     };
 
-    let mut bitmap_word = read_state(|s| s.get_bitmap_word(&bitmap_key));
+    let mut bitmap_word = BitmapWord(U256::ZERO);
+
+    if let Some((flipped_key, flipped_word)) = flipped_ticks {
+        if bitmap_key == flipped_key {
+            bitmap_word = flipped_word;
+        } else {
+            bitmap_word = read_state(|s| s.get_bitmap_word(&bitmap_key));
+        }
+    } else {
+        bitmap_word = read_state(|s| s.get_bitmap_word(&bitmap_key));
+    }
 
     bitmap_word.0 ^= U256::ONE << bit_pos;
 
@@ -138,6 +149,8 @@ pub fn next_initialized_tick_within_one_word(
     // Compress the tick
     let compressed = compress(tick, tick_spacing);
 
+    println!("compressed  {compressed}");
+
     if lte {
         // Search left (less than or equal to)
         let (word_pos, bit_pos) = position(compressed);
@@ -150,7 +163,10 @@ pub fn next_initialized_tick_within_one_word(
         };
 
         // Get the bitmap word
-        let masked = read_state(|state| state.get_bitmap_word(&bitmap_key).0 & mask);
+        let masked = read_state(|state| {
+            println!("BITMAP word {:?}", state.get_bitmap_word(&bitmap_key).0);
+            return state.get_bitmap_word(&bitmap_key).0 & mask;
+        });
 
         let initialized = masked != U256::ZERO;
         let next = if initialized {
@@ -225,7 +241,7 @@ pub mod tests {
         ];
         for &tick in ticks.iter().take(ticks.len() - 1) {
             let tick_key = create_tick_key(tick);
-            if let Ok(success) = flip_tick(&tick_key, 1) {
+            if let Ok(success) = flip_tick(&tick_key, 1, None) {
                 mutate_state(|s| {
                     s.set_bitmap_word(success.bitmap_key, success.flipped_bitmap_word)
                 });
@@ -302,7 +318,7 @@ pub mod tests {
     fn test_is_initialized_is_flipped_by_flip_tick() {
         setup_state();
         let tick_key = create_tick_key(1);
-        let success = flip_tick(&tick_key, 1).unwrap();
+        let success = flip_tick(&tick_key, 1, None).unwrap();
         mutate_state(|s| {
             s.set_bitmap_word(success.bitmap_key, success.flipped_bitmap_word);
         });
@@ -313,11 +329,11 @@ pub mod tests {
     fn test_is_initialized_is_flipped_back_by_flip_tick() {
         setup_state();
         let tick_key = create_tick_key(1);
-        let success = flip_tick(&tick_key, 1).unwrap();
+        let success = flip_tick(&tick_key, 1, None).unwrap();
         mutate_state(|s| {
             s.set_bitmap_word(success.bitmap_key, success.flipped_bitmap_word);
         });
-        let success = flip_tick(&tick_key, 1).unwrap();
+        let success = flip_tick(&tick_key, 1, None).unwrap();
         mutate_state(|s| {
             s.set_bitmap_word(success.bitmap_key, success.flipped_bitmap_word);
         });
@@ -328,7 +344,7 @@ pub mod tests {
     fn test_is_initialized_not_changed_by_different_tick() {
         setup_state();
         let tick_key_2 = create_tick_key(2);
-        let success = flip_tick(&tick_key_2, 1).unwrap();
+        let success = flip_tick(&tick_key_2, 1, None).unwrap();
         mutate_state(|s| {
             s.set_bitmap_word(success.bitmap_key, success.flipped_bitmap_word);
         });
@@ -340,7 +356,7 @@ pub mod tests {
     fn test_is_initialized_not_changed_by_different_word() {
         setup_state();
         let tick_key_257 = create_tick_key(257);
-        let success = flip_tick(&tick_key_257, 1).unwrap();
+        let success = flip_tick(&tick_key_257, 1, None).unwrap();
         mutate_state(|s| {
             s.set_bitmap_word(success.bitmap_key, success.flipped_bitmap_word);
         });
@@ -353,7 +369,7 @@ pub mod tests {
     fn test_flip_tick_flips_only_specified_tick() {
         setup_state();
         let tick_key = create_tick_key(-230);
-        let success = flip_tick(&tick_key, 1).unwrap();
+        let success = flip_tick(&tick_key, 1, None).unwrap();
         mutate_state(|s| {
             s.set_bitmap_word(success.bitmap_key, success.flipped_bitmap_word);
         });
@@ -363,7 +379,7 @@ pub mod tests {
         assert_eq!(is_initialized(&create_tick_key(-230 + 256), 1), false);
         assert_eq!(is_initialized(&create_tick_key(-230 - 256), 1), false);
 
-        let success = flip_tick(&tick_key, 1).unwrap();
+        let success = flip_tick(&tick_key, 1, None).unwrap();
         mutate_state(|s| {
             s.set_bitmap_word(success.bitmap_key, success.flipped_bitmap_word);
         });
@@ -380,7 +396,7 @@ pub mod tests {
         let ticks = [-230, -259, -229, 500, -259, -229, -259];
         for &tick in ticks.iter() {
             let tick_key = create_tick_key(tick);
-            let success = flip_tick(&tick_key, 1).unwrap();
+            let success = flip_tick(&tick_key, 1, None).unwrap();
             mutate_state(|s| {
                 s.set_bitmap_word(success.bitmap_key, success.flipped_bitmap_word);
             });
@@ -399,18 +415,18 @@ pub mod tests {
             let tick_key = create_tick_key( tick);
             if tick % tick_spacing != 0 {
                 prop_assert_eq!(
-                    flip_tick(&tick_key, tick_spacing),
+                    flip_tick(&tick_key, tick_spacing,None),
                     Err(TickBitmapError::TickMisaligned(tick, tick_spacing))
                 );
             } else {
                 let initialized_before = is_initialized(&tick_key, tick_spacing);
-                let success = flip_tick(&tick_key, tick_spacing).unwrap();
+                let success = flip_tick(&tick_key, tick_spacing, None).unwrap();
                 mutate_state(|s| {
 
                         s.set_bitmap_word(success.bitmap_key, success.flipped_bitmap_word);
                 });
                 prop_assert_eq!(is_initialized(&tick_key, tick_spacing), !initialized_before);
-                let success = flip_tick(&tick_key, tick_spacing).unwrap();
+                let success = flip_tick(&tick_key, tick_spacing, None).unwrap();
                 mutate_state(|s| {
 
                         s.set_bitmap_word(success.bitmap_key, success.flipped_bitmap_word);
@@ -473,7 +489,7 @@ pub mod tests {
     fn test_next_initialized_tick_within_one_word_lte_false_next_word() {
         setup_state();
         let tick_key_340 = create_tick_key(340);
-        let success = flip_tick(&tick_key_340, 1).unwrap();
+        let success = flip_tick(&tick_key_340, 1, None).unwrap();
         mutate_state(|s| {
             s.set_bitmap_word(success.bitmap_key, success.flipped_bitmap_word);
         });
@@ -578,7 +594,7 @@ pub mod tests {
     fn test_next_initialized_tick_within_one_word_lte_true_boundary_initialized() {
         setup_state();
         let tick_key_329 = create_tick_key(329);
-        let success = flip_tick(&tick_key_329, 1).unwrap();
+        let success = flip_tick(&tick_key_329, 1, None).unwrap();
         mutate_state(|s| {
             s.set_bitmap_word(success.bitmap_key, success.flipped_bitmap_word);
         });

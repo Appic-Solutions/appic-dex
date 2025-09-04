@@ -445,7 +445,7 @@ fn flow_test() {
     five_ticks(&pic);
 
     // burn position
-    let _ = update_call::<BurnPositionArgs, Result<(), BurnPositionError>>(
+    update_call::<BurnPositionArgs, Result<(), BurnPositionError>>(
         &pic,
         appic_dex_canister_id(),
         "burn",
@@ -470,10 +470,9 @@ fn flow_test() {
             tick_lower: candid::Int::from(-887220),
             tick_upper: candid::Int::from(887220),
         },
-    )
-    .unwrap();
+    );
 
-    assert_eq!(position.liquidity, Nat::from(0_u8));
+    assert!(position.is_none());
 
     let events = query_call::<GetEventsArg, GetEventsResult>(
         &pic,
