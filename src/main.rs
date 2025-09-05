@@ -192,7 +192,7 @@ pub fn quote(args: QuoteArgs) -> Result<Nat, QuoteError> {
 
 #[query]
 pub fn multi_quote(quotes_arg: Vec<QuoteArgs>) -> Vec<Result<Nat, QuoteError>> {
-    if quotes_arg.len() > 10 || quotes_arg.is_empty() {
+    if quotes_arg.len() > 20 || quotes_arg.is_empty() {
         panic!("Invalid quote length");
     }
     quotes_arg
