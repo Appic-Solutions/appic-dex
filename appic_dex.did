@@ -392,6 +392,7 @@ service : () -> {
     ) query;
   increase_liquidity : (IncreaseLiquidityArgs) -> (Result_5);
   mint_position : (MintPositionArgs) -> (Result_6);
+  multi_quote : (vec QuoteArgs) -> (vec Result_7) query;
   quote : (QuoteArgs) -> (Result_7) query;
   swap : (SwapArgs) -> (Result_8);
   user_balance : (UserBalanceArgs) -> (nat) query;

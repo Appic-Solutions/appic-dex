@@ -7,6 +7,10 @@ fn test_decode_cross_chain_data() {
 
     let quote = RlpDecoder::decode_cross_chain_data(encoded_quote).unwrap();
 
+    println!("{quote:?}");
+
+    assert!(false);
+
     assert_eq!(
         quote.total_amount_in,
         U256::from_str_radix("50000000000000000000", 10).unwrap()

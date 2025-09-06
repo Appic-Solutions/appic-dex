@@ -251,6 +251,8 @@ fn update_ticks(
     )
     .map_err(|_e| ModifyLiquidityError::LiquidityOverflow)?;
 
+    println!("updated_lower {updated_lower:?}");
+
     modify_state.liquidity_gross_after_lower = updated_lower.liquidity_gross_after;
     buffer_state.tick_lower.1 = updated_lower.updated_tick_info;
 
@@ -264,6 +266,8 @@ fn update_ticks(
         true,
     )
     .map_err(|_e| ModifyLiquidityError::LiquidityOverflow)?;
+
+    println!("updated_upper {updated_upper:?}");
 
     modify_state.liquidity_gross_after_upper = updated_upper.liquidity_gross_after;
     buffer_state.tick_upper.1 = updated_upper.updated_tick_info;
@@ -280,24 +284,28 @@ fn update_ticks(
 
     // Flip tick bitmaps if needed
     if updated_lower.flipped {
-        let flipped_info = tick_bitmap::flip_tick(&buffer_state.tick_lower.0, tick_spacing)
+        let flipped_info = tick_bitmap::flip_tick(&buffer_state.tick_lower.0, tick_spacing, None)
             .map_err(|e| match e {
-                TickBitmapError::TickMisaligned(_, _) => {
-                    ModifyLiquidityError::TickNotAlignedWithTickSpacing
-                }
-            })?;
+            TickBitmapError::TickMisaligned(_, _) => {
+                ModifyLiquidityError::TickNotAlignedWithTickSpacing
+            }
+        })?;
         buffer_state.flipped_lower_tick_bitmap =
             Some((flipped_info.bitmap_key, flipped_info.flipped_bitmap_word));
         modify_state.flipped_lower = true;
     }
 
     if updated_upper.flipped {
-        let flipped_info = tick_bitmap::flip_tick(&buffer_state.tick_upper.0, tick_spacing)
-            .map_err(|e| match e {
-                TickBitmapError::TickMisaligned(_, _) => {
-                    ModifyLiquidityError::TickNotAlignedWithTickSpacing
-                }
-            })?;
+        let flipped_info = tick_bitmap::flip_tick(
+            &buffer_state.tick_upper.0,
+            tick_spacing,
+            buffer_state.flipped_lower_tick_bitmap.clone(),
+        )
+        .map_err(|e| match e {
+            TickBitmapError::TickMisaligned(_, _) => {
+                ModifyLiquidityError::TickNotAlignedWithTickSpacing
+            }
+        })?;
         buffer_state.flipped_upper_tick_bitmap =
             Some((flipped_info.bitmap_key, flipped_info.flipped_bitmap_word));
         modify_state.flipped_upper = true;

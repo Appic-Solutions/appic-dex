@@ -1,3 +1,4 @@
+#[cfg(test)]
 pub mod benchmark_tests;
 pub mod integration;
 pub mod integration_tests;
