@@ -3,7 +3,10 @@ use ethnum::U256;
 use minicbor::{Decode, Encode};
 
 use crate::{
-    address::Address, cross_chain::rlp_decoder::CrossChainStep, swap_id::SwapTxId,
+    address::Address,
+    cross_chain::rlp_decoder::{CrossChainQuote, CrossChainStep},
+    minter_client::minter_types::ReceivedSwapOrderEvent,
+    swap_id::SwapTxId,
     validation::swap_args::ValidatedSwapArgs,
 };
 
@@ -31,6 +34,8 @@ pub enum CrosschainSwapOrder {
         icp_swap_request: ValidatedSwapArgs,
         #[n(4)]
         evm_swap_step: CrossChainStep,
+        #[cbor(n(5), with = "crate::cbor::principal")]
+        minter: Principal,
     },
     #[n(1)]
     EvmToIcp {
@@ -59,3 +64,18 @@ pub enum CrosschainSwapOrder {
         evm_swap_step: CrossChainStep,
     },
 }
+
+//#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+//pub struct RecievedSwapOrders {
+//    #[n(0)]
+//    quote: CrossChainQuote,
+//    #[n(1)]
+//    minter_request: Option<ReceivedSwapOrderEvent>,
+//}
+//
+//
+//pub struct FailedMinterTransferNotify{
+//    transfer_token:Principal,
+//    transfer_amount:U256,
+//
+//}

@@ -1,8 +1,9 @@
-use candid::Principal;
 use ethnum::U256;
 use icrc_ledger_types::icrc1::transfer::Memo;
 use minicbor;
 use minicbor::{Decode, Encode, Encoder};
+
+use crate::swap_id::SwapTxId;
 
 /// Encodes minter memo as a binary blob.
 fn encode<T: minicbor::Encode<()>>(t: &T) -> Vec<u8> {
@@ -107,6 +108,13 @@ pub enum WithdrawMemo {
         /// amount
         amount: U256,
     },
+    #[n(7)]
+    TransferToMinter {
+        #[cbor(n(0), with = "crate::cbor::u256")]
+        amount: U256,
+        #[n(1)]
+        swap_tx_id: SwapTxId,
+    },
 }
 
 impl From<WithdrawMemo> for Memo {
@@ -125,6 +133,10 @@ impl WithdrawMemo {
             WithdrawMemo::Refund { amount } => *amount = new_amount,
             WithdrawMemo::CollectFees { amount } => *amount = new_amount,
             WithdrawMemo::Withdraw { amount } => *amount = new_amount,
+            WithdrawMemo::TransferToMinter {
+                amount,
+                swap_tx_id: _,
+            } => *amount = new_amount,
         }
     }
 }

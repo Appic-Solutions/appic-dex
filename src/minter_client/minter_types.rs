@@ -127,3 +127,19 @@ pub struct ReceivedSwapOrderEvent {
     #[n(11)]
     pub tx_swap_id: String,
 }
+
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, Debug)]
+pub struct MinterKey {
+    #[n(0)]
+    chain_id: u64,
+    #[cbor(n(1), with = "crate::cbor::principal")]
+    id: Principal,
+}
+
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, Debug)]
+pub struct Minter {
+    #[cbor(n(0), with = "crate::cbor::principal")]
+    twin_usdc_principal: Principal,
+    #[n(1)]
+    usdc_address: Address,
+}

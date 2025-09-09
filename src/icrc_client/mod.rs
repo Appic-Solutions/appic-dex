@@ -45,6 +45,9 @@ pub enum LedgerTransferError {
         expected_fee: Nat,
     },
     FeeUnknown,
+    BadBurn {
+        min_burn_amount: Nat,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -189,6 +192,85 @@ impl LedgerClient {
                     }
                     TransferError::BadBurn { min_burn_amount: _ } => {
                         panic!("BUG: expected transfer")
+                    }
+                    TransferError::InsufficientFunds { balance: _ } => {
+                        panic!("BUG: there should always be enough funds in the pool")
+                    }
+
+                    TransferError::TooOld => panic!("BUG: transfer too old"),
+                    TransferError::CreatedInFuture { ledger_time } => {
+                        panic!("BUG: created in future, ledger time: {ledger_time}")
+                    }
+                    TransferError::Duplicate { duplicate_of } => {
+                        panic!("BUG: duplicate transfer of: {duplicate_of}")
+                    }
+                    TransferError::TemporarilyUnavailable => {
+                        LedgerTransferError::TemporarilyUnavailable {
+                            message: format!(
+                                "{} ledger temporarily unavailable, try again",
+                                self.client.ledger_canister_id.to_text()
+                            ),
+                            ledger: self.client.ledger_canister_id,
+                        }
+                    }
+                    TransferError::GenericError {
+                        error_code,
+                        message,
+                    } => LedgerTransferError::TemporarilyUnavailable {
+                        message: format!(
+                        "{} ledger unreachable, error code: {error_code}, with message: {message}",
+                        self.client.ledger_canister_id.to_text()
+                    ),
+                        ledger: self.client.ledger_canister_id,
+                    },
+                };
+                Err(transfer_err)
+            }
+            Err((error_code, message)) => {
+                let err_msg = format!(
+                    "failed to call {} ledger with error_code: {error_code} and message: {message}",
+                    self.client.ledger_canister_id.to_text()
+                );
+                log!(DEBUG, "[withdraw]: {err_msg}",);
+                Err(LedgerTransferError::TemporarilyUnavailable {
+                    message: err_msg,
+                    ledger: self.client.ledger_canister_id,
+                })
+            }
+        }
+    }
+
+    pub async fn transfer_to_minter<A: Into<Nat>>(
+        &self,
+        to: Account,
+        amount: A,
+        memo: WithdrawMemo,
+    ) -> Result<TransferIndex, LedgerTransferError> {
+        let amount = amount.into();
+        match self
+            .client
+            .transfer(TransferArg {
+                from_subaccount: None,
+                to,
+                amount: amount.clone(),
+                fee: None,
+                memo: Some(Memo::from(memo)),
+                created_at_time: None,
+            })
+            .await
+        {
+            Ok(Ok(block_index)) => Ok(TransferIndex(block_index)),
+            Ok(Err(transfer_error)) => {
+                log!(
+                    DEBUG,
+                    "[withdraw]: failed to transfer with error: {transfer_error:?}",
+                );
+                let transfer_err = match transfer_error {
+                    TransferError::BadFee { expected_fee: _ } => {
+                        panic!("BUG: there should not be any fee in burning")
+                    }
+                    TransferError::BadBurn { min_burn_amount } => {
+                        LedgerTransferError::BadBurn { min_burn_amount }
                     }
                     TransferError::InsufficientFunds { balance: _ } => {
                         panic!("BUG: there should always be enough funds in the pool")

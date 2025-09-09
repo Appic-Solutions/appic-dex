@@ -42,7 +42,7 @@ use appic_dex::{
         process_multi_hop_exact_input, process_multi_hop_exact_output,
         process_single_hop_exact_input, process_single_hop_exact_output,
     },
-    state::{mutate_state, read_state},
+    state::{get_user_balance, mutate_state, read_state},
     swap::execute_swap,
     validation::{
         burn_args::validate_burn_position_args, decrease_args::validate_decrease_liquidity_args,
@@ -1069,7 +1069,7 @@ async fn _refund(
 }
 
 // Withdraws tokens, updates balance, handles transfer errors with rollback
-async fn _withdraw(
+pub async fn _withdraw(
     caller: Principal,
     token: Principal,
     amount: U256,
@@ -1156,11 +1156,6 @@ async fn _withdraw(
             }
         }
     }
-}
-
-// Retrieves user's token balance from state
-pub fn get_user_balance(user: Principal, token: Principal) -> U256 {
-    read_state(|s| s.get_user_balance(&UserBalanceKey { user, token }).0)
 }
 
 fn main() {}

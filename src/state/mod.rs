@@ -9,15 +9,19 @@
 
 use crate::{
     balances::types::{UserBalance, UserBalanceKey},
+    cross_chain::types::RecievedSwapOrders,
     events::Event,
     historical::types::PoolHistory,
     libraries::{constants::Q128, full_math::mul_div},
+    minter_client::minter_types::{Minter, MinterKey},
     pool::{
         modify_liquidity::ModifyLiquidityBufferState,
         swap::SwapBufferState,
         types::{PoolFee, PoolId, PoolState, PoolTickSpacing},
     },
     position::types::{PositionInfo, PositionKey},
+    state::memory_manager::{minters_memory_id, received_swap_orders_memory_id},
+    swap_id::SwapTxId,
     tick::{
         get_fee_growth_inside,
         types::{BitmapWord, TickBitmapKey, TickInfo, TickKey},
@@ -47,7 +51,11 @@ thread_local! {
         tick_bitmaps: BTreeMap::init(tick_bitmaps_memory_id()),
         tick_spacings:BTreeMap::init(tick_spacings_memory_id()),
         pool_history:BTreeMap::init(pool_history_memory_id()),
-        events:Log::init(events_data_memory_id(), events_index_memory_id()).expect("Failed to initialize events log")
+        events:Log::init(events_data_memory_id(), events_index_memory_id()).expect("Failed to initialize events log"),
+
+        minters:BTreeMap::init(minters_memory_id()),
+
+        received_swap_orders:BTreeMap::init(received_swap_orders_memory_id())
     }));
 }
 
@@ -63,6 +71,13 @@ pub struct State {
     // historical data storage
     pool_history: BTreeMap<PoolId, PoolHistory, StableMemory>,
     events: Log<Event, StableMemory, StableMemory>,
+
+    minters: BTreeMap<MinterKey, Minter, StableMemory>,
+
+    // cross-chain swap orders
+    received_swap_orders: BTreeMap<SwapTxId, RecievedSwapOrders, StableMemory>,
+    // invalid minter crosschain-swaps to refund
+    //invalid_minter_orders_to_refund:BTreeMap<SwapTxId,ReceivedSwapOrderEvent>,
 }
 
 impl State {
@@ -359,4 +374,9 @@ where
             .as_mut()
             .expect("BUG: state is not initialized"))
     })
+}
+
+// Retrieves user's token balance from state
+pub fn get_user_balance(user: Principal, token: Principal) -> U256 {
+    read_state(|s| s.get_user_balance(&UserBalanceKey { user, token }).0)
 }

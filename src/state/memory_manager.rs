@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 
 use ic_stable_structures::{
-    DefaultMemoryImpl,
     memory_manager::{MemoryId, MemoryManager, VirtualMemory},
+    DefaultMemoryImpl,
 };
 
 pub type StableMemory = VirtualMemory<DefaultMemoryImpl>;
@@ -71,4 +71,16 @@ const EVENTS_DATA_MEMORY_ID: MemoryId = MemoryId::new(9);
 
 pub fn events_data_memory_id() -> StableMemory {
     MEMORY_MANAGER.with(|m| m.borrow().get(EVENTS_DATA_MEMORY_ID))
+}
+
+const RECEIVED_SWAP_ORDERS_MEMORY_ID: MemoryId = MemoryId::new(10);
+
+pub fn received_swap_orders_memory_id() -> StableMemory {
+    MEMORY_MANAGER.with(|m| m.borrow().get(RECEIVED_SWAP_ORDERS_MEMORY_ID))
+}
+
+const MINTERS_MEMORY_ID: MemoryId = MemoryId::new(11);
+
+pub fn minters_memory_id() -> StableMemory {
+    MEMORY_MANAGER.with(|m| m.borrow().get(MINTERS_MEMORY_ID))
 }
