@@ -43,12 +43,13 @@ dependencies = [
  "ic-canister-log",
  "ic-cdk 0.18.5",
  "ic-cdk-timers",
+ "ic-sha3",
  "ic-stable-structures",
  "icrc-ledger-client",
  "icrc-ledger-types",
  "lazy_static",
  "log",
- "minicbor 0.26.3",
+ "minicbor 0.26.5",
  "num-bigint",
  "num-traits",
  "pocket-ic",
@@ -1000,6 +1001,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ic-sha3"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3715f0f4370e8ce6aa9805b81e915ef4420c9dfb5209c71489c27e6f98bd5d65"
+dependencies = [
+ "sha3",
+]
+
+[[package]]
 name = "ic-stable-structures"
 version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1283,6 +1293,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "keccak"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ecc2af9a1119c51f12a14607e783cb977bde58bc069ff0c3da1095e635d70654"
+dependencies = [
+ "cpufeatures",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1382,9 +1401,9 @@ dependencies = [
 
 [[package]]
 name = "minicbor"
-version = "0.26.3"
+version = "0.26.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1936e27fffe7d8557c060eb82cb71668608cd1a5fb56b63e66d22ae8d7564321"
+checksum = "8a309f581ade7597820083bc275075c4c6986e57e53f8d26f88507cfefc8c987"
 dependencies = [
  "minicbor-derive 0.16.2",
 ]
@@ -2316,6 +2335,16 @@ dependencies = [
  "cfg-if",
  "cpufeatures",
  "digest",
+]
+
+[[package]]
+name = "sha3"
+version = "0.10.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "75872d278a8f37ef87fa0ddbda7802605cb18344497949862c0d4dcb291eba60"
+dependencies = [
+ "digest",
+ "keccak",
 ]
 
 [[package]]

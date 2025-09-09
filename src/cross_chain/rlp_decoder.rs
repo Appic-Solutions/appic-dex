@@ -1,57 +1,105 @@
 use ethnum::U256;
+use minicbor::{Decode, Encode};
 use rlp::{DecoderError, Rlp};
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::sync::LazyLock;
 use std::time::Instant;
 
-#[derive(Debug)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
+pub enum Blockchain {
+    #[n(0)]
+    ICP,
+    #[n(1)]
+    /// chain_id
+    Evm(#[n(0)] u64),
+}
+
+impl Display for Blockchain {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct CrossChainQuote {
+    #[cbor(n(0), with = "crate::cbor::u256")]
     pub total_amount_in: U256,
+    #[cbor(n(1), with = "crate::cbor::u256")]
     pub total_amount_out: U256,
+    #[cbor(n(2), with = "crate::cbor::u256::option")]
     pub total_min_amount_out: Option<U256>,
+    #[n(3)]
     pub total_slippage: Option<String>,
+    #[n(4)]
     pub steps: Vec<CrossChainStep>,
 }
 
-#[derive(Debug)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct CrossChainStep {
-    pub chain_id: String,
+    #[n(0)]
+    pub chain_id: Blockchain,
+    #[cbor(n(1), with = "crate::cbor::u256")]
     pub amount_in: U256,
+    #[cbor(n(2), with = "crate::cbor::u256")]
     pub amount_out: U256,
+    #[cbor(n(3), with = "crate::cbor::u256::option")]
     pub min_amount_out: Option<U256>,
+    #[n(4)]
     pub slippage: Option<String>,
+    #[cbor(n(5), with = "crate::cbor::u256::option")]
     pub gas_limit: Option<U256>,
+    #[cbor(n(6), with = "crate::cbor::u256::option")]
     pub max_gas_fee: Option<U256>,
+    #[n(7)]
     pub gas_price_usd: Option<String>,
+    #[n(8)]
     pub canister_fee_usd: Option<String>,
+    #[n(9)]
     pub route: Vec<PoolHop>,
+    #[n(10)]
     pub qswap_data: Option<QSwapData>,
 }
 
-#[derive(Debug)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct PoolHop {
+    #[n(0)]
     pub sell_token: String,
+    #[n(1)]
     pub buy_token: String,
+    #[n(2)]
     pub fee: u32,
 }
 
-#[derive(Debug)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct QSwapData {
+    #[n(0)]
     pub commands: Vec<u32>,
+    #[n(1)]
     pub command_data: Vec<String>,
+    #[cbor(n(2), with = "crate::cbor::u256")]
     pub deadline: U256,
 }
 
-#[derive(Debug)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum RlpDecodeError {
+    #[n(0)]
     InvalidRlpData,
+    #[n(1)]
     InvalidStructure,
+    #[n(2)]
     InvalidDataType,
+    #[n(3)]
     MissingField,
-    InvalidChainId(String),
+    #[n(4)]
+    InvalidChainId(#[n(0)] String),
+    #[n(5)]
     InvalidAmount,
-    InvalidTokenAddress(String),
+    #[n(6)]
+    InvalidTokenAddress(#[n(0)] String),
+    #[n(7)]
     DataTooLarge,
+    #[n(8)]
     VersionMismatch,
 }
 
@@ -79,17 +127,12 @@ impl From<DecoderError> for RlpDecodeError {
     }
 }
 
-static SUPPORTED_CHAINS: LazyLock<HashMap<&str, &str>> = LazyLock::new(|| {
+static SUPPORTED_CHAINS: LazyLock<HashMap<&Blockchain, &str>> = LazyLock::new(|| {
     let mut m = HashMap::new();
-    m.insert("1", "Ethereum");
-    m.insert("56", "BSC");
-    m.insert("137", "Polygon");
-    m.insert("8453", "Base");
-    m.insert("42161", "Arbitrum");
-    m.insert("10", "Optimism");
-    m.insert("43114", "Avalanche");
-    m.insert("250", "Fantom");
-    m.insert("icp", "Internet Computer");
+    m.insert(&Blockchain::Evm(1), "Ethereum");
+    m.insert(&Blockchain::Evm(56), "BSC");
+    m.insert(&Blockchain::Evm(8453), "Base");
+    m.insert(&Blockchain::ICP, "Internet Computer");
     m
 });
 
@@ -170,9 +213,20 @@ impl RlpDecoder {
             return Err(RlpDecodeError::InvalidStructure);
         }
 
-        let chain_id = step_rlp
+        let chain_id_string = step_rlp
             .val_at::<String>(0)
             .map_err(|_| RlpDecodeError::InvalidDataType)?;
+
+        let chain_id = if chain_id_string == "icp" {
+            Ok::<Blockchain, RlpDecodeError>(Blockchain::ICP)
+        } else {
+            let chain_id_number = chain_id_string
+                .parse::<u64>()
+                .map_err(|e| RlpDecodeError::InvalidChainId(e.to_string()))?;
+
+            Ok(Blockchain::Evm(chain_id_number))
+        }?;
+
         let amount_in = Self::parse_u256(
             &step_rlp
                 .val_at::<String>(1)
@@ -317,7 +371,7 @@ impl RlpDecoder {
         Ok(())
     }
 
-    fn validate_chain_id(chain_id: &str) -> Result<(), RlpDecodeError> {
+    fn validate_chain_id(chain_id: &Blockchain) -> Result<(), RlpDecodeError> {
         if !SUPPORTED_CHAINS.contains_key(chain_id) {
             return Err(RlpDecodeError::InvalidChainId(chain_id.to_string()));
         }
@@ -420,8 +474,8 @@ impl RlpDecoder {
         Ok(())
     }
 
-    pub fn get_supported_chains() -> &'static HashMap<&'static str, &'static str> {
-        &SUPPORTED_CHAINS
+    pub fn get_supported_chains() -> HashMap<&'static Blockchain, &'static str> {
+        SUPPORTED_CHAINS.clone()
     }
 
     fn log_decode_metrics(
