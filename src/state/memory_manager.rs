@@ -84,3 +84,9 @@ const MINTERS_MEMORY_ID: MemoryId = MemoryId::new(11);
 pub fn minters_memory_id() -> StableMemory {
     MEMORY_MANAGER.with(|m| m.borrow().get(MINTERS_MEMORY_ID))
 }
+
+const FAILED_MINTER_TRANSFER_NOTIFIES_MEMORY_ID: MemoryId = MemoryId::new(12);
+
+pub fn failed_minter_transfer_notifies_memory_id() -> StableMemory {
+    MEMORY_MANAGER.with(|m| m.borrow().get(FAILED_MINTER_TRANSFER_NOTIFIES_MEMORY_ID))
+}

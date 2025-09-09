@@ -1,16 +1,13 @@
-use std::{
-    fmt::{Debug, Display, Formatter, LowerHex, UpperHex},
-    str::FromStr,
-};
+use std::fmt::Debug;
 
 use candid::{CandidType, Nat, Principal};
 use minicbor::{Decode, Encode};
 use serde::Deserialize;
 
-use crate::{address::Address, rlp_decoder::Blockchain};
+use crate::address::Address;
 
 // candid file designed for operations sent by appic dex
-#[derive(CandidType, Deserialize, Clone, Debug, Encode, Decode, Eq, PartialEq)]
+#[derive(CandidType, Deserialize, Clone, Debug, Encode, Decode, Eq, PartialEq, PartialOrd, Ord)]
 pub enum DexOrderArgs {
     #[n(0)]
     Swap(#[n(0)] DexSwapOrderArgs),
@@ -18,7 +15,7 @@ pub enum DexOrderArgs {
     Bridge(#[n(0)] DexBridgeOrderArgs),
 }
 
-#[derive(CandidType, Deserialize, Clone, Debug, PartialEq, Eq, Encode, Decode)]
+#[derive(CandidType, Deserialize, Clone, Debug, PartialEq, Eq, Encode, Decode, PartialOrd, Ord)]
 pub struct DexSwapOrderArgs {
     #[n(0)]
     pub tx_id: String,
@@ -42,7 +39,7 @@ pub struct DexSwapOrderArgs {
     pub erc20_ledger_burn_index: Nat,
 }
 
-#[derive(CandidType, Deserialize, Clone, Debug, PartialEq, Eq, Encode, Decode)]
+#[derive(CandidType, Deserialize, Clone, Debug, PartialEq, Eq, Encode, Decode, PartialOrd, Ord)]
 pub struct DexBridgeOrderArgs {
     #[n(0)]
     pub tx_id: String,
@@ -131,15 +128,15 @@ pub struct ReceivedSwapOrderEvent {
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, Debug)]
 pub struct MinterKey {
     #[n(0)]
-    chain_id: u64,
+    pub chain_id: u64,
     #[cbor(n(1), with = "crate::cbor::principal")]
-    id: Principal,
+    pub id: Principal,
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, Debug)]
 pub struct Minter {
     #[cbor(n(0), with = "crate::cbor::principal")]
-    twin_usdc_principal: Principal,
+    pub twin_usdc_principal: Principal,
     #[n(1)]
-    usdc_address: Address,
+    pub usdc_address: Address,
 }

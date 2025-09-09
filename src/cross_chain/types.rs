@@ -5,7 +5,7 @@ use minicbor::{Decode, Encode};
 use crate::{
     address::Address,
     cross_chain::rlp_decoder::{CrossChainQuote, CrossChainStep},
-    minter_client::minter_types::ReceivedSwapOrderEvent,
+    minter_client::minter_types::{DexOrderArgs, MinterKey, ReceivedSwapOrderEvent},
     swap_id::SwapTxId,
     validation::swap_args::ValidatedSwapArgs,
 };
@@ -34,8 +34,10 @@ pub enum CrosschainSwapOrder {
         icp_swap_request: ValidatedSwapArgs,
         #[n(4)]
         evm_swap_step: CrossChainStep,
-        #[cbor(n(5), with = "crate::cbor::principal")]
-        minter: Principal,
+        #[n(5)]
+        from_minter: MinterKey,
+        #[n(6)]
+        to_minter: MinterKey,
     },
     #[n(1)]
     EvmToIcp {
@@ -49,6 +51,8 @@ pub enum CrosschainSwapOrder {
         amount_in: U256,
         #[n(4)]
         icp_swap_step: ValidatedSwapArgs,
+        #[n(5)]
+        from_minter: MinterKey,
     },
     #[n(2)]
     IcpToEvm {
@@ -62,20 +66,31 @@ pub enum CrosschainSwapOrder {
         amount_in: U256,
         #[n(4)]
         evm_swap_step: CrossChainStep,
+        #[n(5)]
+        minter: MinterKey,
+        #[n(6)]
+        to_minter: MinterKey,
     },
 }
 
-//#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
-//pub struct RecievedSwapOrders {
-//    #[n(0)]
-//    quote: CrossChainQuote,
-//    #[n(1)]
-//    minter_request: Option<ReceivedSwapOrderEvent>,
-//}
-//
-//
-//pub struct FailedMinterTransferNotify{
-//    transfer_token:Principal,
-//    transfer_amount:U256,
-//
-//}
+#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub struct RecievedSwapOrders {
+    #[n(0)]
+    quote: CrossChainQuote,
+    #[n(1)]
+    minter_request: Option<ReceivedSwapOrderEvent>,
+}
+
+#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub struct FailedMinterTransferNotifies {
+    #[n(0)]
+    swap_tx_id: SwapTxId,
+    #[cbor(n(1), with = "crate::cbor::principal")]
+    transfer_token: Principal,
+    #[cbor(n(2), with = "crate::cbor::u256")]
+    transfer_amount: U256,
+    #[cbor(n(3), with = "crate::cbor::principal")]
+    minter_id: Principal,
+    #[n(4)]
+    dex_order_to_send: DexOrderArgs,
+}

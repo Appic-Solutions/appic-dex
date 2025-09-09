@@ -26,16 +26,19 @@ pub async fn execute_crosshcain_swap(args: CrosschainSwapOrder) {
             recipient,
             icp_swap_request,
             evm_swap_step,
-            minter,
+            from_minter,
+            to_minter,
         } => {
             let timestamp = ic_cdk::api::time();
+
+            //let dex_order=if evm_swap_step
 
             // part one execute the icp side of the swap
             let icp_swap_result = match execute_swap(
                 &icp_swap_request,
                 icp_swap_request.token_in(),
                 icp_swap_request.token_out(),
-                minter,
+                from_minter.id,
                 timestamp,
             ) {
                 // in case of successful icp swap the amount should be transferred to the minter
@@ -53,6 +56,7 @@ pub async fn execute_crosshcain_swap(args: CrosschainSwapOrder) {
             recipient,
             amount_in,
             icp_swap_step,
+            from_minter,
         } => todo!(),
         CrosschainSwapOrder::IcpToEvm {
             swap_tx_id,
@@ -60,6 +64,8 @@ pub async fn execute_crosshcain_swap(args: CrosschainSwapOrder) {
             recipient,
             amount_in,
             evm_swap_step,
+            minter,
+            to_minter,
         } => todo!(),
     }
 }
