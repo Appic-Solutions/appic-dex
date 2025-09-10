@@ -47,8 +47,6 @@ pub enum CrosschainSwapOrder {
         from_address: Address,
         #[n(2)]
         recipient: Recipient,
-        #[cbor(n(3), with = "crate::cbor::u256")]
-        amount_in: U256,
         #[n(4)]
         icp_swap_request: ValidatedSwapArgs,
         #[n(5)]
@@ -62,13 +60,13 @@ pub enum CrosschainSwapOrder {
         from: Principal,
         #[n(2)]
         recipient: Recipient,
-        #[cbor(n(3), with = "crate::cbor::u256")]
-        amount_in: U256,
         #[n(4)]
-        evm_swap_step: CrossChainStep,
+        icp_swap_request: ValidatedSwapArgs,
         #[n(5)]
-        minter: MinterKey,
+        evm_swap_step: CrossChainStep,
         #[n(6)]
+        from_minter: MinterKey,
+        #[n(7)]
         to_minter: MinterKey,
     },
 }

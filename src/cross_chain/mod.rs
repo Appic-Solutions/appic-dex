@@ -16,7 +16,7 @@ use crate::{
     },
     swap::execute_swap,
     validation::swap_args,
-    withdraw::_withdraw,
+    withdraw::{_refund, _withdraw},
 };
 
 pub mod parser;
@@ -41,16 +41,8 @@ pub async fn execute_crosshcain_swap(args: CrosschainSwapOrder) {
             from_minter,
             to_minter,
         } => {
-            let (from_minter_info, to_minter_info) = read_state(|s| {
-                (
-                    s.get_minter(&from_minter)
-                        .expect("BUG: FFROM MINTER NOT FOUND"),
-                    s.get_minter(&to_minter).expect("BUG: TO MINTER NOT FOUND"),
-                )
-            });
-
             // part one execute the icp side of the swap
-            let icp_swap_result = match execute_swap(
+            match execute_swap(
                 &icp_swap_request,
                 icp_swap_request.token_in(),
                 icp_swap_request.token_out(),
@@ -192,15 +184,9 @@ pub async fn execute_crosshcain_swap(args: CrosschainSwapOrder) {
             tx_id,
             from_address,
             recipient,
-            amount_in,
             icp_swap_request,
             from_minter,
         } => {
-            let from_minter_info = read_state(|s| {
-                s.get_minter(&from_minter)
-                    .expect("BUG: FFROM MINTER NOT FOUND")
-            });
-
             let recipient = match recipient {
                 Recipient::EvmAddress(address) => {
                     panic!("BUG: In EVM TO ICP swaps recipient should be and evm address")
@@ -209,7 +195,7 @@ pub async fn execute_crosshcain_swap(args: CrosschainSwapOrder) {
             };
 
             // part one execute the icp side of the swap
-            let icp_swap_result = match execute_swap(
+            match execute_swap(
                 &icp_swap_request,
                 icp_swap_request.token_in(),
                 icp_swap_request.token_out(),
@@ -220,7 +206,7 @@ pub async fn execute_crosshcain_swap(args: CrosschainSwapOrder) {
                 // in case of successful icp swap the amount should be transferred to the user
                 // principal
                 Ok((amount_in, amount_out, token_out_transfer_fee)) => {
-                    let erc20_ledger_burn_index = match _withdraw(
+                    match _withdraw(
                         icp_swap_request.token_out(),
                         amount_out.as_u256(),
                         recipient,
@@ -247,7 +233,7 @@ pub async fn execute_crosshcain_swap(args: CrosschainSwapOrder) {
                     // origin chain to the from address
 
                     let erc20_ledger_burn_index = match _transfer_to_minter(
-                        icp_swap_request.token_out(),
+                        icp_swap_request.token_in(),
                         icp_swap_request.deposit_amount().as_u256(),
                         from_minter.id,
                         &mut WithdrawMemo::TransferToMinter {
@@ -292,7 +278,6 @@ pub async fn execute_crosshcain_swap(args: CrosschainSwapOrder) {
                             mutate_state(|s| {
                                 s.record_failed_minter_transfer_notify(tx_id, todo!())
                             });
-                            return;
                         }
                     }
                 }
@@ -302,11 +287,116 @@ pub async fn execute_crosshcain_swap(args: CrosschainSwapOrder) {
             tx_id,
             from,
             recipient,
-            amount_in,
+            icp_swap_request,
             evm_swap_step,
-            minter,
+            from_minter,
             to_minter,
-        } => todo!(),
+        } => {
+            // part one execute the icp side of the swap
+            match execute_swap(
+                &icp_swap_request,
+                icp_swap_request.token_in(),
+                icp_swap_request.token_out(),
+                from_minter.id,
+                timestamp,
+                to_minter.id,
+            ) {
+                // in case of successful icp swap the amount should be transferred to the minter
+                // and the dex order should be then sent to the minter to be executed
+                Ok((amount_in, amount_out, _token_out_transfer_fee)) => {
+                    let qswap_data = evm_swap_step
+                        .qswap_data
+                        .expect("BUG: Gas limit should exist on evm swap");
+
+                    let recipient = match recipient {
+                        Recipient::EvmAddress(address) => address.to_string(),
+                        Recipient::IcPrincipal(principal) => {
+                            panic!("BUG: In EVM TO EVM swaps recipient should be and evm address")
+                        }
+                    };
+
+                    let gas_limit = u256_to_nat(
+                        evm_swap_step
+                            .gas_limit
+                            .expect("BUG: Gas limit should exist on evm swap"),
+                    );
+
+                    let erc20_ledger_burn_index = match _transfer_to_minter(
+                        icp_swap_request.token_out(),
+                        amount_out.as_u256(),
+                        to_minter.id,
+                        &mut WithdrawMemo::TransferToMinter {
+                            amount: amount_out.as_u256(),
+                            tx_id: tx_id.clone(),
+                        },
+                    )
+                    .await
+                    {
+                        Ok(erc20_ledger_burn_index) => erc20_ledger_burn_index,
+                        Err(err) => {
+                            mutate_state(|s| {
+                                s.record_failed_minter_transfer_notify(tx_id, todo!())
+                            });
+                            return;
+                        }
+                    };
+
+                    let dex_order = DexOrderArgs {
+                        tx_id: tx_id.0.clone(),
+                        amount_in: u256_to_nat(amount_in.as_u256()),
+                        min_amount_out: u256_to_nat(
+                            evm_swap_step.min_amount_out.unwrap_or(U256::ZERO),
+                        ),
+                        commands: qswap_data.commands,
+                        commands_data: qswap_data.command_data,
+                        max_gas_fee_usd: evm_swap_step.gas_price_usd,
+                        gas_limit,
+                        deadline: u256_to_nat(qswap_data.deadline),
+                        recipient,
+                        erc20_ledger_burn_index,
+                    };
+
+                    let minter_client = MinterClient::new(to_minter.id);
+                    match minter_client.dex_order(&dex_order).await {
+                        Ok(_) => {
+                            // todo!() record successful swap on the ICP side
+                        }
+                        Err(err) => {
+                            log!(
+                                DEBUG,
+                                "[notify_minter]: failed to notify minter of dex order: {dex_order:?} due to error: {err:?} will retry again later",
+                            );
+                            mutate_state(|s| {
+                                s.record_failed_minter_transfer_notify(tx_id, todo!())
+                            });
+                            return;
+                        }
+                    }
+                }
+
+                // in case of error we need to refund the user on the first chain
+                Err(err) => {
+                    // the icp swap step failed so the user should be refunded with the usdc of
+                    // origin chain to the from address
+
+                    match _refund(
+                        icp_swap_request.token_in(),
+                        icp_swap_request.deposit_amount().as_u256(),
+                        from,
+                    )
+                    .await
+                    {
+                        Ok(_) => {}
+                        Err(err) => {
+                            mutate_state(|s| {
+                                s.record_failed_minter_transfer_notify(tx_id, todo!())
+                            });
+                            return;
+                        }
+                    };
+                }
+            };
+        }
     }
 }
 
