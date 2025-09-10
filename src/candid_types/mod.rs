@@ -86,8 +86,11 @@ impl From<LedgerTransferError> for WithdrawError {
                 ledger,
             } => {
                 panic!(
-                    "BUG: withdrawal amount {failed_amount} on the {ledger:?} should always be higher than the ledger transaction fee {minimum_amount}"
-                )
+                            "BUG: withdrawal amount {failed_amount} on the {ledger:?} should always be higher than the ledger transaction fee {minimum_amount}"
+                        )
+            }
+            LedgerTransferError::BadBurn { min_burn_amount: _ } => {
+                panic!("BUG: withdrawal should not be considered as a burn trsnaction")
             }
         }
     }
@@ -115,8 +118,11 @@ impl From<LedgerTransferError> for DepositError {
                 ledger,
             } => {
                 panic!(
-                    "BUG: deposit amount {failed_amount} on the {ledger:?} should always be higher than the ledger transaction fee {minimum_amount}"
-                )
+                            "BUG: deposit amount {failed_amount} on the {ledger:?} should always be higher than the ledger transaction fee {minimum_amount}"
+                        )
+            }
+            LedgerTransferError::BadBurn { min_burn_amount: _ } => {
+                panic!("BUG: deposit should not be considered as a burn trsnaction")
             }
         }
     }

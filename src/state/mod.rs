@@ -359,6 +359,18 @@ impl State {
     pub fn total_event_count(&self) -> u64 {
         self.events.len()
     }
+
+    pub fn get_minter(&self, key: &MinterKey) -> Option<Minter> {
+        self.minters.get(key)
+    }
+
+    pub fn record_failed_minter_transfer_notify(
+        &mut self,
+        tx_id: SwapTxId,
+        value: FailedMinterTransferNotifies,
+    ) {
+        self.failed_minter_transfer_notifies.insert(tx_id, value);
+    }
 }
 
 pub fn read_state<R>(f: impl FnOnce(&State) -> R) -> R {

@@ -113,7 +113,7 @@ pub enum WithdrawMemo {
         #[cbor(n(0), with = "crate::cbor::u256")]
         amount: U256,
         #[n(1)]
-        swap_tx_id: SwapTxId,
+        tx_id: SwapTxId,
     },
 }
 
@@ -133,10 +133,7 @@ impl WithdrawMemo {
             WithdrawMemo::Refund { amount } => *amount = new_amount,
             WithdrawMemo::CollectFees { amount } => *amount = new_amount,
             WithdrawMemo::Withdraw { amount } => *amount = new_amount,
-            WithdrawMemo::TransferToMinter {
-                amount,
-                swap_tx_id: _,
-            } => *amount = new_amount,
+            WithdrawMemo::TransferToMinter { amount, tx_id: _ } => *amount = new_amount,
         }
     }
 }

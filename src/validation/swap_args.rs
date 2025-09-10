@@ -34,6 +34,8 @@ pub enum ValidatedSwapArgs {
         token_in: Principal,
         #[cbor(n(6), with = "crate::cbor::principal")]
         token_out: Principal,
+        #[cbor(n(7), with = "crate::cbor::principal::option")]
+        recipient: Option<Principal>,
     },
     #[n(1)]
     ExactInput {
@@ -50,6 +52,8 @@ pub enum ValidatedSwapArgs {
         token_in: Principal,
         #[cbor(n(5), with = "crate::cbor::principal")]
         token_out: Principal,
+        #[cbor(n(6), with = "crate::cbor::principal::option")]
+        recipient: Option<Principal>,
     },
     #[n(2)]
     ExactOutputSingle {
@@ -67,6 +71,8 @@ pub enum ValidatedSwapArgs {
         token_in: Principal,
         #[cbor(n(6), with = "crate::cbor::principal")]
         token_out: Principal,
+        #[cbor(n(7), with = "crate::cbor::principal::option")]
+        recipient: Option<Principal>,
     },
     #[n(3)]
     ExactOutput {
@@ -83,6 +89,8 @@ pub enum ValidatedSwapArgs {
         token_in: Principal,
         #[cbor(n(5), with = "crate::cbor::principal")]
         token_out: Principal,
+        #[cbor(n(6), with = "crate::cbor::principal::option")]
+        recipient: Option<Principal>,
     },
 }
 
@@ -133,6 +141,16 @@ impl ValidatedSwapArgs {
             } => *from_subaccount,
         }
     }
+
+    pub fn recipient(&self) -> Option<Principal> {
+        match self {
+            ValidatedSwapArgs::ExactInputSingle { recipient, .. } => *recipient,
+            ValidatedSwapArgs::ExactInput { recipient, .. } => *recipient,
+            ValidatedSwapArgs::ExactOutputSingle { recipient, .. } => *recipient,
+            ValidatedSwapArgs::ExactOutput { recipient, .. } => *recipient,
+            ValidatedSwapArgs::ExactOutput { recipient, .. } => *recipient,
+        }
+    }
 }
 
 // in multi hop swaps the maximum number of hops(swaps) should be <= MAX_PATH_LENGTH
@@ -173,6 +191,7 @@ pub fn validate_swap_args(args: SwapArgs) -> Result<ValidatedSwapArgs, SwapError
                 from_subaccount: exact_input_single_params.from_subaccount,
                 token_in,
                 token_out,
+                recipient: exact_input_single_params.recipient,
             })
         }
         SwapArgs::ExactInput(exact_input_params) => {
@@ -227,6 +246,7 @@ pub fn validate_swap_args(args: SwapArgs) -> Result<ValidatedSwapArgs, SwapError
                 from_subaccount: exact_input_params.from_subaccount,
                 token_in: exact_input_params.token_in,
                 token_out,
+                recipient: exact_input_params.recipient,
             })
         }
         SwapArgs::ExactOutputSingle(exact_output_single_params) => {
@@ -258,6 +278,7 @@ pub fn validate_swap_args(args: SwapArgs) -> Result<ValidatedSwapArgs, SwapError
                 from_subaccount: exact_output_single_params.from_subaccount,
                 token_in,
                 token_out,
+                recipient: exact_output_single_params.recipient,
             })
         }
         SwapArgs::ExactOutput(exact_output_params) => {
@@ -315,6 +336,7 @@ pub fn validate_swap_args(args: SwapArgs) -> Result<ValidatedSwapArgs, SwapError
                 from_subaccount: exact_output_params.from_subaccount,
                 token_out,
                 token_in,
+                recipient: exact_output_params.recipient,
             })
         }
     }

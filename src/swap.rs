@@ -32,6 +32,7 @@ pub fn execute_swap(
     token_out: Principal,
     caller: Principal,
     timestamp: u64,
+    recipient: Principal,
 ) -> Result<(I256, I256, U256), SwapFailedReason> {
     //  Initialize User Balance Keys
     let token_in_key = UserBalanceKey {
@@ -40,7 +41,7 @@ pub fn execute_swap(
     };
     let token_out_key = UserBalanceKey {
         token: token_out,
-        user: caller,
+        user: recipient,
     };
 
     //  Fetch Initial Balances
@@ -58,6 +59,7 @@ pub fn execute_swap(
             from_subaccount: _,
             token_in: _,
             token_out: _,
+            recipient: _,
         } => {
             // Validate balance
             validate_balance(token_in_balance_before, *amount_in)?;
@@ -90,6 +92,7 @@ pub fn execute_swap(
             from_subaccount: _,
             token_in: _,
             token_out: _,
+            recipient: _,
         } => {
             // Validate balance
             validate_balance(token_in_balance_before, *amount_in)?;
@@ -132,6 +135,7 @@ pub fn execute_swap(
             from_subaccount: _,
             token_in: _,
             token_out: _,
+            recipient: _,
         } => {
             // Validate balance
             validate_balance(token_in_balance_before, *amount_in_maximum)?;
@@ -164,6 +168,7 @@ pub fn execute_swap(
             from_subaccount: _,
             token_in: _,
             token_out: _,
+            recipient: _,
         } => {
             // Validate balance
             validate_balance(token_in_balance_before, *amount_in_maximum)?;
@@ -218,6 +223,7 @@ pub fn execute_swap(
             final_amount_out: swap_result.amount_out.as_u256(),
             swap_args: validated_swap_args.clone(),
             principal: caller,
+            recipient: Some(recipient),
         },
     };
 

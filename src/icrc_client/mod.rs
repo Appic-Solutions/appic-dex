@@ -51,7 +51,7 @@ pub enum LedgerTransferError {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct TransferIndex(Nat);
+pub struct TransferIndex(pub Nat);
 
 impl LedgerClient {
     pub fn new(token: Principal) -> Self {

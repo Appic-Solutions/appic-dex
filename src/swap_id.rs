@@ -1,7 +1,7 @@
 use minicbor::{Decode, Encode};
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
-pub struct SwapTxId(#[n(0)] String);
+pub struct SwapTxId(#[n(0)] pub String);
 
 impl SwapTxId {
     pub fn new(from_chain_id: &str, ledger_index: u64, timestamp_ns: u64) -> Self {

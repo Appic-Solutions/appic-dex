@@ -1,22 +1,13 @@
 use std::fmt::Debug;
 
-use candid::{CandidType, Nat, Principal};
+use candid::{CandidType, Deserialize, Nat, Principal};
 use minicbor::{Decode, Encode};
-use serde::Deserialize;
 
 use crate::address::Address;
 
-// candid file designed for operations sent by appic dex
-#[derive(CandidType, Deserialize, Clone, Debug, Encode, Decode, Eq, PartialEq, PartialOrd, Ord)]
-pub enum DexOrderArgs {
-    #[n(0)]
-    Swap(#[n(0)] DexSwapOrderArgs),
-    #[n(1)]
-    Bridge(#[n(0)] DexBridgeOrderArgs),
-}
-
-#[derive(CandidType, Deserialize, Clone, Debug, PartialEq, Eq, Encode, Decode, PartialOrd, Ord)]
-pub struct DexSwapOrderArgs {
+// Dex orders type to be sent to minter
+#[derive(CandidType, Deserialize, Clone, Debug, Encode, Decode, Eq, PartialEq, Ord, PartialOrd)]
+pub struct DexOrderArgs {
     #[n(0)]
     pub tx_id: String,
     #[cbor(n(1), with = "crate::cbor::nat")]
@@ -28,7 +19,7 @@ pub struct DexSwapOrderArgs {
     #[n(4)]
     pub commands_data: Vec<String>,
     #[n(5)]
-    pub max_gas_fee_usd: String,
+    pub max_gas_fee_usd: Option<String>,
     #[cbor(n(6), with = "crate::cbor::nat")]
     pub gas_limit: Nat,
     #[cbor(n(7), with = "crate::cbor::nat")]
@@ -36,24 +27,6 @@ pub struct DexSwapOrderArgs {
     #[n(8)]
     pub recipient: String,
     #[cbor(n(9), with = "crate::cbor::nat")]
-    pub erc20_ledger_burn_index: Nat,
-}
-
-#[derive(CandidType, Deserialize, Clone, Debug, PartialEq, Eq, Encode, Decode, PartialOrd, Ord)]
-pub struct DexBridgeOrderArgs {
-    #[n(0)]
-    pub tx_id: String,
-    #[n(2)]
-    pub recipient: String,
-    #[cbor(n(3), with = "crate::cbor::nat")]
-    pub amount: Nat,
-    #[n(4)]
-    pub max_gas_fee_usd: String,
-    #[cbor(n(5), with = "crate::cbor::nat")]
-    pub gas_limit: Nat,
-    #[cbor(n(6), with = "crate::cbor::nat")]
-    pub deadline: Nat,
-    #[cbor(n(7), with = "crate::cbor::nat")]
     pub erc20_ledger_burn_index: Nat,
 }
 

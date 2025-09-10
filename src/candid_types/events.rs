@@ -66,6 +66,7 @@ pub enum CandidEventType {
         token_out: Principal,
         swap_type: SwapType,
         principal: Principal,
+        recipient: Option<Principal>,
     },
 }
 
@@ -166,6 +167,7 @@ impl From<Event> for CandidEvent {
                 final_amount_out,
                 swap_args,
                 principal,
+                recipient,
             } => {
                 let (swap_type, token_in, token_out) = match swap_args {
                     validation::swap_args::ValidatedSwapArgs::ExactInputSingle {
@@ -176,6 +178,7 @@ impl From<Event> for CandidEvent {
                         from_subaccount: _,
                         token_in,
                         token_out,
+                        recipient: _,
                     } => (
                         SwapType::ExactInputSingle(pool_id.into()),
                         token_in,
@@ -188,6 +191,7 @@ impl From<Event> for CandidEvent {
                         from_subaccount: _,
                         token_in,
                         token_out,
+                        recipient: _,
                     } => (
                         SwapType::ExactInput(
                             path.into_iter()
@@ -205,6 +209,7 @@ impl From<Event> for CandidEvent {
                         from_subaccount: _,
                         token_in,
                         token_out,
+                        recipient: _,
                     } => (
                         SwapType::ExactOutputSingle(pool_id.into()),
                         token_in,
@@ -217,6 +222,7 @@ impl From<Event> for CandidEvent {
                         from_subaccount: _,
                         token_in,
                         token_out,
+                        recipient: _,
                     } => (
                         SwapType::ExactOutput(
                             path.into_iter()
@@ -235,6 +241,7 @@ impl From<Event> for CandidEvent {
                     token_out,
                     swap_type,
                     principal,
+                    recipient,
                 }
             }
         };

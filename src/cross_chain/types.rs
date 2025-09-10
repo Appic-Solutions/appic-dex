@@ -25,7 +25,7 @@ pub enum CrosschainSwapOrder {
     #[n(0)]
     EvmToEvm {
         #[n(0)]
-        swap_tx_id: SwapTxId,
+        tx_id: SwapTxId,
         #[n(1)]
         from_address: Address,
         #[n(2)]
@@ -42,7 +42,7 @@ pub enum CrosschainSwapOrder {
     #[n(1)]
     EvmToIcp {
         #[n(0)]
-        swap_tx_id: SwapTxId,
+        tx_id: SwapTxId,
         #[n(1)]
         from_address: Address,
         #[n(2)]
@@ -50,14 +50,14 @@ pub enum CrosschainSwapOrder {
         #[cbor(n(3), with = "crate::cbor::u256")]
         amount_in: U256,
         #[n(4)]
-        icp_swap_step: ValidatedSwapArgs,
+        icp_swap_request: ValidatedSwapArgs,
         #[n(5)]
         from_minter: MinterKey,
     },
     #[n(2)]
     IcpToEvm {
         #[n(0)]
-        swap_tx_id: SwapTxId,
+        tx_id: SwapTxId,
         #[cbor(n(1), with = "crate::cbor::principal")]
         from: Principal,
         #[n(2)]
@@ -84,7 +84,7 @@ pub struct RecievedSwapOrders {
 #[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct FailedMinterTransferNotifies {
     #[n(0)]
-    swap_tx_id: SwapTxId,
+    tx_id: SwapTxId,
     #[cbor(n(1), with = "crate::cbor::principal")]
     transfer_token: Principal,
     #[cbor(n(2), with = "crate::cbor::u256")]

@@ -34,6 +34,7 @@ pub struct ExactInputSingleParams {
     pub amount_in: Nat,
     pub amount_out_minimum: Nat,
     pub from_subaccount: Option<Subaccount>,
+    pub recipient: Option<Principal>,
 }
 
 /// Parameters for a multi-hop exact-input swap
@@ -44,6 +45,7 @@ pub struct ExactInputParams {
     pub amount_in: Nat,
     pub amount_out_minimum: Nat,
     pub from_subaccount: Option<Subaccount>,
+    pub recipient: Option<Principal>,
 }
 
 /// Parameters for a single-hop exact-output swap
@@ -54,6 +56,7 @@ pub struct ExactOutputSingleParams {
     pub amount_out: Nat,
     pub amount_in_maximum: Nat,
     pub from_subaccount: Option<Subaccount>,
+    pub recipient: Option<Principal>,
 }
 
 /// notice Parameters for a multi-hop exact-output swap
@@ -64,6 +67,7 @@ pub struct ExactOutputParams {
     pub amount_out: Nat,
     pub amount_in_maximum: Nat,
     pub from_subaccount: Option<Subaccount>,
+    pub recipient: Option<Principal>,
 }
 
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize)]

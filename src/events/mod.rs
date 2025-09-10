@@ -91,6 +91,8 @@ pub enum EventType {
         swap_args: ValidatedSwapArgs,
         #[cbor(n(3), with = "crate::cbor::principal")]
         principal: Principal,
+        #[cbor(n(4), with = "crate::cbor::principal::option")]
+        recipient: Option<Principal>,
     },
 }
 

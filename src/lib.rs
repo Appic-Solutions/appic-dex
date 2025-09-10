@@ -6,6 +6,7 @@ pub mod cbor;
 pub mod collect_fees;
 pub mod cross_chain;
 pub mod decrease_liquidity;
+pub mod deposit;
 pub mod events;
 pub mod guard;
 pub mod historical;
@@ -24,6 +25,7 @@ pub mod swap;
 pub mod swap_id;
 pub mod tick;
 pub mod validation;
+pub mod withdraw;
 
 #[cfg(test)]
 pub mod tests;
