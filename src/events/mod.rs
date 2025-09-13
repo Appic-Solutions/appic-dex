@@ -4,7 +4,9 @@ use candid::Principal;
 use ethnum::U256;
 use minicbor::{Decode, Encode};
 
-use crate::{position::types::PositionKey, validation::swap_args::ValidatedSwapArgs};
+use crate::{
+    position::types::PositionKey, swap_id::SwapTxId, validation::swap_args::ValidatedSwapArgs,
+};
 
 /// The event describing the  minter state transition.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
@@ -93,6 +95,8 @@ pub enum EventType {
         principal: Principal,
         #[cbor(n(4), with = "crate::cbor::principal::option")]
         recipient: Option<Principal>,
+        #[n(5)]
+        tx_id: Option<SwapTxId>,
     },
 }
 

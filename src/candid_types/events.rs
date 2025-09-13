@@ -178,7 +178,6 @@ impl From<Event> for CandidEvent {
                         from_subaccount: _,
                         token_in,
                         token_out,
-                        recipient: _,
                     } => (
                         SwapType::ExactInputSingle(pool_id.into()),
                         token_in,
@@ -191,7 +190,6 @@ impl From<Event> for CandidEvent {
                         from_subaccount: _,
                         token_in,
                         token_out,
-                        recipient: _,
                     } => (
                         SwapType::ExactInput(
                             path.into_iter()
@@ -209,7 +207,6 @@ impl From<Event> for CandidEvent {
                         from_subaccount: _,
                         token_in,
                         token_out,
-                        recipient: _,
                     } => (
                         SwapType::ExactOutputSingle(pool_id.into()),
                         token_in,
@@ -222,7 +219,6 @@ impl From<Event> for CandidEvent {
                         from_subaccount: _,
                         token_in,
                         token_out,
-                        recipient: _,
                     } => (
                         SwapType::ExactOutput(
                             path.into_iter()

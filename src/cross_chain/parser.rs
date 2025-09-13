@@ -13,15 +13,15 @@ use crate::{
 };
 
 pub fn parse_recipient(
-    recipient: String,
+    recipient: &str,
     destination_blockchain: Blockchain,
 ) -> Result<Recipient, String> {
     match destination_blockchain {
         Blockchain::ICP => Ok(Recipient::IcPrincipal(parse_principal(
-            &FixedSizeData::from_str(&recipient)?,
+            &FixedSizeData::from_str(recipient)?,
         )?)),
         Blockchain::Evm(_) => Ok(Recipient::EvmAddress(parse_address(
-            &FixedSizeData::from_str(&recipient)?,
+            &FixedSizeData::from_str(recipient)?,
         )?)),
     }
 }

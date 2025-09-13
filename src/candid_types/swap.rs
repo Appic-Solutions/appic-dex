@@ -78,6 +78,17 @@ pub enum SwapArgs {
     ExactOutput(ExactOutputParams),
 }
 
+impl SwapArgs {
+    pub fn recipient(&self) -> Option<Principal> {
+        match self {
+            SwapArgs::ExactInputSingle(args) => args.recipient,
+            SwapArgs::ExactInput(args) => args.recipient,
+            SwapArgs::ExactOutputSingle(args) => args.recipient,
+            SwapArgs::ExactOutput(args) => args.recipient,
+        }
+    }
+}
+
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize, PartialEq, Eq)]
 pub enum SwapFailedReason {
     PriceLimitAlreadyExceeded, // means there is a bug, should not happen
@@ -124,6 +135,12 @@ pub enum SwapError {
         amount_in: Nat,
         amount_out: Nat,
     }, // swap was successful but amount_out withdrawal failed
+
+    // rlp to validated swap conversion errors
+    InvalidSwapChain,
+    InvalidRoute,
+    InvalidTokenIn,
+    InvalidTokenOut,
 }
 
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize, PartialEq, Eq)]

@@ -11,6 +11,7 @@ use crate::{
     },
     quote::{get_sqrt_price_limit, select_amount},
     state::{mutate_state, read_state},
+    swap_id::SwapTxId,
     validation::swap_args::ValidatedSwapArgs,
 };
 
@@ -33,6 +34,7 @@ pub fn execute_swap(
     caller: Principal,
     timestamp: u64,
     recipient: Principal,
+    tx_id: Option<SwapTxId>,
 ) -> Result<(I256, I256, U256), SwapFailedReason> {
     //  Initialize User Balance Keys
     let token_in_key = UserBalanceKey {
@@ -59,7 +61,6 @@ pub fn execute_swap(
             from_subaccount: _,
             token_in: _,
             token_out: _,
-            recipient: _,
         } => {
             // Validate balance
             validate_balance(token_in_balance_before, *amount_in)?;
@@ -92,7 +93,6 @@ pub fn execute_swap(
             from_subaccount: _,
             token_in: _,
             token_out: _,
-            recipient: _,
         } => {
             // Validate balance
             validate_balance(token_in_balance_before, *amount_in)?;
@@ -135,7 +135,6 @@ pub fn execute_swap(
             from_subaccount: _,
             token_in: _,
             token_out: _,
-            recipient: _,
         } => {
             // Validate balance
             validate_balance(token_in_balance_before, *amount_in_maximum)?;
@@ -147,7 +146,6 @@ pub fn execute_swap(
             let hop_result = swap_inner(swap_params).map_err(SwapFailedReason::from)?;
 
             // Calculate amounts
-            let amount_out = amount_out;
             let amount_in = -select_amount(hop_result.swap_delta, *zero_for_one, true);
 
             // Check slippage
@@ -168,7 +166,6 @@ pub fn execute_swap(
             from_subaccount: _,
             token_in: _,
             token_out: _,
-            recipient: _,
         } => {
             // Validate balance
             validate_balance(token_in_balance_before, *amount_in_maximum)?;
@@ -178,8 +175,7 @@ pub fn execute_swap(
             let mut token_out_transfer_fee = U256::ZERO;
 
             // Process each hop in reverse
-            let mut i = 0;
-            for swap in path.into_iter().rev() {
+            for (i, swap) in path.iter().rev().enumerate() {
                 let swap_direction = !swap.zero_for_one; // Reverse direction for exact output
                 let swap_params =
                     build_swap_params(swap.pool_id.clone(), current_amount, swap_direction);
@@ -197,12 +193,10 @@ pub fn execute_swap(
 
                 ic_cdk::println!("current_amount {:?}", current_amount);
                 swap_success_list.insert(0, hop_result);
-                i += 1;
             }
 
             // Final current_amount is the input amount
             let amount_in = current_amount;
-            let amount_out = amount_out;
 
             // Check slippage
             check_exact_output_slippage(amount_in, *amount_in_maximum)?;
@@ -224,6 +218,7 @@ pub fn execute_swap(
             swap_args: validated_swap_args.clone(),
             principal: caller,
             recipient: Some(recipient),
+            tx_id,
         },
     };
 
@@ -245,7 +240,7 @@ pub fn execute_swap(
     ))
 }
 
-//// Fetches user balances for input and output tokens.
+/// Fetches user balances for input and output tokens.
 fn fetch_user_balances(
     token_in_key: &UserBalanceKey,
     token_out_key: &UserBalanceKey,

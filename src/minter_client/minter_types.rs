@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use candid::{CandidType, Deserialize, Nat, Principal};
 use minicbor::{Decode, Encode};
 
-use crate::address::Address;
+use crate::{address::Address, cross_chain::rlp_decoder::RlpDecodeError};
 
 // Dex orders type to be sent to minter
 #[derive(CandidType, Deserialize, Clone, Debug, Encode, Decode, Eq, PartialEq, Ord, PartialOrd)]
@@ -87,15 +87,13 @@ pub struct ReceivedSwapOrderEvent {
     pub amount_in: Nat,
     #[cbor(n(8), with = "crate::cbor::nat")]
     pub amount_out: Nat,
+
     #[n(9)]
-    // specifies if funds were bridged to minter to initiate a corsschain swap or not
-    pub bridged_to_minter: bool,
-    #[n(10)]
     // the whole encoded swap transaction flow
     pub encoded_swap_data: String,
 
-    #[n(11)]
-    pub tx_swap_id: String,
+    #[n(10)]
+    pub tx_id: String,
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, Debug)]
@@ -112,4 +110,15 @@ pub struct Minter {
     pub twin_usdc_principal: Principal,
     #[n(1)]
     pub usdc_address: Address,
+}
+
+#[derive(CandidType, Deserialize, Clone, Debug, PartialEq)]
+pub enum SwapOrderCreationError {
+    InvalidFromChain,
+    InvalidToChain,
+    InvalidOriginAndDestinatoinChain,
+    FailedRlpDecoding,
+    InvalidIcpSwapStep,
+    InvalidRecipient(String),
+    InvalidRlpData(RlpDecodeError),
 }

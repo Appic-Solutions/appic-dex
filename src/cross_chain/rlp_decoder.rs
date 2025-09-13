@@ -1,18 +1,29 @@
+use candid::CandidType;
 use ethnum::U256;
 use minicbor::{Decode, Encode};
 use rlp::{DecoderError, Rlp};
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::sync::LazyLock;
 use std::time::Instant;
 
-#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash, Copy)]
 pub enum Blockchain {
     #[n(0)]
     ICP,
     #[n(1)]
     /// chain_id
     Evm(#[n(0)] u64),
+}
+
+impl Blockchain {
+    pub fn is_evm(&self) -> bool {
+        match self {
+            Blockchain::ICP => false,
+            Blockchain::Evm(_) => true,
+        }
+    }
 }
 
 impl Display for Blockchain {
@@ -81,7 +92,7 @@ pub struct QSwapData {
     pub deadline: U256,
 }
 
-#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, CandidType, Deserialize)]
 pub enum RlpDecodeError {
     #[n(0)]
     InvalidRlpData,

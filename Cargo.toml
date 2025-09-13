@@ -28,7 +28,7 @@ path = "./bin/token_order.rs"
 candid = "0.10"
 ic-cdk = "0.18.5"
 
-ic-cdk-timers = "0.11" 
+ic-cdk-timers = "0.12.2"
 ic-stable-structures="0.6.5"
 icrc-ledger-client = "0.1.3"
 

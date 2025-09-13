@@ -1,17 +1,18 @@
 use std::collections::HashSet;
 
 use candid::Principal;
-use ethnum::I256;
+use ethnum::{I256, U256};
 use icrc_ledger_types::icrc1::account::Subaccount;
 use minicbor::{Decode, Encode};
 
 use crate::{
     candid_types::swap::{SwapArgs, SwapError},
+    cross_chain::rlp_decoder::{Blockchain, CrossChainStep},
     libraries::{
         path_key::{PathKey, Swap},
         safe_cast::big_uint_to_i256,
     },
-    pool::types::PoolId,
+    pool::types::{PoolFee, PoolId},
     state::read_state,
     swap::get_token_in_out,
 };
@@ -34,8 +35,6 @@ pub enum ValidatedSwapArgs {
         token_in: Principal,
         #[cbor(n(6), with = "crate::cbor::principal")]
         token_out: Principal,
-        #[cbor(n(7), with = "crate::cbor::principal::option")]
-        recipient: Option<Principal>,
     },
     #[n(1)]
     ExactInput {
@@ -52,8 +51,6 @@ pub enum ValidatedSwapArgs {
         token_in: Principal,
         #[cbor(n(5), with = "crate::cbor::principal")]
         token_out: Principal,
-        #[cbor(n(6), with = "crate::cbor::principal::option")]
-        recipient: Option<Principal>,
     },
     #[n(2)]
     ExactOutputSingle {
@@ -71,8 +68,6 @@ pub enum ValidatedSwapArgs {
         token_in: Principal,
         #[cbor(n(6), with = "crate::cbor::principal")]
         token_out: Principal,
-        #[cbor(n(7), with = "crate::cbor::principal::option")]
-        recipient: Option<Principal>,
     },
     #[n(3)]
     ExactOutput {
@@ -89,8 +84,6 @@ pub enum ValidatedSwapArgs {
         token_in: Principal,
         #[cbor(n(5), with = "crate::cbor::principal")]
         token_out: Principal,
-        #[cbor(n(6), with = "crate::cbor::principal::option")]
-        recipient: Option<Principal>,
     },
 }
 
@@ -141,16 +134,6 @@ impl ValidatedSwapArgs {
             } => *from_subaccount,
         }
     }
-
-    pub fn recipient(&self) -> Option<Principal> {
-        match self {
-            ValidatedSwapArgs::ExactInputSingle { recipient, .. } => *recipient,
-            ValidatedSwapArgs::ExactInput { recipient, .. } => *recipient,
-            ValidatedSwapArgs::ExactOutputSingle { recipient, .. } => *recipient,
-            ValidatedSwapArgs::ExactOutput { recipient, .. } => *recipient,
-            ValidatedSwapArgs::ExactOutput { recipient, .. } => *recipient,
-        }
-    }
 }
 
 // in multi hop swaps the maximum number of hops(swaps) should be <= MAX_PATH_LENGTH
@@ -191,7 +174,6 @@ pub fn validate_swap_args(args: SwapArgs) -> Result<ValidatedSwapArgs, SwapError
                 from_subaccount: exact_input_single_params.from_subaccount,
                 token_in,
                 token_out,
-                recipient: exact_input_single_params.recipient,
             })
         }
         SwapArgs::ExactInput(exact_input_params) => {
@@ -246,7 +228,6 @@ pub fn validate_swap_args(args: SwapArgs) -> Result<ValidatedSwapArgs, SwapError
                 from_subaccount: exact_input_params.from_subaccount,
                 token_in: exact_input_params.token_in,
                 token_out,
-                recipient: exact_input_params.recipient,
             })
         }
         SwapArgs::ExactOutputSingle(exact_output_single_params) => {
@@ -278,7 +259,6 @@ pub fn validate_swap_args(args: SwapArgs) -> Result<ValidatedSwapArgs, SwapError
                 from_subaccount: exact_output_single_params.from_subaccount,
                 token_in,
                 token_out,
-                recipient: exact_output_single_params.recipient,
             })
         }
         SwapArgs::ExactOutput(exact_output_params) => {
@@ -336,7 +316,6 @@ pub fn validate_swap_args(args: SwapArgs) -> Result<ValidatedSwapArgs, SwapError
                 from_subaccount: exact_output_params.from_subaccount,
                 token_out,
                 token_in,
-                recipient: exact_output_params.recipient,
             })
         }
     }
@@ -345,4 +324,141 @@ pub fn validate_swap_args(args: SwapArgs) -> Result<ValidatedSwapArgs, SwapError
 fn all_unique<T: Eq + std::hash::Hash>(vec: &[T]) -> bool {
     let set: HashSet<_> = vec.iter().collect();
     set.len() == vec.len()
+}
+
+pub fn create_validated_swap_args_from_rlp_swap_step(
+    CrossChainStep {
+        chain_id,
+        amount_in: _,
+        amount_out: _,
+        min_amount_out,
+        slippage: _,
+        gas_limit: _,
+        max_gas_fee: _,
+        gas_price_usd: _,
+        canister_fee_usd: _,
+        route,
+        qswap_data: _,
+    }: CrossChainStep,
+    real_amount_in: U256,
+) -> Result<ValidatedSwapArgs, SwapError> {
+    if chain_id != Blockchain::ICP {
+        return Err(SwapError::InvalidSwapChain);
+    }
+
+    let amount_in: I256 = real_amount_in
+        .try_into()
+        .map_err(|_| SwapError::InvalidAmountIn)?;
+
+    let amount_out_minimum: I256 = min_amount_out
+        .unwrap_or(U256::ZERO)
+        .try_into()
+        .map_err(|_| SwapError::InvalidAmountOutMinimum)?;
+
+    if route.is_empty() {
+        Err(SwapError::InvalidRoute)
+    } else if route.len() == 1 {
+        // single hop
+        let token_in =
+            Principal::from_text(&route[0].buy_token).map_err(|_| SwapError::InvalidTokenIn)?;
+
+        let token_out =
+            Principal::from_text(&route[0].sell_token).map_err(|_| SwapError::InvalidTokenIn)?;
+
+        let fee = PoolFee(route[0].fee);
+
+        let (token0, token1) = if token_in < token_out {
+            (token_in, token_out)
+        } else {
+            (token_out, token_in)
+        };
+
+        let zero_for_one = token_in == token0;
+
+        let pool_id: PoolId = PoolId {
+            token0,
+            token1,
+            fee,
+        };
+
+        let pool = read_state(|s| s.get_pool(&pool_id)).ok_or(SwapError::PoolNotInitialized)?;
+        // In case in range liquidity is 0
+        if pool.liquidity == 0 {
+            return Err(SwapError::NoInRangeLiquidity);
+        }
+
+        Ok(ValidatedSwapArgs::ExactInputSingle {
+            pool_id,
+            zero_for_one,
+            amount_in,
+            amount_out_minimum,
+            from_subaccount: None,
+            token_in,
+            token_out,
+        })
+    } else if route.len() as u8 > MAX_PATH_LENGTH {
+        return Err(SwapError::PathLengthTooBig {
+            maximum: MAX_PATH_LENGTH,
+            received: route.len() as u8,
+        });
+    } else {
+        let token_in =
+            Principal::from_text(&route[0].sell_token).map_err(|_| SwapError::InvalidTokenIn)?;
+
+        let mut token_out = token_in;
+        let mut swap_path: Vec<Swap> = vec![];
+
+        for swap in route.iter() {
+            // single hop
+            let hop_token_in =
+                Principal::from_text(&swap.buy_token).map_err(|_| SwapError::InvalidTokenIn)?;
+
+            let hop_token_out =
+                Principal::from_text(&swap.sell_token).map_err(|_| SwapError::InvalidTokenIn)?;
+
+            let fee = PoolFee(swap.fee);
+
+            let (token0, token1) = if hop_token_in < hop_token_out {
+                (hop_token_in, hop_token_out)
+            } else {
+                (hop_token_out, hop_token_in)
+            };
+
+            let zero_for_one = token_in == token0;
+
+            let pool_id: PoolId = PoolId {
+                token0,
+                token1,
+                fee,
+            };
+
+            let pool = read_state(|s| s.get_pool(&pool_id)).ok_or(SwapError::PoolNotInitialized)?;
+            // In case in range liquidity is 0
+            if pool.liquidity == 0 {
+                return Err(SwapError::NoInRangeLiquidity);
+            }
+
+            swap_path.push(Swap {
+                pool_id,
+                zero_for_one,
+            });
+
+            token_out = hop_token_out;
+        }
+
+        // there should not be a duplication in swap path, meaning users can not swap using the
+        // same pool twice or more in a single swap transaction.
+        if !all_unique(&swap_path) {
+            return Err(SwapError::PathDuplicated);
+        }
+
+        Ok(ValidatedSwapArgs::ExactInput {
+            path: swap_path,
+            amount_in,
+            amount_out_minimum,
+            from_subaccount: None,
+            token_in,
+            token_out,
+        })
+    }
 }

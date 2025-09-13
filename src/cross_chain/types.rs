@@ -1,11 +1,11 @@
-use candid::Principal;
+use candid::{Nat, Principal};
 use ethnum::U256;
 use minicbor::{Decode, Encode};
 
 use crate::{
     address::Address,
     cross_chain::rlp_decoder::{CrossChainQuote, CrossChainStep},
-    minter_client::minter_types::{DexOrderArgs, MinterKey, ReceivedSwapOrderEvent},
+    minter_client::minter_types::{MinterKey, ReceivedSwapOrderEvent},
     swap_id::SwapTxId,
     validation::swap_args::ValidatedSwapArgs,
 };
@@ -65,8 +65,6 @@ pub enum CrosschainSwapOrder {
         #[n(5)]
         evm_swap_step: CrossChainStep,
         #[n(6)]
-        from_minter: MinterKey,
-        #[n(7)]
         to_minter: MinterKey,
     },
 }
@@ -80,15 +78,29 @@ pub struct RecievedSwapOrders {
 }
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
-pub struct FailedMinterTransferNotifies {
+pub struct RetryFailedDexOrder {
     #[n(0)]
-    tx_id: SwapTxId,
+    pub tx_id: SwapTxId,
     #[cbor(n(1), with = "crate::cbor::principal")]
-    transfer_token: Principal,
-    #[cbor(n(2), with = "crate::cbor::u256")]
-    transfer_amount: U256,
-    #[cbor(n(3), with = "crate::cbor::principal")]
-    minter_id: Principal,
-    #[n(4)]
-    dex_order_to_send: DexOrderArgs,
+    pub token_in: Principal,
+    #[cbor(n(2), with = "crate::cbor::principal")]
+    pub minter_id: Principal,
+    #[cbor(n(3), with = "crate::cbor::u256")]
+    pub amount_in: U256,
+    #[cbor(n(4), with = "crate::cbor::u256")]
+    pub min_amount_out: U256,
+    #[n(5)]
+    pub commands: Vec<u8>,
+    #[n(6)]
+    pub commands_data: Vec<String>,
+    #[n(7)]
+    pub max_gas_fee_usd: Option<String>,
+    #[cbor(n(8), with = "crate::cbor::u256")]
+    pub gas_limit: U256,
+    #[cbor(n(9), with = "crate::cbor::u256")]
+    pub deadline: U256,
+    #[n(10)]
+    pub recipient: String,
+    #[cbor(n(11), with = "crate::cbor::nat::option")]
+    pub erc20_ledger_burn_index: Option<Nat>,
 }

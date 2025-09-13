@@ -1,7 +1,8 @@
-use std::time::Duration;
+use std::{str::FromStr, time::Duration};
 
 use appic_dex::{
-    balances::types::{UserBalance, UserBalanceKey},
+    address::Address,
+    balances::types::UserBalanceKey,
     burn::execute_burn_position,
     candid_types::{
         events::{CandidEvent, GetEventsArg, GetEventsResult},
@@ -18,6 +19,12 @@ use appic_dex::{
         Balance, DepositArgs, DepositError, UserBalanceArgs, WithdrawArgs, WithdrawError,
     },
     collect_fees::execute_collect_fees,
+    cross_chain::{
+        execute_crosshcain_swap,
+        parser::{parse_recipient, FixedSizeData},
+        rlp_decoder::{self, Blockchain, RlpDecodeError},
+        types::CrosschainSwapOrder,
+    },
     decrease_liquidity::execute_decrease_liquidity,
     deposit::{_deposit, _deposit_if_needed},
     guard::PrincipalGuard,
@@ -33,6 +40,7 @@ use appic_dex::{
     },
     logs::DEBUG,
     mint::execute_mint_position,
+    minter_client::minter_types::{MinterKey, ReceivedSwapOrderEvent, SwapOrderCreationError},
     pool::{
         create_pool::create_pool_inner,
         types::{PoolFee, PoolId, PoolTickSpacing},
@@ -45,17 +53,21 @@ use appic_dex::{
     },
     state::{get_user_balance, mutate_state, read_state},
     swap::execute_swap,
+    swap_id::SwapTxId,
     validation::{
-        burn_args::validate_burn_position_args, decrease_args::validate_decrease_liquidity_args,
-        increase_args::validate_increase_liquidity_args, mint_args::validate_mint_position_args,
-        swap_args::validate_swap_args,
+        burn_args::validate_burn_position_args,
+        decrease_args::validate_decrease_liquidity_args,
+        increase_args::validate_increase_liquidity_args,
+        mint_args::validate_mint_position_args,
+        swap_args::{
+            create_validated_swap_args_from_rlp_swap_step, validate_swap_args, ValidatedSwapArgs,
+        },
     },
     withdraw::{_refund, _withdraw},
 };
 
 use candid::{Nat, Principal};
 use ethnum::{I256, U256};
-use ic_canister_log::log;
 use ic_cdk::{init, post_upgrade, query, update};
 use icrc_ledger_types::icrc1::account::Account;
 
@@ -737,11 +749,11 @@ async fn decrease_liquidity(args: DecreaseLiquidityArgs) -> Result<(), DecreaseL
 // Executes a token swap, deposits input, withdraws output, refunds on failure
 #[update]
 async fn swap(args: SwapArgs) -> Result<CandidSwapSuccess, SwapError> {
+    let caller = validate_caller_not_anonymous();
+    let recipient = &args.recipient().unwrap_or(caller);
+
     let validated_swap_args = validate_swap_args(args)?;
     ic_cdk::println!("{:?}", validated_swap_args);
-    let caller = validate_caller_not_anonymous();
-
-    let recipient = validated_swap_args.recipient().unwrap_or(caller);
 
     // Uses swap-specific lock to allow concurrent swaps but blocks other operations by the same
     // user(mint, increase, decrease, collect fees, bunr)
@@ -778,7 +790,7 @@ async fn swap(args: SwapArgs) -> Result<CandidSwapSuccess, SwapError> {
         token_out,
         caller,
         timestamp,
-        recipient,
+        *recipient,
     );
 
     match swap_result {
@@ -787,7 +799,7 @@ async fn swap(args: SwapArgs) -> Result<CandidSwapSuccess, SwapError> {
             _withdraw(
                 token_out,
                 swap_delta.1.as_u256(),
-                recipient,
+                *recipient,
                 &mut WithdrawMemo::SwapOut { amount: U256::ZERO },
                 swap_delta.2,
             )
@@ -943,6 +955,138 @@ async fn withdraw(withdraw_args: WithdrawArgs) -> Result<Nat, WithdrawError> {
     )
     .await
     .map(u256_to_nat)
+}
+
+// swap orders that come from minters to execute a crosschain swap
+async fn minter_order(
+    ReceivedSwapOrderEvent {
+        transaction_hash,
+        block_number,
+        log_index,
+        from_address,
+        recipient,
+        token_in,
+        token_out,
+        amount_in,
+        amount_out,
+        encoded_swap_data,
+        tx_id,
+    }: ReceivedSwapOrderEvent,
+) -> Result<(), SwapOrderCreationError> {
+    let caller = ic_cdk::api::msg_caller();
+
+    let from_minter = read_state(|s| s.get_minter_by_principla(caller))
+        .expect("Only valid minter can call this functuin");
+
+    // we put the amount in of the next step as the amount out of previous step
+    let amount_in =
+        big_uint_to_u256(amount_out.0).expect("expected a valid number from amount_out");
+
+    let from_address =
+        Address::from_str(&from_address).expect("Bug: from address can not be invalid");
+
+    let create_swap_order_result: Result<CrosschainSwapOrder, SwapOrderCreationError> =
+        match rlp_decoder::RlpDecoder::decode_cross_chain_data(&encoded_swap_data) {
+            Ok(crosschain_quote) => {
+                if crosschain_quote.steps[0].chain_id == Blockchain::ICP {
+                    //Err(RlpDecodeError::InvalidRlpData);
+                    todo!()
+                };
+
+                let swap_steps = crosschain_quote.steps.len();
+
+                if swap_steps < 2 {
+                    return Err(SwapOrderCreationError::InvalidRlpData(
+                        RlpDecodeError::MissingField,
+                    ));
+                }
+
+                let from_chain = crosschain_quote.steps[0].chain_id;
+
+                let to_chain = crosschain_quote.steps[swap_steps - 1].chain_id;
+
+                if from_chain == to_chain {
+                    return Err(SwapOrderCreationError::InvalidOriginAndDestinatoinChain);
+                }
+
+                let parsed_recepient = parse_recipient(&recipient, to_chain)
+                    .map_err(SwapOrderCreationError::InvalidRecipient)?;
+
+                if swap_steps == 2 && to_chain == Blockchain::ICP {
+                    // EVM to ICP quote
+                    let icp_swap_request = create_validated_swap_args_from_rlp_swap_step(
+                        crosschain_quote.steps[1].clone(),
+                        amount_in,
+                    )
+                    .map_err(|_| SwapOrderCreationError::InvalidIcpSwapStep)?;
+
+                    Ok(CrosschainSwapOrder::EvmToIcp {
+                        tx_id: SwapTxId(tx_id),
+                        from_address,
+                        recipient: parsed_recepient,
+                        icp_swap_request,
+                        from_minter,
+                    })
+                } else if swap_steps == 3 && to_chain.is_evm() {
+                    // evm to evm
+                    let to_minter = match to_chain {
+                        Blockchain::ICP => {
+                            // err
+                            return Err(SwapOrderCreationError::InvalidToChain);
+                        }
+                        Blockchain::Evm(chain_id) => {
+                            let minter_info = read_state(|s| {
+                                s.get_minter(&MinterKey {
+                                    chain_id,
+                                    id: caller,
+                                })
+                            });
+                            if minter_info.is_some() {
+                                MinterKey {
+                                    chain_id,
+                                    id: caller,
+                                }
+                            } else {
+                                //err
+                                return Err(SwapOrderCreationError::InvalidToChain);
+                            }
+                        }
+                    };
+
+                    let icp_swap_request = create_validated_swap_args_from_rlp_swap_step(
+                        crosschain_quote.steps[1].clone(),
+                        amount_in,
+                    )
+                    .map_err(|_| SwapOrderCreationError::InvalidIcpSwapStep)?;
+
+                    Ok(CrosschainSwapOrder::EvmToEvm {
+                        tx_id: SwapTxId(tx_id),
+                        from_address,
+                        recipient: parsed_recepient,
+                        icp_swap_request,
+                        evm_swap_step: crosschain_quote.steps[2].clone(),
+                        from_minter,
+                        to_minter,
+                    })
+                } else {
+                    // unknow swap
+                    return Err(SwapOrderCreationError::InvalidOriginAndDestinatoinChain);
+                }
+            }
+            Err(err) => Err(SwapOrderCreationError::InvalidRlpData(err)),
+        };
+
+    match create_swap_order_result {
+        Ok(swap_order) => {
+            ic_cdk_timers::set_timer(Duration::from_secs(0), || {
+                ic_cdk::futures::spawn_017_compat(execute_crosshcain_swap(swap_order))
+            });
+            Ok(())
+        }
+        Err(_) => {
+            todo!()
+        }
+    }
 }
 
 fn main() {}
