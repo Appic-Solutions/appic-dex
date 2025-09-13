@@ -28,6 +28,8 @@ pub struct DexOrderArgs {
     pub recipient: String,
     #[cbor(n(9), with = "crate::cbor::nat")]
     pub erc20_ledger_burn_index: Nat,
+    #[n(10)]
+    pub is_refund: bool,
 }
 
 #[derive(CandidType, Deserialize, Clone, Debug, PartialEq, Encode, Decode)]
@@ -64,7 +66,7 @@ pub enum DexOrderError {
 }
 
 // a fetched swap event from the swap contract logs
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, Debug)]
+#[derive(CandidType, Deserialize, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, Debug, Clone)]
 pub struct ReceivedSwapOrderEvent {
     #[n(0)]
     pub transaction_hash: String,
@@ -82,6 +84,7 @@ pub struct ReceivedSwapOrderEvent {
     pub token_in: String,
     #[n(6)]
     pub token_out: String,
+
     #[cbor(n(7), with = "crate::cbor::nat")]
     // amount in on the initial swap
     pub amount_in: Nat,
@@ -114,9 +117,12 @@ pub struct Minter {
 
 #[derive(CandidType, Deserialize, Clone, Debug, PartialEq)]
 pub enum SwapOrderCreationError {
-    InvalidFromChain,
+    InvalidMinter,
+    InvalidAmountOut,
+    InvalidFromAddress,
+    InvalidOriginChain,
     InvalidToChain,
-    InvalidOriginAndDestinatoinChain,
+    InvalidOriginAndDestinationChain,
     FailedRlpDecoding,
     InvalidIcpSwapStep,
     InvalidRecipient(String),

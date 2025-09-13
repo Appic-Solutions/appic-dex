@@ -103,4 +103,6 @@ pub struct RetryFailedDexOrder {
     pub recipient: String,
     #[cbor(n(11), with = "crate::cbor::nat::option")]
     pub erc20_ledger_burn_index: Option<Nat>,
+    #[n(12)]
+    pub is_refund: bool,
 }

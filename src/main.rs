@@ -2,7 +2,7 @@ use std::{str::FromStr, time::Duration};
 
 use appic_dex::{
     address::Address,
-    balances::types::UserBalanceKey,
+    balances::types::{UserBalance, UserBalanceKey},
     burn::execute_burn_position,
     candid_types::{
         events::{CandidEvent, GetEventsArg, GetEventsResult},
@@ -20,10 +20,11 @@ use appic_dex::{
     },
     collect_fees::execute_collect_fees,
     cross_chain::{
-        execute_crosshcain_swap,
-        parser::{parse_recipient, FixedSizeData},
+        _transfer_to_minter, execute_crosschain_swap,
+        parser::parse_recipient,
         rlp_decoder::{self, Blockchain, RlpDecodeError},
-        types::CrosschainSwapOrder,
+        types::{CrosschainSwapOrder, RetryFailedDexOrder},
+        REFUND_FAILED_SWAP_GAS_LIMIT, UNLIMITED_DEADLINE,
     },
     decrease_liquidity::execute_decrease_liquidity,
     deposit::{_deposit, _deposit_if_needed},
@@ -40,7 +41,10 @@ use appic_dex::{
     },
     logs::DEBUG,
     mint::execute_mint_position,
-    minter_client::minter_types::{MinterKey, ReceivedSwapOrderEvent, SwapOrderCreationError},
+    minter_client::{
+        minter_types::{DexOrderArgs, MinterKey, ReceivedSwapOrderEvent, SwapOrderCreationError},
+        MinterClient,
+    },
     pool::{
         create_pool::create_pool_inner,
         types::{PoolFee, PoolId, PoolTickSpacing},
@@ -68,6 +72,7 @@ use appic_dex::{
 
 use candid::{Nat, Principal};
 use ethnum::{I256, U256};
+use ic_canister_log::log;
 use ic_cdk::{init, post_upgrade, query, update};
 use icrc_ledger_types::icrc1::account::Account;
 
@@ -791,6 +796,7 @@ async fn swap(args: SwapArgs) -> Result<CandidSwapSuccess, SwapError> {
         caller,
         timestamp,
         *recipient,
+        None,
     );
 
     match swap_result {
@@ -957,7 +963,8 @@ async fn withdraw(withdraw_args: WithdrawArgs) -> Result<Nat, WithdrawError> {
     .map(u256_to_nat)
 }
 
-// swap orders that come from minters to execute a crosschain swap
+// Swap orders that come from minters to execute a crosschain swap.
+#[update]
 async fn minter_order(
     ReceivedSwapOrderEvent {
         transaction_hash,
@@ -973,118 +980,214 @@ async fn minter_order(
         tx_id,
     }: ReceivedSwapOrderEvent,
 ) -> Result<(), SwapOrderCreationError> {
+    log!(
+        DEBUG,
+        "[minter_order]: Processing swap order event for tx_id: {:?}",
+        tx_id
+    );
     let caller = ic_cdk::api::msg_caller();
+    let (from_minter, from_minter_info) = read_state(|s| s.get_minter_by_principal(caller))
+        .ok_or(SwapOrderCreationError::InvalidMinter)?;
 
-    let from_minter = read_state(|s| s.get_minter_by_principla(caller))
-        .expect("Only valid minter can call this functuin");
-
-    // we put the amount in of the next step as the amount out of previous step
+    let token_in_icp_step = from_minter_info.twin_usdc_principal;
     let amount_in =
-        big_uint_to_u256(amount_out.0).expect("expected a valid number from amount_out");
+        big_uint_to_u256(amount_out.0).map_err(|_| SwapOrderCreationError::InvalidAmountOut)?;
 
     let from_address =
-        Address::from_str(&from_address).expect("Bug: from address can not be invalid");
+        Address::from_str(&from_address).map_err(|_| SwapOrderCreationError::InvalidFromAddress)?;
+
+    // Updates minter balance, caps at U256::MAX to prevent overflow
+    let latest_minter_balance = get_user_balance(from_minter.id, token_in_icp_step);
+    mutate_state(|s| {
+        s.update_user_balance(
+            UserBalanceKey {
+                user: from_minter.id,
+                token: token_in_icp_step,
+            },
+            UserBalance(
+                latest_minter_balance
+                    .checked_add(amount_in)
+                    .unwrap_or(U256::MAX),
+            ),
+        );
+    });
 
     let create_swap_order_result: Result<CrosschainSwapOrder, SwapOrderCreationError> =
         match rlp_decoder::RlpDecoder::decode_cross_chain_data(&encoded_swap_data) {
             Ok(crosschain_quote) => {
                 if crosschain_quote.steps[0].chain_id == Blockchain::ICP {
-                    //Err(RlpDecodeError::InvalidRlpData);
-                    todo!()
-                };
-
+                    return Err(SwapOrderCreationError::InvalidOriginChain);
+                }
                 let swap_steps = crosschain_quote.steps.len();
-
                 if swap_steps < 2 {
                     return Err(SwapOrderCreationError::InvalidRlpData(
                         RlpDecodeError::MissingField,
                     ));
                 }
-
                 let from_chain = crosschain_quote.steps[0].chain_id;
-
                 let to_chain = crosschain_quote.steps[swap_steps - 1].chain_id;
-
                 if from_chain == to_chain {
-                    return Err(SwapOrderCreationError::InvalidOriginAndDestinatoinChain);
+                    return Err(SwapOrderCreationError::InvalidOriginAndDestinationChain);
                 }
 
-                let parsed_recepient = parse_recipient(&recipient, to_chain)
+                let parsed_recipient = parse_recipient(&recipient, to_chain)
                     .map_err(SwapOrderCreationError::InvalidRecipient)?;
-
                 if swap_steps == 2 && to_chain == Blockchain::ICP {
                     // EVM to ICP quote
                     let icp_swap_request = create_validated_swap_args_from_rlp_swap_step(
                         crosschain_quote.steps[1].clone(),
                         amount_in,
+                        token_in_icp_step,
                     )
                     .map_err(|_| SwapOrderCreationError::InvalidIcpSwapStep)?;
-
                     Ok(CrosschainSwapOrder::EvmToIcp {
-                        tx_id: SwapTxId(tx_id),
+                        tx_id: SwapTxId(tx_id.clone()),
                         from_address,
-                        recipient: parsed_recepient,
+                        recipient: parsed_recipient,
                         icp_swap_request,
-                        from_minter,
+                        from_minter: from_minter.clone(),
                     })
                 } else if swap_steps == 3 && to_chain.is_evm() {
-                    // evm to evm
-                    let to_minter = match to_chain {
-                        Blockchain::ICP => {
-                            // err
-                            return Err(SwapOrderCreationError::InvalidToChain);
-                        }
-                        Blockchain::Evm(chain_id) => {
-                            let minter_info = read_state(|s| {
-                                s.get_minter(&MinterKey {
-                                    chain_id,
-                                    id: caller,
-                                })
-                            });
-                            if minter_info.is_some() {
-                                MinterKey {
-                                    chain_id,
-                                    id: caller,
-                                }
-                            } else {
-                                //err
-                                return Err(SwapOrderCreationError::InvalidToChain);
-                            }
-                        }
+                    // EVM to EVM quote
+                    let to_chain_id = match to_chain {
+                        Blockchain::Evm(chain_id) => chain_id,
+                        _ => return Err(SwapOrderCreationError::InvalidToChain),
                     };
+
+                    let (to_minter, _) = read_state(|s| s.get_minter_by_chain_id(to_chain_id))
+                        .ok_or(SwapOrderCreationError::InvalidToChain)?;
 
                     let icp_swap_request = create_validated_swap_args_from_rlp_swap_step(
                         crosschain_quote.steps[1].clone(),
                         amount_in,
+                        token_in_icp_step,
                     )
                     .map_err(|_| SwapOrderCreationError::InvalidIcpSwapStep)?;
-
                     Ok(CrosschainSwapOrder::EvmToEvm {
-                        tx_id: SwapTxId(tx_id),
+                        tx_id: SwapTxId(tx_id.clone()),
                         from_address,
-                        recipient: parsed_recepient,
+                        recipient: parsed_recipient,
                         icp_swap_request,
                         evm_swap_step: crosschain_quote.steps[2].clone(),
-                        from_minter,
+                        from_minter: from_minter.clone(),
                         to_minter,
                     })
                 } else {
-                    // unknow swap
-                    return Err(SwapOrderCreationError::InvalidOriginAndDestinatoinChain);
+                    // Unknown swap configuration
+                    Err(SwapOrderCreationError::InvalidOriginAndDestinationChain)
                 }
             }
             Err(err) => Err(SwapOrderCreationError::InvalidRlpData(err)),
         };
-
     match create_swap_order_result {
         Ok(swap_order) => {
+            log!(
+                DEBUG,
+                "[minter_order]: Successfully created swap order for tx_id: {:?}. Scheduling execution.",
+                tx_id
+            );
             ic_cdk_timers::set_timer(Duration::from_secs(0), || {
-                ic_cdk::futures::spawn_017_compat(execute_crosshcain_swap(swap_order))
+                ic_cdk::futures::spawn_017_compat(execute_crosschain_swap(swap_order))
             });
             Ok(())
         }
-        Err(_) => {
-            todo!()
+        Err(create_err) => {
+            log!(
+                DEBUG,
+                "[minter_order]: Failed to create swap order for tx_id: {:?} with error: {:?}. Initiating refund.",
+                tx_id,
+                create_err
+            );
+            let mut memo = WithdrawMemo::TransferToMinter {
+                amount: amount_in,
+                tx_id: SwapTxId(tx_id.clone()),
+            };
+            let erc20_ledger_burn_index = match _transfer_to_minter(
+                token_in_icp_step,
+                amount_in,
+                from_minter.id,
+                &mut memo,
+            )
+            .await
+            {
+                Ok(erc20_ledger_burn_index) => erc20_ledger_burn_index,
+                Err(transfer_err) => {
+                    log!(
+                        DEBUG,
+                        "[minter_order]: Refund transfer to origin minter failed for tx_id: {:?} with error: {:?}. Recording for retry.",
+                        tx_id,
+                        transfer_err
+                    );
+                    mutate_state(|s| {
+                        s.record_failed_dex_order_to_retry(RetryFailedDexOrder {
+                            tx_id: SwapTxId(tx_id),
+                            minter_id: from_minter.id,
+                            token_in: token_in_icp_step,
+                            amount_in,
+                            min_amount_out: amount_in,
+                            deadline: UNLIMITED_DEADLINE.into(),
+                            recipient: from_address.to_string(),
+                            erc20_ledger_burn_index: None,
+                            commands: vec![],
+                            commands_data: vec![],
+                            max_gas_fee_usd: None,
+                            gas_limit: REFUND_FAILED_SWAP_GAS_LIMIT.into(),
+                            is_refund: true,
+                        })
+                    });
+                    return Ok(());
+                }
+            };
+            let dex_order = DexOrderArgs {
+                tx_id: tx_id.clone(),
+                amount_in: u256_to_nat(amount_in),
+                min_amount_out: u256_to_nat(amount_in),
+                commands: vec![],
+                commands_data: vec![],
+                max_gas_fee_usd: None,
+                gas_limit: u256_to_nat(REFUND_FAILED_SWAP_GAS_LIMIT.into()),
+                deadline: u256_to_nat(UNLIMITED_DEADLINE.into()),
+                recipient: from_address.to_string(),
+                erc20_ledger_burn_index: erc20_ledger_burn_index.clone(),
+                is_refund: true,
+            };
+            let minter_client = MinterClient::new(from_minter.id);
+            match minter_client.dex_order(&dex_order).await {
+                Ok(_) => {
+                    log!(
+                        DEBUG,
+                        "[minter_order]: Successfully notified origin minter for refund on tx_id: {:?}.",
+                        tx_id
+                    );
+                    // TODO: Record successful refund on the ICP side.
+                }
+                Err(notify_err) => {
+                    log!(
+                        DEBUG,
+                        "[minter_order]: Failed to notify origin minter for refund on tx_id: {:?} with error: {:?}. Recording for retry.",
+                        tx_id,
+                        notify_err
+                    );
+                    mutate_state(|s| {
+                        s.record_failed_dex_order_to_retry(RetryFailedDexOrder {
+                            tx_id: SwapTxId(tx_id),
+                            minter_id: from_minter.id,
+                            token_in: token_in_icp_step,
+                            amount_in,
+                            min_amount_out: amount_in,
+                            deadline: UNLIMITED_DEADLINE.into(),
+                            recipient: from_address.to_string(),
+                            erc20_ledger_burn_index: Some(erc20_ledger_burn_index),
+                            commands: vec![],
+                            commands_data: vec![],
+                            max_gas_fee_usd: None,
+                            gas_limit: REFUND_FAILED_SWAP_GAS_LIMIT.into(),
+                            is_refund: true,
+                        })
+                    });
+                }
+            }
+            Ok(())
         }
     }
 }

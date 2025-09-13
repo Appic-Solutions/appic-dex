@@ -21,7 +21,7 @@ use crate::{
     },
     position::types::{PositionInfo, PositionKey},
     state::memory_manager::{
-        minters_memory_id, received_swap_orders_memory_id, refund_crosschain_swaps_memory_id,
+        minters_memory_id, received_swap_orders_memory_id, retry_failed_dex_order,
     },
     swap_id::SwapTxId,
     tick::{
@@ -58,7 +58,7 @@ thread_local! {
         minters:BTreeMap::init(minters_memory_id()),
 
         received_swap_orders:BTreeMap::init(received_swap_orders_memory_id()),
-        dex_orders_to_retry:BTreeMap::init(refund_crosschain_swaps_memory_id())
+        dex_orders_to_retry:BTreeMap::init(retry_failed_dex_order())
     }));
 }
 
@@ -363,18 +363,21 @@ impl State {
         self.minters.get(key)
     }
 
-    pub fn get_minter_by_principla(&self, minter: Principal) -> std::option::Option<MinterKey> {
+    pub fn get_minter_by_principal(&self, minter: Principal) -> Option<(MinterKey, Minter)> {
+        self.minters.iter().find(|(key, _)| key.id == minter)
+    }
+
+    pub fn get_minter_by_chain_id(&self, chain_id: u64) -> Option<(MinterKey, Minter)> {
         self.minters
             .iter()
-            .find(|(key, _)| key.id == minter)
-            .map(|(key, _)| key)
+            .find(|(key, _)| key.chain_id == chain_id)
     }
 
     pub fn record_failed_dex_order_to_retry(&mut self, value: RetryFailedDexOrder) {
         self.dex_orders_to_retry.insert(value.tx_id.clone(), value);
     }
 
-    pub fn remove_failed_dex_order_to_retry(&mut self, tx_id: SwapTxId) {
+    pub fn remove_failed_dex_order_to_retry(&mut self, tx_id: &SwapTxId) {
         self.dex_orders_to_retry.remove(tx_id);
     }
 }

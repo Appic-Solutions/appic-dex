@@ -67,6 +67,7 @@ pub enum CandidEventType {
         swap_type: SwapType,
         principal: Principal,
         recipient: Option<Principal>,
+        tx_id: Option<String>,
     },
 }
 
@@ -168,6 +169,7 @@ impl From<Event> for CandidEvent {
                 swap_args,
                 principal,
                 recipient,
+                tx_id,
             } => {
                 let (swap_type, token_in, token_out) = match swap_args {
                     validation::swap_args::ValidatedSwapArgs::ExactInputSingle {
@@ -238,6 +240,7 @@ impl From<Event> for CandidEvent {
                     swap_type,
                     principal,
                     recipient,
+                    tx_id: tx_id.map(|swap| swap.0),
                 }
             }
         };

@@ -341,6 +341,7 @@ pub fn create_validated_swap_args_from_rlp_swap_step(
         qswap_data: _,
     }: CrossChainStep,
     real_amount_in: U256,
+    token_in_on_icp: Principal,
 ) -> Result<ValidatedSwapArgs, SwapError> {
     if chain_id != Blockchain::ICP {
         return Err(SwapError::InvalidSwapChain);
@@ -362,8 +363,12 @@ pub fn create_validated_swap_args_from_rlp_swap_step(
         let token_in =
             Principal::from_text(&route[0].buy_token).map_err(|_| SwapError::InvalidTokenIn)?;
 
+        if token_in != token_in_on_icp {
+            return Err(SwapError::InvalidTokenIn);
+        }
+
         let token_out =
-            Principal::from_text(&route[0].sell_token).map_err(|_| SwapError::InvalidTokenIn)?;
+            Principal::from_text(&route[0].sell_token).map_err(|_| SwapError::InvalidTokenOut)?;
 
         let fee = PoolFee(route[0].fee);
 
@@ -405,6 +410,10 @@ pub fn create_validated_swap_args_from_rlp_swap_step(
         let token_in =
             Principal::from_text(&route[0].sell_token).map_err(|_| SwapError::InvalidTokenIn)?;
 
+        if token_in != token_in_on_icp {
+            return Err(SwapError::InvalidTokenIn);
+        }
+
         let mut token_out = token_in;
         let mut swap_path: Vec<Swap> = vec![];
 
@@ -414,7 +423,7 @@ pub fn create_validated_swap_args_from_rlp_swap_step(
                 Principal::from_text(&swap.buy_token).map_err(|_| SwapError::InvalidTokenIn)?;
 
             let hop_token_out =
-                Principal::from_text(&swap.sell_token).map_err(|_| SwapError::InvalidTokenIn)?;
+                Principal::from_text(&swap.sell_token).map_err(|_| SwapError::InvalidTokenOut)?;
 
             let fee = PoolFee(swap.fee);
 

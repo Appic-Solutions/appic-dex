@@ -102,6 +102,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                     deadline: qswap_data.deadline,
                                     recipient,
                                     erc20_ledger_burn_index: None,
+                                    is_refund: false,
                                 })
                             });
                             return;
@@ -120,6 +121,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                         deadline: u256_to_nat(qswap_data.deadline),
                         recipient: recipient.clone(),
                         erc20_ledger_burn_index: erc20_ledger_burn_index.clone(),
+                        is_refund: false,
                     };
                     let minter_client = MinterClient::new(to_minter.id);
                     match minter_client.dex_order(&dex_order).await {
@@ -154,6 +156,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                     deadline: qswap_data.deadline,
                                     recipient,
                                     erc20_ledger_burn_index: Some(erc20_ledger_burn_index),
+                                    is_refund: false,
                                 })
                             });
                             return;
@@ -202,6 +205,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                     commands_data: vec![],
                                     max_gas_fee_usd: None,
                                     gas_limit: REFUND_FAILED_SWAP_GAS_LIMIT.into(),
+                                    is_refund: true,
                                 })
                             });
                             return;
@@ -218,6 +222,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                         deadline: u256_to_nat(UNLIMITED_DEADLINE.into()),
                         recipient: from_address.to_string(),
                         erc20_ledger_burn_index: erc20_ledger_burn_index.clone(),
+                        is_refund: true,
                     };
                     let minter_client = MinterClient::new(from_minter.id);
                     match minter_client.dex_order(&dex_order).await {
@@ -250,6 +255,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                     commands_data: vec![],
                                     max_gas_fee_usd: None,
                                     gas_limit: REFUND_FAILED_SWAP_GAS_LIMIT.into(),
+                                    is_refund: true,
                                 })
                             });
                         }
@@ -365,6 +371,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                     commands_data: vec![],
                                     max_gas_fee_usd: None,
                                     gas_limit: REFUND_FAILED_SWAP_GAS_LIMIT.into(),
+                                    is_refund: true,
                                 })
                             });
                             return;
@@ -381,6 +388,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                         deadline: u256_to_nat(UNLIMITED_DEADLINE.into()),
                         recipient: from_address.to_string(),
                         erc20_ledger_burn_index: erc20_ledger_burn_index.clone(),
+                        is_refund: true,
                     };
                     let minter_client = MinterClient::new(from_minter.id);
                     match minter_client.dex_order(&dex_order).await {
@@ -413,6 +421,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                     commands_data: vec![],
                                     max_gas_fee_usd: None,
                                     gas_limit: REFUND_FAILED_SWAP_GAS_LIMIT.into(),
+                                    is_refund: true,
                                 })
                             });
                         }
@@ -498,6 +507,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                     deadline: qswap_data.deadline,
                                     recipient,
                                     erc20_ledger_burn_index: None,
+                                    is_refund: false,
                                 })
                             });
                             return;
@@ -516,6 +526,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                         deadline: u256_to_nat(qswap_data.deadline),
                         recipient: recipient.clone(),
                         erc20_ledger_burn_index: erc20_ledger_burn_index.clone(),
+                        is_refund: false,
                     };
                     let minter_client = MinterClient::new(to_minter.id);
                     match minter_client.dex_order(&dex_order).await {
@@ -550,6 +561,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                     deadline: qswap_data.deadline,
                                     recipient,
                                     erc20_ledger_burn_index: Some(erc20_ledger_burn_index),
+                                    is_refund: false,
                                 })
                             });
                         }
@@ -673,6 +685,7 @@ pub async fn refund_failed_crosschain_swap_to_the_minter(args: RetryFailedDexOrd
                 deadline: u256_to_nat(args.deadline),
                 recipient: args.recipient.clone(),
                 erc20_ledger_burn_index,
+                is_refund: args.is_refund,
             };
             match minter_client.dex_order(&dex_order).await {
                 Ok(_) => {
@@ -682,7 +695,7 @@ pub async fn refund_failed_crosschain_swap_to_the_minter(args: RetryFailedDexOrd
                         args.tx_id
                     );
                     // TODO: Record successful swap on the ICP side.
-                    mutate_state(|s| s.remove_failed_dex_order_to_retry(args.tx_id));
+                    mutate_state(|s| s.remove_failed_dex_order_to_retry(&args.tx_id));
                 }
                 Err(err) => {
                     log!(
@@ -730,6 +743,7 @@ pub async fn refund_failed_crosschain_swap_to_the_minter(args: RetryFailedDexOrd
                 deadline: u256_to_nat(args.deadline),
                 recipient: args.recipient.clone(),
                 erc20_ledger_burn_index: erc20_ledger_burn_index.clone(),
+                is_refund: args.is_refund,
             };
             match minter_client.dex_order(&dex_order).await {
                 Ok(_) => {
@@ -739,7 +753,7 @@ pub async fn refund_failed_crosschain_swap_to_the_minter(args: RetryFailedDexOrd
                         args.tx_id
                     );
                     // TODO: Record successful swap on the ICP side.
-                    mutate_state(|s| s.remove_failed_dex_order_to_retry(args.tx_id));
+                    mutate_state(|s| s.remove_failed_dex_order_to_retry(&args.tx_id));
                 }
                 Err(err) => {
                     log!(
