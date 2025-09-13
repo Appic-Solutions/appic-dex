@@ -10,6 +10,7 @@ use crate::{
     pool::types::{PoolFee, PoolId},
 };
 
+pub mod crosschain_swap;
 pub mod events;
 pub mod pool;
 pub mod pool_history;

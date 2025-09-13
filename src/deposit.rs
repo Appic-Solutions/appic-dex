@@ -6,19 +6,19 @@ use icrc_ledger_types::icrc1::account::Account;
 use crate::{
     balances::types::{UserBalance, UserBalanceKey},
     candid_types::DepositError,
-    icrc_client::{memo::DepositMemo, LedgerClient},
+    icrc_client::{memo::DepositMemo, LedgerClient, TransferIndex},
     libraries::safe_cast::u256_to_big_uint,
     logs::DEBUG,
     state::{get_user_balance, mutate_state},
 };
 
-// Internal function to deposit tokens and update user balance
+// Internal function to deposit tokens and return ledger index
 pub async fn _deposit(
     token: Principal,
     from: Account,
     amount: U256,
     memo: &mut DepositMemo,
-) -> Result<(), DepositError> {
+) -> Result<TransferIndex, DepositError> {
     // Sets deposit amount in memo for ledger tracking
 
     log!(
@@ -30,7 +30,7 @@ pub async fn _deposit(
     );
 
     memo.set_amount(amount);
-    LedgerClient::new(token)
+    let ledger_index = LedgerClient::new(token)
         .deposit(from, u256_to_big_uint(amount), memo.clone())
         .await?;
 
@@ -46,7 +46,7 @@ pub async fn _deposit(
         );
     });
 
-    Ok(())
+    Ok(ledger_index)
 }
 
 // Deposits tokens if current balance is insufficient, returns updated balance
