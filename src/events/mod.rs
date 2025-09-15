@@ -5,7 +5,8 @@ use ethnum::U256;
 use minicbor::{Decode, Encode};
 
 use crate::{
-    position::types::PositionKey, swap_id::SwapTxId, validation::swap_args::ValidatedSwapArgs,
+    cross_chain::types::CrosschainSwapOrder, position::types::PositionKey, swap_id::SwapTxId,
+    validation::swap_args::ValidatedSwapArgs,
 };
 
 /// The event describing the  minter state transition.
@@ -97,6 +98,13 @@ pub enum EventType {
         recipient: Option<Principal>,
         #[n(5)]
         tx_id: Option<SwapTxId>,
+    },
+    #[n(7)]
+    CrosschainSwap {
+        #[n(0)]
+        swap_order: CrosschainSwapOrder,
+        #[n(1)]
+        is_refunded: bool,
     },
 }
 

@@ -1,6 +1,7 @@
 use crate::{
     balances::types::{UserBalance, UserBalanceKey},
     cross_chain::types::{CrosschainSwapOrder, Recipient, RetryFailedDexOrder},
+    events::{Event, EventType},
     icrc_client::{memo::WithdrawMemo, LedgerClient, LedgerTransferError},
     libraries::safe_cast::{u256_to_big_uint, u256_to_nat},
     logs::DEBUG,
@@ -22,7 +23,7 @@ pub const UNLIMITED_DEADLINE: u64 = 2388441600_u64;
 
 pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
     let timestamp = ic_cdk::api::time();
-    match args {
+    match &args {
         CrosschainSwapOrder::EvmToEvm {
             tx_id,
             from_address,
@@ -56,6 +57,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                     );
                     let qswap_data = evm_swap_step
                         .qswap_data
+                        .clone()
                         .expect("BUG: qswap_data should exist for EVM swap");
                     let recipient = match recipient {
                         Recipient::EvmAddress(address) => address.to_string(),
@@ -88,7 +90,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                             );
                             mutate_state(|s| {
                                 s.record_failed_dex_order_to_retry(RetryFailedDexOrder {
-                                    tx_id,
+                                    tx_id: tx_id.clone(),
                                     token_in: icp_swap_request.token_out(),
                                     minter_id: to_minter.id,
                                     amount_in: amount_out.as_u256(),
@@ -97,7 +99,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                         .unwrap_or(U256::ZERO),
                                     commands: qswap_data.commands,
                                     commands_data: qswap_data.command_data,
-                                    max_gas_fee_usd: evm_swap_step.gas_price_usd,
+                                    max_gas_fee_usd: evm_swap_step.gas_price_usd.clone(),
                                     gas_limit,
                                     deadline: qswap_data.deadline,
                                     recipient,
@@ -131,7 +133,16 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                 "[execute_crosschain_swap]: Successfully notified target minter for tx_id: {:?}.",
                                 tx_id
                             );
-                            // TODO: Record successful swap on the ICP side.
+                            // record successful event
+                            let event = Event {
+                                timestamp,
+                                payload: EventType::CrosschainSwap {
+                                    swap_order: args.clone(),
+                                    is_refunded: false,
+                                },
+                            };
+
+                            mutate_state(|s| s.record_event(event));
                         }
                         Err(err) => {
                             log!(
@@ -142,7 +153,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                             );
                             mutate_state(|s| {
                                 s.record_failed_dex_order_to_retry(RetryFailedDexOrder {
-                                    tx_id,
+                                    tx_id: tx_id.clone(),
                                     token_in: icp_swap_request.token_out(),
                                     minter_id: to_minter.id,
                                     amount_in: amount_out.as_u256(),
@@ -151,7 +162,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                         .unwrap_or(U256::ZERO),
                                     commands: qswap_data.commands,
                                     commands_data: qswap_data.command_data,
-                                    max_gas_fee_usd: evm_swap_step.gas_price_usd,
+                                    max_gas_fee_usd: evm_swap_step.gas_price_usd.clone(),
                                     gas_limit,
                                     deadline: qswap_data.deadline,
                                     recipient,
@@ -193,7 +204,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                             );
                             mutate_state(|s| {
                                 s.record_failed_dex_order_to_retry(RetryFailedDexOrder {
-                                    tx_id,
+                                    tx_id: tx_id.clone(),
                                     minter_id: from_minter.id,
                                     token_in: icp_swap_request.token_in(),
                                     amount_in: icp_swap_request.deposit_amount().as_u256(),
@@ -233,6 +244,16 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                 tx_id
                             );
                             // TODO: Record successful refund on the ICP side.
+                            // record successful event
+                            let event = Event {
+                                timestamp,
+                                payload: EventType::CrosschainSwap {
+                                    swap_order: args.clone(),
+                                    is_refunded: true,
+                                },
+                            };
+
+                            mutate_state(|s| s.record_event(event));
                         }
                         Err(err) => {
                             log!(
@@ -243,7 +264,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                             );
                             mutate_state(|s| {
                                 s.record_failed_dex_order_to_retry(RetryFailedDexOrder {
-                                    tx_id,
+                                    tx_id: tx_id.clone(),
                                     minter_id: from_minter.id,
                                     token_in: icp_swap_request.token_in(),
                                     amount_in: icp_swap_request.deposit_amount().as_u256(),
@@ -288,7 +309,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                 icp_swap_request.token_out(),
                 from_minter.id,
                 timestamp,
-                recipient,
+                *recipient,
                 Some(tx_id.clone()),
             ) {
                 // On success, withdraw the output amount to the recipient's ICP principal.
@@ -304,7 +325,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                     match _withdraw(
                         icp_swap_request.token_out(),
                         amount_out.as_u256(),
-                        recipient,
+                        *recipient,
                         &mut memo,
                         token_out_transfer_fee,
                     )
@@ -316,7 +337,6 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                 "[execute_crosschain_swap]: Successfully withdrew to recipient for tx_id: {:?}.",
                                 tx_id
                             );
-                            // TODO: Record successful swap.
                         }
                         Err(err) => {
                             log!(
@@ -328,6 +348,16 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                             // No further action needed; tokens are in user balance for manual withdrawal.
                         }
                     };
+
+                    let event = Event {
+                        timestamp,
+                        payload: EventType::CrosschainSwap {
+                            swap_order: args.clone(),
+                            is_refunded: false,
+                        },
+                    };
+
+                    mutate_state(|s| s.record_event(event));
                 }
                 // On failure, refund the deposit amount to the origin minter via a refund DEX order.
                 Err(err) => {
@@ -359,7 +389,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                             );
                             mutate_state(|s| {
                                 s.record_failed_dex_order_to_retry(RetryFailedDexOrder {
-                                    tx_id,
+                                    tx_id: tx_id.clone(),
                                     minter_id: from_minter.id,
                                     token_in: icp_swap_request.token_in(),
                                     amount_in: icp_swap_request.deposit_amount().as_u256(),
@@ -374,6 +404,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                     is_refund: true,
                                 })
                             });
+
                             return;
                         }
                     };
@@ -399,6 +430,16 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                 tx_id
                             );
                             // TODO: Record successful refund on the ICP side.
+
+                            let event = Event {
+                                timestamp,
+                                payload: EventType::CrosschainSwap {
+                                    swap_order: args.clone(),
+                                    is_refunded: true,
+                                },
+                            };
+
+                            mutate_state(|s| s.record_event(event));
                         }
                         Err(err) => {
                             log!(
@@ -409,7 +450,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                             );
                             mutate_state(|s| {
                                 s.record_failed_dex_order_to_retry(RetryFailedDexOrder {
-                                    tx_id,
+                                    tx_id: tx_id.clone(),
                                     minter_id: from_minter.id,
                                     token_in: icp_swap_request.token_in(),
                                     amount_in: icp_swap_request.deposit_amount().as_u256(),
@@ -447,7 +488,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                 &icp_swap_request,
                 icp_swap_request.token_in(),
                 icp_swap_request.token_out(),
-                from,
+                *from,
                 timestamp,
                 to_minter.id,
                 Some(tx_id.clone()),
@@ -461,6 +502,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                     );
                     let qswap_data = evm_swap_step
                         .qswap_data
+                        .clone()
                         .expect("BUG: qswap_data should exist for EVM swap");
                     let recipient = match recipient {
                         Recipient::EvmAddress(address) => address.to_string(),
@@ -493,7 +535,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                             );
                             mutate_state(|s| {
                                 s.record_failed_dex_order_to_retry(RetryFailedDexOrder {
-                                    tx_id,
+                                    tx_id: tx_id.clone(),
                                     token_in: icp_swap_request.token_out(),
                                     minter_id: to_minter.id,
                                     amount_in: amount_out.as_u256(),
@@ -502,7 +544,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                         .unwrap_or(U256::ZERO),
                                     commands: qswap_data.commands,
                                     commands_data: qswap_data.command_data,
-                                    max_gas_fee_usd: evm_swap_step.gas_price_usd,
+                                    max_gas_fee_usd: evm_swap_step.gas_price_usd.clone(),
                                     gas_limit,
                                     deadline: qswap_data.deadline,
                                     recipient,
@@ -536,7 +578,16 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                 "[execute_crosschain_swap]: Successfully notified target minter for tx_id: {:?}.",
                                 tx_id
                             );
-                            // TODO: Record successful swap on the ICP side.
+                            //  Record successful swap on the ICP side.
+                            let event = Event {
+                                timestamp,
+                                payload: EventType::CrosschainSwap {
+                                    swap_order: args.clone(),
+                                    is_refunded: false,
+                                },
+                            };
+
+                            mutate_state(|s| s.record_event(event));
                         }
                         Err(err) => {
                             log!(
@@ -547,7 +598,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                             );
                             mutate_state(|s| {
                                 s.record_failed_dex_order_to_retry(RetryFailedDexOrder {
-                                    tx_id,
+                                    tx_id: tx_id.clone(),
                                     token_in: icp_swap_request.token_out(),
                                     minter_id: to_minter.id,
                                     amount_in: amount_out.as_u256(),
@@ -556,7 +607,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                         .unwrap_or(U256::ZERO),
                                     commands: qswap_data.commands,
                                     commands_data: qswap_data.command_data,
-                                    max_gas_fee_usd: evm_swap_step.gas_price_usd,
+                                    max_gas_fee_usd: evm_swap_step.gas_price_usd.clone(),
                                     gas_limit,
                                     deadline: qswap_data.deadline,
                                     recipient,
@@ -578,7 +629,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                     match _refund(
                         icp_swap_request.token_in(),
                         icp_swap_request.deposit_amount().as_u256(),
-                        from,
+                        *from,
                     )
                     .await
                     {
@@ -599,6 +650,16 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                             // No further action needed; users can withdraw from their balance manually.
                         }
                     };
+
+                    let event = Event {
+                        timestamp,
+                        payload: EventType::CrosschainSwap {
+                            swap_order: args.clone(),
+                            is_refunded: true,
+                        },
+                    };
+
+                    mutate_state(|s| s.record_event(event));
                 }
             };
         }
