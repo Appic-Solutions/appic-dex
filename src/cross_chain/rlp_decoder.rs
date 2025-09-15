@@ -1,6 +1,6 @@
 use candid::CandidType;
 use ethnum::U256;
-use minicbor::{Decode, Encode};
+use minicbor::{encode, Decode, Encode};
 use rlp::{DecoderError, Rlp};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -22,6 +22,13 @@ impl Blockchain {
         match self {
             Blockchain::ICP => false,
             Blockchain::Evm(_) => true,
+        }
+    }
+
+    pub fn to_id(&self) -> u64 {
+        match self {
+            Blockchain::ICP => 0,
+            Blockchain::Evm(id) => *id,
         }
     }
 }
@@ -156,11 +163,17 @@ pub struct RlpDecoder;
 
 impl RlpDecoder {
     pub fn decode_cross_chain_data(encoded_data: &str) -> Result<CrossChainQuote, RlpDecodeError> {
+        if !encoded_data.starts_with("0x") {
+            return Err(RlpDecodeError::InvalidRlpData);
+        }
+
+        println!("Hellp passed");
+
         let decode_start = Instant::now();
 
-        Self::validate_input_size(encoded_data)?;
+        Self::validate_input_size(&encoded_data[2..])?;
 
-        let result = Self::decode_cross_chain_data_internal(encoded_data);
+        let result = Self::decode_cross_chain_data_internal(&encoded_data[2..]);
 
         let decode_duration = decode_start.elapsed();
         Self::log_decode_metrics(encoded_data.len(), &result, decode_duration);
@@ -171,6 +184,7 @@ impl RlpDecoder {
     fn decode_cross_chain_data_internal(
         encoded_data: &str,
     ) -> Result<CrossChainQuote, RlpDecodeError> {
+        println!("encoded_data{encoded_data}");
         let data = hex::decode(encoded_data).map_err(|_| RlpDecodeError::InvalidRlpData)?;
         match Self::decode_quote_data(&data) {
             Ok(data) => {

@@ -17,6 +17,7 @@ use appic_dex::{
         quote::{QuoteArgs, QuoteError},
         swap::{CandidSwapSuccess, SwapArgs, SwapError},
         tick::CandidTickInfo,
+        upgrade::UpgradeArgs,
         Balance, DepositArgs, DepositError, UserBalanceArgs, WithdrawArgs, WithdrawError,
     },
     collect_fees::execute_collect_fees,
@@ -33,7 +34,7 @@ use appic_dex::{
     historical::capture_historical_data,
     icrc_client::{
         memo::{DepositMemo, WithdrawMemo},
-        LedgerClient, LedgerTransferError,
+        LedgerClient,
     },
     increase_liquidity::execute_increase_liquidity,
     libraries::{
@@ -43,7 +44,9 @@ use appic_dex::{
     logs::DEBUG,
     mint::execute_mint_position,
     minter_client::{
-        minter_types::{DexOrderArgs, MinterKey, ReceivedSwapOrderEvent, SwapOrderCreationError},
+        minter_types::{
+            DexOrderArgs, Minter, MinterKey, ReceivedSwapOrderEvent, SwapOrderCreationError,
+        },
         MinterClient,
     },
     pool::{
@@ -64,9 +67,7 @@ use appic_dex::{
         decrease_args::validate_decrease_liquidity_args,
         increase_args::validate_increase_liquidity_args,
         mint_args::validate_mint_position_args,
-        swap_args::{
-            create_validated_swap_args_from_rlp_swap_step, validate_swap_args, ValidatedSwapArgs,
-        },
+        swap_args::{create_validated_swap_args_from_rlp_swap_step, validate_swap_args},
     },
     withdraw::{_refund, _withdraw},
 };
@@ -112,8 +113,33 @@ fn init() {
 
 // Restarts timers after canister upgrade to maintain historical data collection
 #[post_upgrade]
-fn post_upgrade() {
+fn post_upgrade(args: Option<UpgradeArgs>) {
     set_up_timers();
+
+    if let Some(upgrade_args) = args {
+        if let Some(minters_to_upgrade) = upgrade_args.upgrade_minters {
+            for minter in minters_to_upgrade {
+                let twin_usdc_principal = minter.twin_usdc_principal;
+                let chain_id = minter.chain_id;
+                let usdc_address = Address::from_str(&minter.usdc_address)
+                    .expect("Failed to aprsed usdc address for chain {chain_id}");
+                let minter_id = minter.id;
+
+                mutate_state(|s| {
+                    s.add_minter(
+                        MinterKey {
+                            chain_id,
+                            id: minter_id,
+                        },
+                        Minter {
+                            twin_usdc_principal,
+                            usdc_address,
+                        },
+                    )
+                })
+            }
+        }
+    }
 }
 
 // Queries state of a specific pool by ID, converts to Candid format, returns None if not found
@@ -969,9 +995,6 @@ async fn withdraw(withdraw_args: WithdrawArgs) -> Result<Nat, WithdrawError> {
 #[update]
 async fn minter_order(
     ReceivedSwapOrderEvent {
-        transaction_hash: _,
-        block_number: _,
-        log_index: _,
         from_address,
         recipient,
         token_in: _,

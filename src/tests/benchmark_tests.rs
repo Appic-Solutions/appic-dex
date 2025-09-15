@@ -1,4 +1,4 @@
-use crate::rlp_decoder::RlpDecoder;
+use crate::cross_chain::rlp_decoder::RlpDecoder;
 use std::time::{Duration, Instant};
 
 #[test]

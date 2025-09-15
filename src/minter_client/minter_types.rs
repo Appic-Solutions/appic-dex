@@ -69,33 +69,27 @@ pub enum DexOrderError {
 #[derive(CandidType, Deserialize, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, Debug, Clone)]
 pub struct ReceivedSwapOrderEvent {
     #[n(0)]
-    pub transaction_hash: String,
-    #[cbor(n(1), with = "crate::cbor::nat")]
-    pub block_number: Nat,
-    #[cbor(n(2), with = "crate::cbor::nat")]
-    pub log_index: Nat,
-    #[n(3)]
     pub from_address: String,
-    #[n(4)]
+    #[n(1)]
     // recipient can be either an EVM address or an ICP principal id or an BTC address
     pub recipient: String,
     // token in on the initial evm swap
-    #[n(5)]
+    #[n(2)]
     pub token_in: String,
-    #[n(6)]
+    #[n(3)]
     pub token_out: String,
 
-    #[cbor(n(7), with = "crate::cbor::nat")]
+    #[cbor(n(4), with = "crate::cbor::nat")]
     // amount in on the initial swap
     pub amount_in: Nat,
-    #[cbor(n(8), with = "crate::cbor::nat")]
+    #[cbor(n(5), with = "crate::cbor::nat")]
     pub amount_out: Nat,
 
-    #[n(9)]
+    #[n(6)]
     // the whole encoded swap transaction flow
     pub encoded_swap_data: String,
 
-    #[n(10)]
+    #[n(7)]
     pub tx_id: String,
 }
 

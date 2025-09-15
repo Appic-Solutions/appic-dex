@@ -18,6 +18,7 @@ pub mod position;
 pub mod quote;
 pub mod swap;
 pub mod tick;
+pub mod upgrade;
 
 #[derive(CandidType, Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
 pub struct Balance {

@@ -4,7 +4,6 @@ use std::{
 };
 
 use candid::Principal;
-use minicbor::{Decode, Encode};
 use serde::Deserialize;
 
 use crate::{

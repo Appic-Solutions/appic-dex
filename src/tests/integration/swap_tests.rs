@@ -32,6 +32,7 @@ fn test_exact_input_single_amount_fails_for_amount_out() {
         amount_in: u256_to_nat(amount_in),
         amount_out_minimum: u256_to_nat(expected_amount_out + 1),
         from_subaccount: None,
+        recipient: None,
     });
 
     let swap_result = update_call::<SwapArgs, Result<CandidSwapSuccess, SwapError>>(
@@ -76,6 +77,7 @@ fn test_exact_input_single_amount_check_swap_fees() {
         amount_in: u256_to_nat(amount_in),
         amount_out_minimum: u256_to_nat(expected_amount_out),
         from_subaccount: None,
+        recipient: None,
     });
 
     let _swap_result = update_call::<SwapArgs, Result<CandidSwapSuccess, SwapError>>(
@@ -161,6 +163,7 @@ fn test_exact_input_single_amount() {
         amount_in: u256_to_nat(amount_in),
         amount_out_minimum: u256_to_nat(expected_amount_out),
         from_subaccount: None,
+        recipient: None,
     });
 
     // pool state before swap
@@ -275,6 +278,7 @@ fn test_exact_input_1_hop_one_for_zero() {
             intermediary_token: token1_principal(),
             fee: Nat::from(3000_u32),
         }],
+        recipient: None,
     });
 
     let swap_result = update_call::<SwapArgs, Result<CandidSwapSuccess, SwapError>>(
@@ -323,6 +327,7 @@ fn test_exact_input_2_hops() {
                 fee: Nat::from(3000_u32),
             },
         ],
+        recipient: None,
     });
 
     let swap_result = update_call::<SwapArgs, Result<CandidSwapSuccess, SwapError>>(
@@ -375,6 +380,7 @@ fn test_exact_input_3_hops() {
                 fee: Nat::from(3000_u32),
             },
         ],
+        recipient: None,
     });
 
     let swap_result = update_call::<SwapArgs, Result<CandidSwapSuccess, SwapError>>(
@@ -422,6 +428,7 @@ fn test_exact_output_single_amount_fails_for_amount_in() {
             amount_out: u256_to_nat(amount_out),
             amount_in_maximum: u256_to_nat(expected_amount_in - 1),
             from_subaccount: None,
+            recipient: None,
         });
 
     let swap_result = update_call::<SwapArgs, Result<CandidSwapSuccess, SwapError>>(
@@ -467,6 +474,7 @@ fn test_exact_output_single_amount() {
             amount_out: u256_to_nat(amount_out),
             amount_in_maximum: u256_to_nat(expected_amount_in),
             from_subaccount: None,
+            recipient: None,
         });
 
     let swap_result = update_call::<SwapArgs, Result<CandidSwapSuccess, SwapError>>(
@@ -539,6 +547,7 @@ fn test_exact_output_single_balances() {
             from_subaccount: None,
             amount_out: u256_to_nat(amount_out),
             amount_in_maximum: u256_to_nat(expected_amount_in),
+            recipient: None,
         });
 
     let swap_result = update_call::<SwapArgs, Result<CandidSwapSuccess, SwapError>>(
@@ -637,6 +646,7 @@ fn test_exact_output_1_hop_one_for_zero() {
             intermediary_token: token0_principal(),
             fee: Nat::from(3000_u32),
         }],
+        recipient: None,
     });
 
     let swap_result = update_call::<SwapArgs, Result<CandidSwapSuccess, SwapError>>(
@@ -685,6 +695,7 @@ fn test_exact_output_2_hops() {
                 fee: Nat::from(3000_u32),
             },
         ],
+        recipient: None,
     });
 
     let swap_result = update_call::<SwapArgs, Result<CandidSwapSuccess, SwapError>>(
@@ -737,6 +748,7 @@ fn test_exact_output_3_hops() {
                 fee: Nat::from(3000_u32),
             },
         ],
+        recipient: None,
     });
 
     let swap_result = update_call::<SwapArgs, Result<CandidSwapSuccess, SwapError>>(

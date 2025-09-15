@@ -1,5 +1,4 @@
 use candid::Principal;
-use icrc_ledger_client::Runtime;
 
 use crate::minter_client::{
     minter_types::{DexOrderArgs, DexOrderError},
@@ -8,6 +7,8 @@ use crate::minter_client::{
 
 pub mod minter_types;
 pub mod runtime;
+
+use runtime::Runtime;
 
 pub struct MinterClient {
     minter_id: Principal,

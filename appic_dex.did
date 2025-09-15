@@ -24,7 +24,9 @@ type CandidEvent = record { timestamp : nat64; payload : CandidEventType };
 type CandidEventType = variant {
   Swap : record {
     "principal" : principal;
+    tx_id : opt text;
     token_in : principal;
+    recipient : opt principal;
     final_amount_in : nat;
     final_amount_out : nat;
     token_out : principal;
@@ -162,6 +164,16 @@ type CreatePoolError = variant {
   InvalidToken : principal;
   PoolAlreadyExists;
 };
+type CrosschainSwapArgs = record { encoded_swap_data : text; recipient : text };
+type CrosschainSwapError = variant {
+  DepositError : DepositError;
+  InvalidEncodedData : RlpDecodeError;
+  InvalidToChain;
+  InvalidTokenIn;
+  InvalidRecipient;
+  LockedPrincipal;
+  InvalidIcpSwapStep;
+};
 type DecreaseLiquidityArgs = record {
   amount1_min : nat;
   pool : CandidPoolId;
@@ -202,11 +214,13 @@ type DepositError = variant {
 type ExactInputParams = record {
   token_in : principal;
   path : vec CandidPathKey;
+  recipient : opt principal;
   from_subaccount : opt blob;
   amount_out_minimum : nat;
   amount_in : nat;
 };
 type ExactInputSingleParams = record {
+  recipient : opt principal;
   zero_for_one : bool;
   from_subaccount : opt blob;
   amount_out_minimum : nat;
@@ -216,12 +230,14 @@ type ExactInputSingleParams = record {
 type ExactOutputParams = record {
   amount_in_maximum : nat;
   path : vec CandidPathKey;
+  recipient : opt principal;
   from_subaccount : opt blob;
   amount_out : nat;
   token_out : principal;
 };
 type ExactOutputSingleParams = record {
   amount_in_maximum : nat;
+  recipient : opt principal;
   zero_for_one : bool;
   from_subaccount : opt blob;
   amount_out : nat;
@@ -305,16 +321,39 @@ type QuoteExactSingleParams = record {
   pool_id : CandidPoolId;
   exact_amount : nat;
 };
+type ReceivedSwapOrderEvent = record {
+  encoded_swap_data : text;
+  tx_id : text;
+  token_in : text;
+  recipient : text;
+  amount_out : nat;
+  from_address : text;
+  amount_in : nat;
+  token_out : text;
+};
 type Result = variant { Ok; Err : BurnPositionError };
 type Result_1 = variant { Ok : CollectFeesSuccess; Err : CollectFeesError };
+type Result_10 = variant { Ok : CandidSwapSuccess; Err : SwapError };
+type Result_11 = variant { Ok : nat; Err : WithdrawError };
 type Result_2 = variant { Ok : CandidPoolId; Err : CreatePoolError };
-type Result_3 = variant { Ok; Err : DecreaseLiquidityError };
-type Result_4 = variant { Ok; Err : DepositError };
-type Result_5 = variant { Ok : nat; Err : IncreaseLiquidityError };
-type Result_6 = variant { Ok : nat; Err : MintPositionError };
-type Result_7 = variant { Ok : nat; Err : QuoteError };
-type Result_8 = variant { Ok : CandidSwapSuccess; Err : SwapError };
-type Result_9 = variant { Ok : nat; Err : WithdrawError };
+type Result_3 = variant { Ok : text; Err : CrosschainSwapError };
+type Result_4 = variant { Ok; Err : DecreaseLiquidityError };
+type Result_5 = variant { Ok; Err : DepositError };
+type Result_6 = variant { Ok : nat; Err : IncreaseLiquidityError };
+type Result_7 = variant { Ok : nat; Err : MintPositionError };
+type Result_8 = variant { Ok; Err : SwapOrderCreationError };
+type Result_9 = variant { Ok : nat; Err : QuoteError };
+type RlpDecodeError = variant {
+  InvalidAmount;
+  InvalidTokenAddress : text;
+  InvalidChainId : text;
+  InvalidDataType;
+  DataTooLarge;
+  VersionMismatch;
+  InvalidStructure;
+  InvalidRlpData;
+  MissingField;
+};
 type SwapArgs = variant {
   ExactOutput : ExactOutputParams;
   ExactInput : ExactInputParams;
@@ -328,16 +367,20 @@ type SwapError = variant {
     reason : WithdrawError;
   };
   InvalidAmountOut;
+  InvalidSwapChain;
   DepositError : DepositError;
   InvalidAmountIn;
   InvalidAmountInMaximum;
   InvalidAmountOutMinimum;
   InvalidPoolFee;
   PoolNotInitialized;
+  InvalidRoute;
+  InvalidTokenIn;
   PathLengthTooSmall : record { minimum : nat8; received : nat8 };
   PathDuplicated;
   PathLengthTooBig : record { maximum : nat8; received : nat8 };
   LockedPrincipal;
+  InvalidTokenOut;
   NoInRangeLiquidity;
   SwapFailedRefunded : record {
     refund_error : opt WithdrawError;
@@ -357,6 +400,18 @@ type SwapFailedReason = variant {
   PriceLimitAlreadyExceeded;
   InvalidFeeForExactOutput;
   CalculationOverflow;
+};
+type SwapOrderCreationError = variant {
+  InvalidOriginChain;
+  InvalidAmountOut;
+  InvalidFromAddress;
+  InvalidOriginAndDestinationChain;
+  InvalidToChain;
+  InvalidMinter;
+  InvalidRecipient : text;
+  FailedRlpDecoding;
+  InvalidRlpData : RlpDecodeError;
+  InvalidIcpSwapStep;
 };
 type SwapType = variant {
   ExactOutput : vec CandidPoolId;
@@ -379,8 +434,9 @@ service : () -> {
   burn : (BurnPositionArgs) -> (Result);
   collect_fees : (CandidPositionKey) -> (Result_1);
   create_pool : (CreatePoolArgs) -> (Result_2);
-  decrease_liquidity : (DecreaseLiquidityArgs) -> (Result_3);
-  deposit : (DepositArgs) -> (Result_4);
+  cross_chain_swap : (CrosschainSwapArgs) -> (Result_3);
+  decrease_liquidity : (DecreaseLiquidityArgs) -> (Result_4);
+  deposit : (DepositArgs) -> (Result_5);
   get_active_ticks : (CandidPoolId) -> (vec CandidTickInfo) query;
   get_events : (GetEventsArg) -> (GetEventsResult) query;
   get_pool : (CandidPoolId) -> (opt CandidPoolState) query;
@@ -390,12 +446,13 @@ service : () -> {
   get_positions_by_owner : (principal) -> (
       vec record { CandidPositionKey; CandidPositionInfo },
     ) query;
-  increase_liquidity : (IncreaseLiquidityArgs) -> (Result_5);
-  mint_position : (MintPositionArgs) -> (Result_6);
-  multi_quote : (vec QuoteArgs) -> (vec Result_7) query;
-  quote : (QuoteArgs) -> (Result_7) query;
-  swap : (SwapArgs) -> (Result_8);
+  increase_liquidity : (IncreaseLiquidityArgs) -> (Result_6);
+  mint_position : (MintPositionArgs) -> (Result_7);
+  minter_order : (ReceivedSwapOrderEvent) -> (Result_8);
+  multi_quote : (vec QuoteArgs) -> (vec Result_9) query;
+  quote : (QuoteArgs) -> (Result_9) query;
+  swap : (SwapArgs) -> (Result_10);
   user_balance : (UserBalanceArgs) -> (nat) query;
   user_balances : (principal) -> (vec Balance) query;
-  withdraw : (Balance) -> (Result_9);
+  withdraw : (Balance) -> (Result_11);
 }

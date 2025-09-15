@@ -380,6 +380,10 @@ impl State {
     pub fn remove_failed_dex_order_to_retry(&mut self, tx_id: &SwapTxId) {
         self.dex_orders_to_retry.remove(tx_id);
     }
+
+    pub fn add_minter(&mut self, key: MinterKey, info: Minter) {
+        self.minters.insert(key, info);
+    }
 }
 
 pub fn read_state<R>(f: impl FnOnce(&State) -> R) -> R {

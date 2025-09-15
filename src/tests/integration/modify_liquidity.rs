@@ -268,6 +268,7 @@ fn flow_test() {
             from_subaccount: None,
             pool_id: pool_id.clone(),
             zero_for_one,
+            recipient: None,
         });
 
         let _swap_result = update_call::<SwapArgs, Result<CandidSwapSuccess, SwapError>>(

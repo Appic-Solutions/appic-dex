@@ -6,7 +6,6 @@ use candid::{
 use ic_cdk::call::CallErrorExt;
 pub use icrc_ledger_client::{ICRC1Client, Runtime};
 
-/// ICRC1Client runtime that uses the ic-cdk.
 pub struct MinterRuntime;
 
 #[async_trait]
