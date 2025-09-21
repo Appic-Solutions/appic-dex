@@ -3,7 +3,9 @@ use std::fmt::Debug;
 use candid::{CandidType, Deserialize, Nat, Principal};
 use minicbor::{Decode, Encode};
 
-use crate::{address::Address, cross_chain::rlp_decoder::RlpDecodeError};
+use crate::{
+    address::Address, candid_types::swap::SwapError, cross_chain::rlp_decoder::RlpDecodeError,
+};
 
 // Dex orders type to be sent to minter
 #[derive(CandidType, Deserialize, Clone, Debug, Encode, Decode, Eq, PartialEq, Ord, PartialOrd)]
@@ -93,7 +95,7 @@ pub struct ReceivedSwapOrderEvent {
     pub tx_id: String,
 }
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, Debug)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, Debug, CandidType, Deserialize)]
 pub struct MinterKey {
     #[n(0)]
     pub chain_id: u64,
@@ -118,7 +120,8 @@ pub enum SwapOrderCreationError {
     InvalidToChain,
     InvalidOriginAndDestinationChain,
     FailedRlpDecoding,
-    InvalidIcpSwapStep,
+    InvalidIcpSwapStep(SwapError),
     InvalidRecipient(String),
     InvalidRlpData(RlpDecodeError),
+    InvalidTokenIn,
 }

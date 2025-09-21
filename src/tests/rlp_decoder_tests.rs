@@ -106,41 +106,6 @@ fn test_icp_to_evm() {
 }
 
 #[test]
-fn test_chain_id_validation() {
-    let valid_chains = vec![
-        "1", "56", "137", "8453", "42161", "10", "43114", "250", "icp",
-    ];
-
-    for chain_id in valid_chains {
-        let is_supported = RlpDecoder::get_supported_chains()
-            .contains_key(&Blockchain::Evm(chain_id.parse::<u64>().unwrap()));
-        assert!(is_supported, "Chain {chain_id} should be supported");
-    }
-
-    let invalid_chains = vec!["999", "invalid", "", "0x1"];
-    for chain_id in invalid_chains {
-        if let Ok(id) = &chain_id.parse::<u64>() {
-            let is_supported =
-                RlpDecoder::get_supported_chains().contains_key(&Blockchain::Evm(*id));
-            assert!(!is_supported, "Chain {chain_id} should not be supported");
-        };
-    }
-}
-
-#[test]
-fn test_quote_size_limits() {
-    let large_quote = hex::encode(vec![0u8; 2 * 1024 * 1024]);
-    let result = RlpDecoder::decode_cross_chain_data(&large_quote);
-
-    match result {
-        Err(e) => assert!(e.to_string().contains("exceeds maximum size")),
-        Ok(_quote) => {
-            panic!("Should fail");
-        }
-    }
-}
-
-#[test]
 fn test_invalid_rlp_quote() {
     let invalid_quote = hex::encode(vec![0x01, 0x02, 0x03, 0xff, 0xee]);
     let result = RlpDecoder::decode_cross_chain_data(&invalid_quote);

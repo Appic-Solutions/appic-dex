@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, fmt};
 
 use candid::Principal;
 use ethnum::{I256, U256};
@@ -356,19 +356,21 @@ pub fn create_validated_swap_args_from_rlp_swap_step(
         .try_into()
         .map_err(|_| SwapError::InvalidAmountOutMinimum)?;
 
+    println!("route {:?},", route);
+
     if route.is_empty() {
         Err(SwapError::InvalidRoute)
     } else if route.len() == 1 {
         // single hop
         let token_in =
-            Principal::from_text(&route[0].buy_token).map_err(|_| SwapError::InvalidTokenIn)?;
+            Principal::from_text(&route[0].sell_token).map_err(|_| SwapError::InvalidTokenIn)?;
 
         if token_in != token_in_on_icp {
             return Err(SwapError::InvalidTokenIn);
         }
 
         let token_out =
-            Principal::from_text(&route[0].sell_token).map_err(|_| SwapError::InvalidTokenOut)?;
+            Principal::from_text(&route[0].buy_token).map_err(|_| SwapError::InvalidTokenOut)?;
 
         let fee = PoolFee(route[0].fee);
 
@@ -402,13 +404,19 @@ pub fn create_validated_swap_args_from_rlp_swap_step(
             token_out,
         })
     } else if route.len() as u8 > MAX_PATH_LENGTH {
-        return Err(SwapError::PathLengthTooBig {
+        Err(SwapError::PathLengthTooBig {
             maximum: MAX_PATH_LENGTH,
             received: route.len() as u8,
-        });
+        })
     } else {
         let token_in =
             Principal::from_text(&route[0].sell_token).map_err(|_| SwapError::InvalidTokenIn)?;
+
+        println!(
+            "token in {} token in on icp {}",
+            token_in.to_text(),
+            token_in_on_icp.to_text()
+        );
 
         if token_in != token_in_on_icp {
             return Err(SwapError::InvalidTokenIn);
@@ -420,10 +428,12 @@ pub fn create_validated_swap_args_from_rlp_swap_step(
         for swap in route.iter() {
             // single hop
             let hop_token_in =
-                Principal::from_text(&swap.buy_token).map_err(|_| SwapError::InvalidTokenIn)?;
+                Principal::from_text(&swap.sell_token).map_err(|_| SwapError::InvalidTokenIn)?;
 
             let hop_token_out =
-                Principal::from_text(&swap.sell_token).map_err(|_| SwapError::InvalidTokenOut)?;
+                Principal::from_text(&swap.buy_token).map_err(|_| SwapError::InvalidTokenOut)?;
+
+            println!("HOP  {:?}", swap);
 
             let fee = PoolFee(swap.fee);
 
@@ -453,6 +463,8 @@ pub fn create_validated_swap_args_from_rlp_swap_step(
             });
 
             token_out = hop_token_out;
+
+            println!("hop token out {}", hop_token_out.to_text())
         }
 
         // there should not be a duplication in swap path, meaning users can not swap using the

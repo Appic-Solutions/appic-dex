@@ -1,14 +1,26 @@
 use candid::CandidType;
 use ethnum::U256;
-use minicbor::{encode, Decode, Encode};
+use minicbor::{Decode, Encode};
 use rlp::{DecoderError, Rlp};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::sync::LazyLock;
-use std::time::Instant;
 
-#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash, Copy)]
+#[derive(
+    Encode,
+    Decode,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Debug,
+    Hash,
+    Copy,
+    CandidType,
+    Deserialize,
+)]
 pub enum Blockchain {
     #[n(0)]
     ICP,
@@ -150,6 +162,7 @@ static SUPPORTED_CHAINS: LazyLock<HashMap<&Blockchain, &str>> = LazyLock::new(||
     m.insert(&Blockchain::Evm(1), "Ethereum");
     m.insert(&Blockchain::Evm(56), "BSC");
     m.insert(&Blockchain::Evm(8453), "Base");
+    m.insert(&Blockchain::Evm(137), "Ethereum");
     m.insert(&Blockchain::ICP, "Internet Computer");
     m
 });
@@ -167,18 +180,8 @@ impl RlpDecoder {
             return Err(RlpDecodeError::InvalidRlpData);
         }
 
-        println!("Hellp passed");
-
-        let decode_start = Instant::now();
-
-        Self::validate_input_size(&encoded_data[2..])?;
-
-        let result = Self::decode_cross_chain_data_internal(&encoded_data[2..]);
-
-        let decode_duration = decode_start.elapsed();
-        Self::log_decode_metrics(encoded_data.len(), &result, decode_duration);
-
-        result
+        Self::validate_input_size(&encoded_data[2..])?;   
+        Self::decode_cross_chain_data_internal(&encoded_data[2..])
     }
 
     fn decode_cross_chain_data_internal(
@@ -294,11 +297,10 @@ impl RlpDecoder {
         let mut route = Vec::new();
         if let Ok(count) = route_rlp.item_count() {
             for i in 0..count {
-                if let Ok(hop_rlp) = route_rlp.at(i) {
-                    if let Ok(hop) = Self::decode_pool_hop(hop_rlp) {
+                if let Ok(hop_rlp) = route_rlp.at(i)
+                    && let Ok(hop) = Self::decode_pool_hop(hop_rlp) {
                         route.push(hop);
                     }
-                }
             }
         }
 
@@ -331,11 +333,10 @@ impl RlpDecoder {
         let mut commands = Vec::new();
         if let Ok(count) = commands_rlp.item_count() {
             for i in 0..count {
-                if let Ok(command_str) = commands_rlp.val_at::<String>(i) {
-                    if let Ok(command) = command_str.parse::<u8>() {
+                if let Ok(command_str) = commands_rlp.val_at::<String>(i)
+                    && let Ok(command) = command_str.parse::<u8>() {
                         commands.push(command);
                     }
-                }
             }
         }
 
@@ -501,40 +502,6 @@ impl RlpDecoder {
 
     pub fn get_supported_chains() -> HashMap<&'static Blockchain, &'static str> {
         SUPPORTED_CHAINS.clone()
-    }
-
-    fn log_decode_metrics(
-        data_size: usize,
-        result: &Result<CrossChainQuote, RlpDecodeError>,
-        duration: std::time::Duration,
-    ) {
-        match result {
-            Ok(quote) => {
-                println!(
-                    "RLP_DECODE_SUCCESS: size={}b, steps={}, chains={}, duration={:?}",
-                    data_size,
-                    quote.steps.len(),
-                    quote
-                        .steps
-                        .iter()
-                        .map(|s| &s.chain_id)
-                        .collect::<std::collections::HashSet<_>>()
-                        .len(),
-                    duration
-                );
-            }
-            Err(e) => {
-                println!("RLP_DECODE_ERROR: size={data_size}b, error={e}, duration={duration:?}");
-            }
-        }
-
-        if duration.as_millis() > 10 {
-            println!("RLP_DECODE_SLOW: size={data_size}b, duration={duration:?} (>10ms)");
-        }
-
-        if data_size > 100_000 {
-            println!("RLP_DECODE_LARGE: size={}KB", data_size / 1024);
-        }
     }
 
     pub fn get_decoder_stats() -> DecoderStats {

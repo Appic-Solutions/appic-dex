@@ -1,5 +1,3 @@
-pub mod storage;
-
 use candid::Principal;
 use ethnum::U256;
 use minicbor::{Decode, Encode};

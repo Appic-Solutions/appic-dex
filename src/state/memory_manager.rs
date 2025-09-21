@@ -73,19 +73,13 @@ pub fn events_data_memory_id() -> StableMemory {
     MEMORY_MANAGER.with(|m| m.borrow().get(EVENTS_DATA_MEMORY_ID))
 }
 
-const RECEIVED_SWAP_ORDERS_MEMORY_ID: MemoryId = MemoryId::new(10);
-
-pub fn received_swap_orders_memory_id() -> StableMemory {
-    MEMORY_MANAGER.with(|m| m.borrow().get(RECEIVED_SWAP_ORDERS_MEMORY_ID))
-}
-
-const MINTERS_MEMORY_ID: MemoryId = MemoryId::new(11);
+const MINTERS_MEMORY_ID: MemoryId = MemoryId::new(10);
 
 pub fn minters_memory_id() -> StableMemory {
     MEMORY_MANAGER.with(|m| m.borrow().get(MINTERS_MEMORY_ID))
 }
 
-const RETRY_FAILED_DEX_ORDER: MemoryId = MemoryId::new(12);
+const RETRY_FAILED_DEX_ORDER: MemoryId = MemoryId::new(11);
 
 pub fn retry_failed_dex_order() -> StableMemory {
     MEMORY_MANAGER.with(|m| m.borrow().get(RETRY_FAILED_DEX_ORDER))

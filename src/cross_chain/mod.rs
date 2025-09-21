@@ -15,7 +15,12 @@ use ethnum::U256;
 use ic_canister_log::log;
 pub mod parser;
 pub mod rlp_decoder;
+pub mod swap_order;
 pub mod types;
+
+#[cfg(test)]
+pub mod tests;
+
 pub const REFUND_FAILED_SWAP_GAS_LIMIT: u64 = 100_000_u64;
 // The deadline is valid for 20 years and is used for failed swaps that will be
 // converted to USDC transfers.
@@ -40,7 +45,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
             );
             // Execute the ICP side of the swap.
             match execute_swap(
-                &icp_swap_request,
+                icp_swap_request,
                 icp_swap_request.token_in(),
                 icp_swap_request.token_out(),
                 from_minter.id,
@@ -170,7 +175,6 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                     is_refund: false,
                                 })
                             });
-                            return;
                         }
                     }
                 }
@@ -282,7 +286,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                         }
                     }
                 }
-            };
+            }
         }
         CrosschainSwapOrder::EvmToIcp {
             tx_id,
@@ -304,7 +308,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
             };
             // Execute the ICP side of the swap.
             match execute_swap(
-                &icp_swap_request,
+                icp_swap_request,
                 icp_swap_request.token_in(),
                 icp_swap_request.token_out(),
                 from_minter.id,
@@ -485,7 +489,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
             );
             // Execute the ICP side of the swap.
             match execute_swap(
-                &icp_swap_request,
+                icp_swap_request,
                 icp_swap_request.token_in(),
                 icp_swap_request.token_out(),
                 *from,

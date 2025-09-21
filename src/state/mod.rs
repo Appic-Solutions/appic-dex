@@ -9,7 +9,7 @@
 
 use crate::{
     balances::types::{UserBalance, UserBalanceKey},
-    cross_chain::types::{RecievedSwapOrders, RetryFailedDexOrder},
+    cross_chain::types::RetryFailedDexOrder,
     events::Event,
     historical::types::PoolHistory,
     libraries::{constants::Q128, full_math::mul_div},
@@ -20,9 +20,7 @@ use crate::{
         types::{PoolFee, PoolId, PoolState, PoolTickSpacing},
     },
     position::types::{PositionInfo, PositionKey},
-    state::memory_manager::{
-        minters_memory_id, received_swap_orders_memory_id, retry_failed_dex_order,
-    },
+    state::memory_manager::{minters_memory_id, retry_failed_dex_order},
     swap_id::SwapTxId,
     tick::{
         get_fee_growth_inside,
@@ -57,7 +55,6 @@ thread_local! {
 
         minters:BTreeMap::init(minters_memory_id()),
 
-        received_swap_orders:BTreeMap::init(received_swap_orders_memory_id()),
         dex_orders_to_retry:BTreeMap::init(retry_failed_dex_order())
     }));
 }
@@ -77,15 +74,10 @@ pub struct State {
 
     minters: BTreeMap<MinterKey, Minter, StableMemory>,
 
-    // cross-chain swap orders
-    received_swap_orders: BTreeMap<SwapTxId, RecievedSwapOrders, StableMemory>,
-
     // failed transfers and minter notifications, that were supposed to send the twin usdc to the
     // minter address and then notify the minter about the dex order. these events will be retried
     // later.
     dex_orders_to_retry: BTreeMap<SwapTxId, RetryFailedDexOrder, StableMemory>,
-    // invalid minter crosschain-swaps to refund
-    //invalid_minter_orders_to_refund:BTreeMap<SwapTxId,ReceivedSwapOrderEvent>,
 }
 
 impl State {

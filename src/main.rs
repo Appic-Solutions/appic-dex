@@ -5,6 +5,7 @@ use appic_dex::{
     balances::types::{UserBalance, UserBalanceKey},
     burn::execute_burn_position,
     candid_types::{
+        Balance, DepositArgs, DepositError, UserBalanceArgs, WithdrawArgs, WithdrawError,
         crosschain_swap::{CrosschainSwapArgs, CrosschainSwapError},
         events::{CandidEvent, GetEventsArg, GetEventsResult},
         pool::{CandidPoolId, CandidPoolState, CreatePoolArgs, CreatePoolError},
@@ -18,23 +19,23 @@ use appic_dex::{
         swap::{CandidSwapSuccess, SwapArgs, SwapError},
         tick::CandidTickInfo,
         upgrade::UpgradeArgs,
-        Balance, DepositArgs, DepositError, UserBalanceArgs, WithdrawArgs, WithdrawError,
     },
     collect_fees::execute_collect_fees,
     cross_chain::{
-        _transfer_to_minter, execute_crosschain_swap,
+        _transfer_to_minter, REFUND_FAILED_SWAP_GAS_LIMIT, UNLIMITED_DEADLINE,
+        execute_crosschain_swap,
         parser::parse_recipient,
         rlp_decoder::{self, Blockchain, RlpDecodeError},
+        swap_order::create_swap_order,
         types::{CrosschainSwapOrder, RetryFailedDexOrder},
-        REFUND_FAILED_SWAP_GAS_LIMIT, UNLIMITED_DEADLINE,
     },
     decrease_liquidity::execute_decrease_liquidity,
     deposit::{_deposit, _deposit_if_needed},
     guard::PrincipalGuard,
     historical::capture_historical_data,
     icrc_client::{
-        memo::{DepositMemo, WithdrawMemo},
         LedgerClient,
+        memo::{DepositMemo, WithdrawMemo},
     },
     increase_liquidity::execute_increase_liquidity,
     libraries::{
@@ -44,10 +45,10 @@ use appic_dex::{
     logs::DEBUG,
     mint::execute_mint_position,
     minter_client::{
+        MinterClient,
         minter_types::{
             DexOrderArgs, Minter, MinterKey, ReceivedSwapOrderEvent, SwapOrderCreationError,
         },
-        MinterClient,
     },
     pool::{
         create_pool::create_pool_inner,
@@ -116,28 +117,28 @@ fn init() {
 fn post_upgrade(args: Option<UpgradeArgs>) {
     set_up_timers();
 
-    if let Some(upgrade_args) = args {
-        if let Some(minters_to_upgrade) = upgrade_args.upgrade_minters {
-            for minter in minters_to_upgrade {
-                let twin_usdc_principal = minter.twin_usdc_principal;
-                let chain_id = minter.chain_id;
-                let usdc_address = Address::from_str(&minter.usdc_address)
-                    .expect("Failed to aprsed usdc address for chain {chain_id}");
-                let minter_id = minter.id;
+    if let Some(upgrade_args) = args
+        && let Some(minters_to_upgrade) = upgrade_args.upgrade_minters
+    {
+        for minter in minters_to_upgrade {
+            let twin_usdc_principal = minter.twin_usdc_principal;
+            let chain_id = minter.chain_id;
+            let usdc_address = Address::from_str(&minter.usdc_address)
+                .expect("Failed to aprsed usdc address for chain {chain_id}");
+            let minter_id = minter.id;
 
-                mutate_state(|s| {
-                    s.add_minter(
-                        MinterKey {
-                            chain_id,
-                            id: minter_id,
-                        },
-                        Minter {
-                            twin_usdc_principal,
-                            usdc_address,
-                        },
-                    )
-                })
-            }
+            mutate_state(|s| {
+                s.add_minter(
+                    MinterKey {
+                        chain_id,
+                        id: minter_id,
+                    },
+                    Minter {
+                        twin_usdc_principal,
+                        usdc_address,
+                    },
+                )
+            })
         }
     }
 }
@@ -991,13 +992,13 @@ async fn withdraw(withdraw_args: WithdrawArgs) -> Result<Nat, WithdrawError> {
     .map(u256_to_nat)
 }
 
-// Swap orders that come from minters to execute a crosschain swap.
+// Main function to process swap orders from minters for cross-chain swaps.
 #[update]
 async fn minter_order(
     ReceivedSwapOrderEvent {
         from_address,
         recipient,
-        token_in: _,
+        token_in: _, // Ignored as per original logic
         token_out: _,
         amount_in: _,
         amount_out,
@@ -1005,24 +1006,33 @@ async fn minter_order(
         tx_id,
     }: ReceivedSwapOrderEvent,
 ) -> Result<(), SwapOrderCreationError> {
+    // Log the start of processing for debugging
     log!(
         DEBUG,
         "[minter_order]: Processing swap order event for tx_id: {:?}",
         tx_id
     );
+
+    // Retrieve the caller's principal and associated minter information
     let caller = ic_cdk::api::msg_caller();
     let (from_minter, from_minter_info) = read_state(|s| s.get_minter_by_principal(caller))
         .ok_or(SwapOrderCreationError::InvalidMinter)?;
 
+    // Token for the ICP step in the swap
     let token_in_icp_step = from_minter_info.twin_usdc_principal;
+
+    // Convert amount_out from the event to amount_in for this context (assuming this is intentional logic for cross-chain handling)
     let amount_in =
         big_uint_to_u256(amount_out.0).map_err(|_| SwapOrderCreationError::InvalidAmountOut)?;
 
+    // Parse the from_address string into an Address type
     let from_address =
         Address::from_str(&from_address).map_err(|_| SwapOrderCreationError::InvalidFromAddress)?;
 
-    // Updates minter balance, caps at U256::MAX to prevent overflow
+    // Retrieve the latest balance for the minter
     let latest_minter_balance = get_user_balance(from_minter.id, token_in_icp_step);
+
+    // Update the minter's balance, capping at U256::MAX to prevent overflow
     mutate_state(|s| {
         s.update_user_balance(
             UserBalanceKey {
@@ -1037,96 +1047,48 @@ async fn minter_order(
         );
     });
 
-    let create_swap_order_result: Result<CrosschainSwapOrder, SwapOrderCreationError> =
-        match rlp_decoder::RlpDecoder::decode_cross_chain_data(&encoded_swap_data) {
-            Ok(crosschain_quote) => {
-                if crosschain_quote.steps[0].chain_id == Blockchain::ICP {
-                    return Err(SwapOrderCreationError::InvalidOriginChain);
-                }
-                let swap_steps = crosschain_quote.steps.len();
-                if swap_steps < 2 {
-                    return Err(SwapOrderCreationError::InvalidRlpData(
-                        RlpDecodeError::MissingField,
-                    ));
-                }
-                let from_chain = crosschain_quote.steps[0].chain_id;
-                let to_chain = crosschain_quote.steps[swap_steps - 1].chain_id;
-                if from_chain == to_chain {
-                    return Err(SwapOrderCreationError::InvalidOriginAndDestinationChain);
-                }
+    // Attempt to create the swap order using the extracted helper function
+    let create_swap_order_result = create_swap_order(
+        &encoded_swap_data,
+        amount_in,
+        token_in_icp_step,
+        Some(&from_minter),
+        &tx_id,
+        Some(from_address),
+        None,
+        &recipient,
+    );
 
-                let parsed_recipient = parse_recipient(&recipient, to_chain)
-                    .map_err(SwapOrderCreationError::InvalidRecipient)?;
-                if swap_steps == 2 && to_chain == Blockchain::ICP {
-                    // EVM to ICP quote
-                    let icp_swap_request = create_validated_swap_args_from_rlp_swap_step(
-                        crosschain_quote.steps[1].clone(),
-                        amount_in,
-                        token_in_icp_step,
-                    )
-                    .map_err(|_| SwapOrderCreationError::InvalidIcpSwapStep)?;
-                    Ok(CrosschainSwapOrder::EvmToIcp {
-                        tx_id: SwapTxId(tx_id.clone()),
-                        from_address,
-                        recipient: parsed_recipient,
-                        icp_swap_request,
-                        from_minter: from_minter.clone(),
-                    })
-                } else if swap_steps == 3 && to_chain.is_evm() {
-                    // EVM to EVM quote
-                    let to_chain_id = match to_chain {
-                        Blockchain::Evm(chain_id) => chain_id,
-                        _ => return Err(SwapOrderCreationError::InvalidToChain),
-                    };
-
-                    let (to_minter, _) = read_state(|s| s.get_minter_by_chain_id(to_chain_id))
-                        .ok_or(SwapOrderCreationError::InvalidToChain)?;
-
-                    let icp_swap_request = create_validated_swap_args_from_rlp_swap_step(
-                        crosschain_quote.steps[1].clone(),
-                        amount_in,
-                        token_in_icp_step,
-                    )
-                    .map_err(|_| SwapOrderCreationError::InvalidIcpSwapStep)?;
-                    Ok(CrosschainSwapOrder::EvmToEvm {
-                        tx_id: SwapTxId(tx_id.clone()),
-                        from_address,
-                        recipient: parsed_recipient,
-                        icp_swap_request,
-                        evm_swap_step: crosschain_quote.steps[2].clone(),
-                        from_minter: from_minter.clone(),
-                        to_minter,
-                    })
-                } else {
-                    // Unknown swap configuration
-                    Err(SwapOrderCreationError::InvalidOriginAndDestinationChain)
-                }
-            }
-            Err(err) => Err(SwapOrderCreationError::InvalidRlpData(err)),
-        };
     match create_swap_order_result {
         Ok(swap_order) => {
+            // Log successful creation and schedule immediate execution
             log!(
                 DEBUG,
-                "[minter_order]: Successfully created swap order for tx_id: {:?}. Scheduling execution.",
-                tx_id
+                "[minter_order]: Successfully created swap order for tx_id: {:?} with order {:?}. Scheduling execution.",
+                tx_id,
+                swap_order
             );
             ic_cdk_timers::set_timer(Duration::from_secs(0), || {
-                ic_cdk::futures::spawn_017_compat(execute_crosschain_swap(swap_order))
+                ic_cdk::futures::spawn_017_compat(execute_crosschain_swap(swap_order));
             });
             Ok(())
         }
         Err(create_err) => {
+            // Log failure and initiate refund process
             log!(
                 DEBUG,
                 "[minter_order]: Failed to create swap order for tx_id: {:?} with error: {:?}. Initiating refund.",
                 tx_id,
                 create_err
             );
+
+            // Prepare memo for the refund transfer
             let mut memo = WithdrawMemo::TransferToMinter {
                 amount: amount_in,
                 tx_id: SwapTxId(tx_id.clone()),
             };
+
+            // Attempt to transfer back to the minter
             let erc20_ledger_burn_index = match _transfer_to_minter(
                 token_in_icp_step,
                 amount_in,
@@ -1137,6 +1099,7 @@ async fn minter_order(
             {
                 Ok(erc20_ledger_burn_index) => erc20_ledger_burn_index,
                 Err(transfer_err) => {
+                    // Log transfer failure and record for retry
                     log!(
                         DEBUG,
                         "[minter_order]: Refund transfer to origin minter failed for tx_id: {:?} with error: {:?}. Recording for retry.",
@@ -1145,7 +1108,7 @@ async fn minter_order(
                     );
                     mutate_state(|s| {
                         s.record_failed_dex_order_to_retry(RetryFailedDexOrder {
-                            tx_id: SwapTxId(tx_id),
+                            tx_id: SwapTxId(tx_id.clone()),
                             minter_id: from_minter.id,
                             token_in: token_in_icp_step,
                             amount_in,
@@ -1163,6 +1126,8 @@ async fn minter_order(
                     return Ok(());
                 }
             };
+
+            // Prepare DexOrderArgs for notifying the minter
             let dex_order = DexOrderArgs {
                 tx_id: tx_id.clone(),
                 amount_in: u256_to_nat(amount_in),
@@ -1176,9 +1141,12 @@ async fn minter_order(
                 erc20_ledger_burn_index: erc20_ledger_burn_index.clone(),
                 is_refund: true,
             };
+
+            // Create a client for the minter and attempt to notify
             let minter_client = MinterClient::new(from_minter.id);
             match minter_client.dex_order(&dex_order).await {
                 Ok(_) => {
+                    // Log successful notification
                     log!(
                         DEBUG,
                         "[minter_order]: Successfully notified origin minter for refund on tx_id: {:?}.",
@@ -1187,6 +1155,7 @@ async fn minter_order(
                     // TODO: Record successful refund on the ICP side.
                 }
                 Err(notify_err) => {
+                    // Log notification failure and record for retry
                     log!(
                         DEBUG,
                         "[minter_order]: Failed to notify origin minter for refund on tx_id: {:?} with error: {:?}. Recording for retry.",
@@ -1195,7 +1164,7 @@ async fn minter_order(
                     );
                     mutate_state(|s| {
                         s.record_failed_dex_order_to_retry(RetryFailedDexOrder {
-                            tx_id: SwapTxId(tx_id),
+                            tx_id: SwapTxId(tx_id.clone()),
                             minter_id: from_minter.id,
                             token_in: token_in_icp_step,
                             amount_in,
@@ -1217,6 +1186,7 @@ async fn minter_order(
     }
 }
 
+
 #[update]
 // swaps that start from ICP
 pub async fn cross_chain_swap(
@@ -1226,65 +1196,45 @@ pub async fn cross_chain_swap(
     }: CrosschainSwapArgs,
 ) -> Result<String, CrosschainSwapError> {
     let caller = validate_caller_not_anonymous();
-
     let _guard = match PrincipalGuard::new_swap_guard(caller) {
         Ok(guard) => guard,
         Err(_err) => return Err(CrosschainSwapError::LockedPrincipal),
     };
-
-    let crosschain_quote = rlp_decoder::RlpDecoder::decode_cross_chain_data(&encoded_swap_data)
-        .map_err(CrosschainSwapError::InvalidEncodedData)?;
-
-    let swap_steps = crosschain_quote.steps.len();
-    if !(2..3).contains(&swap_steps) {
-        return Err(CrosschainSwapError::InvalidEncodedData(
-            RlpDecodeError::InvalidRlpData,
-        ));
-    }
-    let from_chain = crosschain_quote.steps[0].chain_id;
-
-    if from_chain != Blockchain::ICP {
-        return Err(CrosschainSwapError::InvalidEncodedData(
-            RlpDecodeError::InvalidRlpData,
-        ));
-    }
-
-    let to_chain = crosschain_quote.steps[swap_steps - 1].chain_id;
-
-    if from_chain == to_chain || !from_chain.is_evm() {
-        return Err(CrosschainSwapError::InvalidEncodedData(
-            RlpDecodeError::InvalidRlpData,
-        ));
-    }
-
-    let to_chain_id = match to_chain {
-        Blockchain::ICP => panic!("To chain can not be ICP"),
-        Blockchain::Evm(id) => id,
-    };
-
-    let (to_minter, _) = read_state(|s| s.get_minter_by_chain_id(to_chain_id))
-        .ok_or(CrosschainSwapError::InvalidToChain)?;
-
-    let token_in = Principal::from_text(&crosschain_quote.steps[0].route[0].buy_token)
-        .map_err(|_| CrosschainSwapError::InvalidTokenIn)?;
-
-    let recipient =
-        parse_recipient(&recipient, to_chain).map_err(|_| CrosschainSwapError::InvalidRecipient)?;
-
-    let icp_swap_request = create_validated_swap_args_from_rlp_swap_step(
-        crosschain_quote.steps[0].clone(),
-        crosschain_quote.steps[0].amount_in,
-        token_in,
+    let dummy_tx_id = "dummy".to_string();
+    let temp_order = create_swap_order(
+        &encoded_swap_data,
+        U256::ZERO,
+        Principal::anonymous(),
+        None,
+        &dummy_tx_id,
+        None,
+        Some(caller),
+        &recipient,
     )
-    .map_err(|_| CrosschainSwapError::InvalidIcpSwapStep)?;
-
+    .map_err(|e| match e {
+        SwapOrderCreationError::InvalidRlpData(e) => CrosschainSwapError::InvalidEncodedData(e),
+        SwapOrderCreationError::InvalidIcpSwapStep(_) => CrosschainSwapError::InvalidIcpSwapStep,
+        SwapOrderCreationError::InvalidToChain => CrosschainSwapError::InvalidToChain,
+        SwapOrderCreationError::InvalidRecipient(_) => CrosschainSwapError::InvalidRecipient,
+        SwapOrderCreationError::InvalidTokenIn => CrosschainSwapError::InvalidTokenIn,
+        _ => CrosschainSwapError::InvalidEncodedData(RlpDecodeError::InvalidRlpData),
+    })?;
+    let icp_swap_request = match &temp_order {
+        CrosschainSwapOrder::IcpToEvm {
+            icp_swap_request, ..
+        } => icp_swap_request.clone(),
+        _ => {
+            return Err(CrosschainSwapError::InvalidEncodedData(
+                RlpDecodeError::InvalidRlpData,
+            ));
+        }
+    };
     // deposit section
     // Configures user account with optional subaccount
     let mut user_address: Account = caller.into();
     if let Some(subaccount) = icp_swap_request.from_subaccount() {
         user_address.subaccount = Some(subaccount);
     }
-
     let deposit_amount = icp_swap_request.deposit_amount();
     let token_in = icp_swap_request.token_in();
     // Deposits input tokens for the swap
@@ -1296,21 +1246,31 @@ pub async fn cross_chain_swap(
     )
     .await
     .map_err(CrosschainSwapError::DepositError)?;
-
     let time = ic_cdk::api::time();
-
     // 0 in chain ids refer to icp blockchain
     let tx_id = SwapTxId::new("0", ledger_burn_index.0, time);
-
-    let swap_order = CrosschainSwapOrder::IcpToEvm {
-        tx_id: tx_id.clone(),
-        from: caller,
-        recipient,
-        icp_swap_request,
-        evm_swap_step: crosschain_quote.steps[2].clone(),
-        to_minter,
+    let swap_order = match temp_order {
+        CrosschainSwapOrder::IcpToEvm {
+            from,
+            recipient,
+            icp_swap_request,
+            evm_swap_step,
+            to_minter,
+            ..
+        } => CrosschainSwapOrder::IcpToEvm {
+            tx_id: tx_id.clone(),
+            from,
+            recipient,
+            icp_swap_request,
+            evm_swap_step,
+            to_minter,
+        },
+        _ => {
+            return Err(CrosschainSwapError::InvalidEncodedData(
+                RlpDecodeError::InvalidRlpData,
+            ));
+        }
     };
-
     log!(
         DEBUG,
         "[minter_order]: Successfully created swap order for tx_id: {:?}. Scheduling execution.",
@@ -1319,7 +1279,6 @@ pub async fn cross_chain_swap(
     ic_cdk_timers::set_timer(Duration::from_secs(0), || {
         ic_cdk::futures::spawn_017_compat(execute_crosschain_swap(swap_order))
     });
-
     Ok(tx_id.0)
 }
 

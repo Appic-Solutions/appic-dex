@@ -3,7 +3,7 @@ use std::borrow::Cow;
 
 use crate::{
     balances::types::{UserBalance, UserBalanceKey},
-    cross_chain::types::{RecievedSwapOrders, RetryFailedDexOrder},
+    cross_chain::types::RetryFailedDexOrder,
     events::{Event, EventType},
     historical::types::{HistoryBucket, PoolHistory},
     minter_client::minter_types::{Minter, MinterKey},
@@ -53,7 +53,6 @@ impl_storable_minicbor!(HistoryBucket);
 impl_storable_minicbor!(PoolHistory);
 impl_storable_minicbor!(EventType);
 impl_storable_minicbor!(Event);
-impl_storable_minicbor!(RecievedSwapOrders);
 impl_storable_minicbor!(SwapTxId);
 impl_storable_minicbor!(Minter);
 impl_storable_minicbor!(MinterKey);

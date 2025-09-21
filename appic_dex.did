@@ -1,4 +1,5 @@
 type Balance = record { token : principal; amount : nat };
+type Blockchain = variant { Evm : nat64; ICP };
 type BurnPositionArgs = record {
   amount1_min : nat;
   pool : CandidPoolId;
@@ -19,6 +20,43 @@ type BurnPositionError = variant {
   InvalidTick;
   LockedPrincipal;
   AmountOverflow;
+};
+type CandidCrosschainStep = record {
+  gas_price_usd : opt text;
+  canister_fee_usd : opt text;
+  min_amount_out : opt nat;
+  amount_out : nat;
+  chain_id : Blockchain;
+  gas_limit : opt nat;
+  amount_in : nat;
+  max_gas_fee : opt nat;
+  slippage : opt text;
+};
+type CandidCrosschainSwapOrder = variant {
+  EvmToEvm : record {
+    tx_id : text;
+    to_minter : MinterKey;
+    recipient : CandidRecipient;
+    icp_swap_request : SwapType;
+    from_minter : MinterKey;
+    from_address : text;
+    evm_swap_step : CandidCrosschainStep;
+  };
+  EvmToIcp : record {
+    tx_id : text;
+    recipient : CandidRecipient;
+    icp_swap_request : SwapType;
+    from_minter : MinterKey;
+    from_address : text;
+  };
+  IcpToEvm : record {
+    tx_id : text;
+    to_minter : MinterKey;
+    from : principal;
+    recipient : CandidRecipient;
+    icp_swap_request : SwapType;
+    evm_swap_step : CandidCrosschainStep;
+  };
 };
 type CandidEvent = record { timestamp : nat64; payload : CandidEventType };
 type CandidEventType = variant {
@@ -70,6 +108,10 @@ type CandidEventType = variant {
     liquidity : nat;
     created_position : CandidPositionKey;
     amount1_paid : nat;
+  };
+  CrosschainSwap : record {
+    swap_order : CandidCrosschainSwapOrder;
+    is_refunded : bool;
   };
 };
 type CandidHistoryBucket = record {
@@ -132,6 +174,7 @@ type CandidPositionKey = record {
   tick_lower : int;
   tick_upper : int;
 };
+type CandidRecipient = variant { IcPrincipal : principal; EvmAddress : text };
 type CandidSwapSuccess = record { amount_out : nat; amount_in : nat };
 type CandidTickInfo = record {
   fee_growth_outside_1_x128 : nat;
@@ -294,6 +337,7 @@ type MintPositionError = variant {
   LockedPrincipal;
   AmountOverflow;
 };
+type MinterKey = record { id : principal; chain_id : nat64 };
 type QuoteArgs = variant {
   QuoteExactOutput : QuoteExactParams;
   QuoteExactOutputSingleParams : QuoteExactSingleParams;
@@ -407,11 +451,12 @@ type SwapOrderCreationError = variant {
   InvalidFromAddress;
   InvalidOriginAndDestinationChain;
   InvalidToChain;
+  InvalidTokenIn;
   InvalidMinter;
   InvalidRecipient : text;
   FailedRlpDecoding;
   InvalidRlpData : RlpDecodeError;
-  InvalidIcpSwapStep;
+  InvalidIcpSwapStep : SwapError;
 };
 type SwapType = variant {
   ExactOutput : vec CandidPoolId;
