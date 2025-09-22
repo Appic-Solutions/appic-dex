@@ -1,10 +1,11 @@
-pub mod storage;
-
 use candid::Principal;
 use ethnum::U256;
 use minicbor::{Decode, Encode};
 
-use crate::{position::types::PositionKey, validation::swap_args::ValidatedSwapArgs};
+use crate::{
+    cross_chain::types::CrosschainSwapOrder, position::types::PositionKey, swap_id::SwapTxId,
+    validation::swap_args::ValidatedSwapArgs,
+};
 
 /// The event describing the  minter state transition.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
@@ -91,6 +92,17 @@ pub enum EventType {
         swap_args: ValidatedSwapArgs,
         #[cbor(n(3), with = "crate::cbor::principal")]
         principal: Principal,
+        #[cbor(n(4), with = "crate::cbor::principal::option")]
+        recipient: Option<Principal>,
+        #[n(5)]
+        tx_id: Option<SwapTxId>,
+    },
+    #[n(7)]
+    CrosschainSwap {
+        #[n(0)]
+        swap_order: CrosschainSwapOrder,
+        #[n(1)]
+        is_refunded: bool,
     },
 }
 

@@ -1,9 +1,12 @@
-use std::time::Duration;
+use std::{str::FromStr, time::Duration};
 
 use appic_dex::{
+    address::Address,
     balances::types::{UserBalance, UserBalanceKey},
     burn::execute_burn_position,
     candid_types::{
+        Balance, DepositArgs, DepositError, UserBalanceArgs, WithdrawArgs, WithdrawError,
+        crosschain_swap::{CrosschainSwapArgs, CrosschainSwapError},
         events::{CandidEvent, GetEventsArg, GetEventsResult},
         pool::{CandidPoolId, CandidPoolState, CreatePoolArgs, CreatePoolError},
         pool_history::CandidPoolHistory,
@@ -15,15 +18,24 @@ use appic_dex::{
         quote::{QuoteArgs, QuoteError},
         swap::{CandidSwapSuccess, SwapArgs, SwapError},
         tick::CandidTickInfo,
-        Balance, DepositArgs, DepositError, UserBalanceArgs, WithdrawArgs, WithdrawError,
+        upgrade::UpgradeArgs,
     },
     collect_fees::execute_collect_fees,
+    cross_chain::{
+        _transfer_to_minter, REFUND_FAILED_SWAP_GAS_LIMIT, UNLIMITED_DEADLINE,
+        execute_crosschain_swap,
+        parser::parse_recipient,
+        rlp_decoder::{self, Blockchain, RlpDecodeError},
+        swap_order::create_swap_order,
+        types::{CrosschainSwapOrder, RetryFailedDexOrder},
+    },
     decrease_liquidity::execute_decrease_liquidity,
+    deposit::{_deposit, _deposit_if_needed},
     guard::PrincipalGuard,
     historical::capture_historical_data,
     icrc_client::{
+        LedgerClient,
         memo::{DepositMemo, WithdrawMemo},
-        LedgerClient, LedgerTransferError,
     },
     increase_liquidity::execute_increase_liquidity,
     libraries::{
@@ -32,6 +44,12 @@ use appic_dex::{
     },
     logs::DEBUG,
     mint::execute_mint_position,
+    minter_client::{
+        MinterClient,
+        minter_types::{
+            DexOrderArgs, Minter, MinterKey, ReceivedSwapOrderEvent, SwapOrderCreationError,
+        },
+    },
     pool::{
         create_pool::create_pool_inner,
         types::{PoolFee, PoolId, PoolTickSpacing},
@@ -42,13 +60,17 @@ use appic_dex::{
         process_multi_hop_exact_input, process_multi_hop_exact_output,
         process_single_hop_exact_input, process_single_hop_exact_output,
     },
-    state::{mutate_state, read_state},
+    state::{get_user_balance, mutate_state, read_state},
     swap::execute_swap,
+    swap_id::SwapTxId,
     validation::{
-        burn_args::validate_burn_position_args, decrease_args::validate_decrease_liquidity_args,
-        increase_args::validate_increase_liquidity_args, mint_args::validate_mint_position_args,
-        swap_args::validate_swap_args,
+        burn_args::validate_burn_position_args,
+        decrease_args::validate_decrease_liquidity_args,
+        increase_args::validate_increase_liquidity_args,
+        mint_args::validate_mint_position_args,
+        swap_args::{create_validated_swap_args_from_rlp_swap_step, validate_swap_args},
     },
+    withdraw::{_refund, _withdraw},
 };
 
 use candid::{Nat, Principal};
@@ -92,8 +114,33 @@ fn init() {
 
 // Restarts timers after canister upgrade to maintain historical data collection
 #[post_upgrade]
-fn post_upgrade() {
+fn post_upgrade(args: Option<UpgradeArgs>) {
     set_up_timers();
+
+    if let Some(upgrade_args) = args
+        && let Some(minters_to_upgrade) = upgrade_args.upgrade_minters
+    {
+        for minter in minters_to_upgrade {
+            let twin_usdc_principal = minter.twin_usdc_principal;
+            let chain_id = minter.chain_id;
+            let usdc_address = Address::from_str(&minter.usdc_address)
+                .expect("Failed to aprsed usdc address for chain {chain_id}");
+            let minter_id = minter.id;
+
+            mutate_state(|s| {
+                s.add_minter(
+                    MinterKey {
+                        chain_id,
+                        id: minter_id,
+                    },
+                    Minter {
+                        twin_usdc_principal,
+                        usdc_address,
+                    },
+                )
+            })
+        }
+    }
 }
 
 // Queries state of a specific pool by ID, converts to Candid format, returns None if not found
@@ -337,9 +384,8 @@ async fn mint_position(args: MintPositionArgs) -> Result<Nat, MintPositionError>
 
     // Deposits tokens if user balance is insufficient for max deposit amounts
     _deposit_if_needed(
-        caller,
         token0,
-        &from,
+        from,
         user_balance.amount0().as_u256(),
         max_deposit.amount0().as_u256(),
         &mut DepositMemo::MintPosition {
@@ -351,9 +397,8 @@ async fn mint_position(args: MintPositionArgs) -> Result<Nat, MintPositionError>
     .map_err(MintPositionError::DepositError)?;
 
     _deposit_if_needed(
-        caller,
         token1,
-        &from,
+        from,
         user_balance.amount1().as_u256(),
         max_deposit.amount1().as_u256(),
         &mut DepositMemo::MintPosition {
@@ -412,18 +457,15 @@ async fn mint_position(args: MintPositionArgs) -> Result<Nat, MintPositionError>
         )
     });
 
-    let to_account = Account::from(caller);
-
     if user_balance_after_mint
         .amount0()
         .as_u256()
         .gt(&token0_transfer_fee)
     {
         let _ = _withdraw(
-            caller,
             token0,
             user_balance_after_mint.amount0().as_u256(),
-            &to_account,
+            caller,
             &mut WithdrawMemo::WithdrawBalance { amount: U256::ZERO },
             token0_transfer_fee,
         )
@@ -436,10 +478,9 @@ async fn mint_position(args: MintPositionArgs) -> Result<Nat, MintPositionError>
         .gt(&token1_transfer_fee)
     {
         let _ = _withdraw(
-            caller,
             token1,
             user_balance_after_mint.amount1().as_u256(),
-            &to_account,
+            caller,
             &mut WithdrawMemo::WithdrawBalance { amount: U256::ZERO },
             token1_transfer_fee,
         )
@@ -494,9 +535,8 @@ async fn increase_liquidity(args: IncreaseLiquidityArgs) -> Result<Nat, Increase
 
     // Deposits tokens if needed for both tokens
     _deposit_if_needed(
-        caller,
         token0,
-        &from,
+        from,
         user_balance.amount0().as_u256(),
         max_deposit.amount0().as_u256(),
         &mut DepositMemo::MintPosition {
@@ -508,9 +548,8 @@ async fn increase_liquidity(args: IncreaseLiquidityArgs) -> Result<Nat, Increase
     .map_err(IncreaseLiquidityError::DepositError)?;
 
     _deposit_if_needed(
-        caller,
         token1,
-        &from,
+        from,
         user_balance.amount1().as_u256(),
         max_deposit.amount1().as_u256(),
         &mut DepositMemo::MintPosition {
@@ -569,18 +608,15 @@ async fn increase_liquidity(args: IncreaseLiquidityArgs) -> Result<Nat, Increase
         )
     });
 
-    let to_account = Account::from(caller);
-
     if user_balance_after_mint
         .amount0()
         .as_u256()
         .gt(&token0_transfer_fee)
     {
         let _ = _withdraw(
-            caller,
             token0,
             user_balance_after_mint.amount0().as_u256(),
-            &to_account,
+            caller,
             &mut WithdrawMemo::WithdrawBalance { amount: U256::ZERO },
             token0_transfer_fee,
         )
@@ -593,10 +629,9 @@ async fn increase_liquidity(args: IncreaseLiquidityArgs) -> Result<Nat, Increase
         .gt(&token1_transfer_fee)
     {
         let _ = _withdraw(
-            caller,
             token1,
             user_balance_after_mint.amount1().as_u256(),
-            &to_account,
+            caller,
             &mut WithdrawMemo::WithdrawBalance { amount: U256::ZERO },
             token1_transfer_fee,
         )
@@ -644,14 +679,11 @@ async fn burn(args: BurnPositionArgs) -> Result<(), BurnPositionError> {
         )
     });
 
-    let to_account = Account::from(caller);
-
     // Withdraws burned tokens for token0
     let _ = _withdraw(
-        caller,
         token0,
         user_balance_after_burn.amount0().as_u256(),
-        &to_account,
+        caller,
         &mut WithdrawMemo::BurnPosition {
             // Typo: Should be BurnPosition
             amount: U256::ZERO,
@@ -663,10 +695,9 @@ async fn burn(args: BurnPositionArgs) -> Result<(), BurnPositionError> {
 
     // Withdraws burned tokens for token1
     let _ = _withdraw(
-        caller,
         token1,
         user_balance_after_burn.amount1().as_u256(),
-        &to_account,
+        caller,
         &mut WithdrawMemo::BurnPosition {
             // Typo: Should be BurnPosition
             amount: U256::ZERO,
@@ -717,14 +748,11 @@ async fn decrease_liquidity(args: DecreaseLiquidityArgs) -> Result<(), DecreaseL
         )
     });
 
-    let to_account = Account::from(caller);
-
     // Withdraws decreased liquidity for token0
     let _ = _withdraw(
-        caller,
         token0,
         user_balance_after_burn.amount0().as_u256(),
-        &to_account,
+        caller,
         &mut WithdrawMemo::BurnPosition {
             // Typo: Should be BurnPosition
             amount: U256::ZERO,
@@ -736,10 +764,9 @@ async fn decrease_liquidity(args: DecreaseLiquidityArgs) -> Result<(), DecreaseL
 
     // Withdraws decreased liquidity for token1
     let _ = _withdraw(
-        caller,
         token1,
         user_balance_after_burn.amount1().as_u256(),
-        &to_account,
+        caller,
         &mut WithdrawMemo::BurnPosition {
             // Typo: Should be BurnPosition
             amount: U256::ZERO,
@@ -755,9 +782,11 @@ async fn decrease_liquidity(args: DecreaseLiquidityArgs) -> Result<(), DecreaseL
 // Executes a token swap, deposits input, withdraws output, refunds on failure
 #[update]
 async fn swap(args: SwapArgs) -> Result<CandidSwapSuccess, SwapError> {
+    let caller = validate_caller_not_anonymous();
+    let recipient = &args.recipient().unwrap_or(caller);
+
     let validated_swap_args = validate_swap_args(args)?;
     ic_cdk::println!("{:?}", validated_swap_args);
-    let caller = validate_caller_not_anonymous();
 
     // Uses swap-specific lock to allow concurrent swaps but blocks other operations by the same
     // user(mint, increase, decrease, collect fees, bunr)
@@ -778,9 +807,8 @@ async fn swap(args: SwapArgs) -> Result<CandidSwapSuccess, SwapError> {
 
     // Deposits input tokens for the swap
     _deposit(
-        caller,
         token_in,
-        &user_address,
+        user_address,
         deposit_amount.as_u256(),
         &mut DepositMemo::SwapIn { amount: U256::ZERO },
     )
@@ -789,16 +817,23 @@ async fn swap(args: SwapArgs) -> Result<CandidSwapSuccess, SwapError> {
 
     let timestamp = ic_cdk::api::time();
 
-    let swap_result = execute_swap(&validated_swap_args, token_in, token_out, caller, timestamp);
+    let swap_result = execute_swap(
+        &validated_swap_args,
+        token_in,
+        token_out,
+        caller,
+        timestamp,
+        *recipient,
+        None,
+    );
 
     match swap_result {
         Ok(swap_delta) => {
             // Withdraws output tokens after successful swap
             _withdraw(
-                caller,
                 token_out,
                 swap_delta.1.as_u256(),
-                &user_address,
+                *recipient,
                 &mut WithdrawMemo::SwapOut { amount: U256::ZERO },
                 swap_delta.2,
             )
@@ -817,14 +852,13 @@ async fn swap(args: SwapArgs) -> Result<CandidSwapSuccess, SwapError> {
         }
         Err(err) => {
             // Refunds input tokens if swap fails
-            let refunded_amount =
-                _refund(caller, token_in, deposit_amount.as_u256(), &user_address)
-                    .await
-                    .map_err(|e| SwapError::SwapFailedRefunded {
-                        refund_amount: None,
-                        failed_reason: err.clone(),
-                        refund_error: Some(e),
-                    })?;
+            let refunded_amount = _refund(token_in, deposit_amount.as_u256(), caller)
+                .await
+                .map_err(|e| SwapError::SwapFailedRefunded {
+                    refund_amount: None,
+                    failed_reason: err.clone(),
+                    refund_error: Some(e),
+                })?;
 
             Err(SwapError::SwapFailedRefunded {
                 failed_reason: err,
@@ -868,10 +902,9 @@ async fn collect_fees(position: CandidPositionKey) -> Result<CollectFeesSuccess,
     if fee_delta != BalanceDelta::ZERO_DELTA {
         // Withdraws collected fees for token0
         let _ = _withdraw(
-            caller,
             position_key.pool_id.token0,
             fee_delta.amount0().as_u256(),
-            &caller.into(),
+            caller,
             &mut WithdrawMemo::CollectFees { amount: U256::ZERO },
             pool.token0_transfer_fee,
         )
@@ -880,10 +913,9 @@ async fn collect_fees(position: CandidPositionKey) -> Result<CollectFeesSuccess,
 
         // Withdraws collected fees for token1, using token0_transfer_fee (likely a bug)
         let _ = _withdraw(
-            caller,
             position_key.pool_id.token1,
             fee_delta.amount1().as_u256(),
-            &caller.into(),
+            caller,
             &mut WithdrawMemo::CollectFees { amount: U256::ZERO },
             pool.token0_transfer_fee, // Should likely be token1_transfer_fee
         )
@@ -918,13 +950,13 @@ async fn deposit(deposit_args: DepositArgs) -> Result<(), DepositError> {
         big_uint_to_u256(deposit_args.amount.0).map_err(|_| DepositError::AmountOverflow)?;
 
     _deposit(
-        caller,
         deposit_args.token,
-        &from,
+        from,
         amount,
         &mut DepositMemo::Deposit { amount: U256::ZERO },
     )
     .await
+    .map(|_ledger_index| ())
 }
 
 // Withdraws tokens, updates user balance, returns withdrawn amount
@@ -950,10 +982,9 @@ async fn withdraw(withdraw_args: WithdrawArgs) -> Result<Nat, WithdrawError> {
         big_uint_to_u256(withdraw_args.amount.0).map_err(|_| WithdrawError::AmountOverflow)?;
 
     _withdraw(
-        caller,
         withdraw_args.token,
         amount,
-        &caller.into(),
+        caller,
         &mut WithdrawMemo::Withdraw { amount: U256::ZERO },
         transfer_fee,
     )
@@ -961,206 +992,296 @@ async fn withdraw(withdraw_args: WithdrawArgs) -> Result<Nat, WithdrawError> {
     .map(u256_to_nat)
 }
 
-// Internal function to deposit tokens and update user balance
-async fn _deposit(
-    caller: Principal,
-    token: Principal,
-    from: &Account,
-    amount: U256,
-    memo: &mut DepositMemo,
-) -> Result<(), DepositError> {
-    // Sets deposit amount in memo for ledger tracking
-
+// Main function to process swap orders from minters for cross-chain swaps.
+#[update]
+async fn minter_order(
+    ReceivedSwapOrderEvent {
+        from_address,
+        recipient,
+        token_in: _, // Ignored as per original logic
+        token_out: _,
+        amount_in: _,
+        amount_out,
+        encoded_swap_data,
+        tx_id,
+    }: ReceivedSwapOrderEvent,
+) -> Result<(), SwapOrderCreationError> {
+    // Log the start of processing for debugging
     log!(
         DEBUG,
-        "Depositing token {:?} with amount {:?} from user {:?}",
-        token.to_text(),
-        amount,
-        caller.to_text(),
+        "[minter_order]: Processing swap order event for tx_id: {:?}",
+        tx_id
     );
 
-    memo.set_amount(amount);
-    LedgerClient::new(token)
-        .deposit(*from, u256_to_big_uint(amount), memo.clone())
-        .await?;
+    // Retrieve the caller's principal and associated minter information
+    let caller = ic_cdk::api::msg_caller();
+    let (from_minter, from_minter_info) = read_state(|s| s.get_minter_by_principal(caller))
+        .ok_or(SwapOrderCreationError::InvalidMinter)?;
 
-    // Updates user balance, caps at U256::MAX to prevent overflow
-    let latest_user_balance = get_user_balance(caller, token);
+    // Token for the ICP step in the swap
+    let token_in_icp_step = from_minter_info.twin_usdc_principal;
+
+    // Convert amount_out from the event to amount_in for this context (assuming this is intentional logic for cross-chain handling)
+    let amount_in =
+        big_uint_to_u256(amount_out.0).map_err(|_| SwapOrderCreationError::InvalidAmountOut)?;
+
+    // Parse the from_address string into an Address type
+    let from_address =
+        Address::from_str(&from_address).map_err(|_| SwapOrderCreationError::InvalidFromAddress)?;
+
+    // Retrieve the latest balance for the minter
+    let latest_minter_balance = get_user_balance(from_minter.id, token_in_icp_step);
+
+    // Update the minter's balance, capping at U256::MAX to prevent overflow
     mutate_state(|s| {
         s.update_user_balance(
             UserBalanceKey {
-                user: caller,
-                token,
+                user: from_minter.id,
+                token: token_in_icp_step,
             },
-            UserBalance(latest_user_balance.checked_add(amount).unwrap_or(U256::MAX)),
+            UserBalance(
+                latest_minter_balance
+                    .checked_add(amount_in)
+                    .unwrap_or(U256::MAX),
+            ),
         );
     });
 
-    Ok(())
-}
+    // Attempt to create the swap order using the extracted helper function
+    let create_swap_order_result = create_swap_order(
+        &encoded_swap_data,
+        amount_in,
+        token_in_icp_step,
+        Some(&from_minter),
+        &tx_id,
+        Some(from_address),
+        None,
+        &recipient,
+    );
 
-// Deposits tokens if current balance is insufficient, returns updated balance
-async fn _deposit_if_needed(
-    caller: Principal,
-    token: Principal,
-    from: &Account,
-    user_current_balance: U256,
-    desired_user_balance: U256,
-    memo: &mut DepositMemo,
-) -> Result<U256, DepositError> {
-    if desired_user_balance > user_current_balance {
-        // Calculates additional amount needed and deposits it
-        let deposit_amount = desired_user_balance - user_current_balance;
-
-        log!(
-            DEBUG,
-            "Depositing token {:?} with amount {:?} from user {:?}",
-            token.to_text(),
-            deposit_amount,
-            caller.to_text(),
-        );
-
-        memo.set_amount(deposit_amount);
-        LedgerClient::new(token)
-            .deposit(*from, u256_to_big_uint(deposit_amount), memo.clone())
-            .await?;
-
-        // Updates user balance to desired amount
-        mutate_state(|s| {
-            s.update_user_balance(
-                UserBalanceKey {
-                    user: caller,
-                    token,
-                },
-                UserBalance(desired_user_balance),
+    match create_swap_order_result {
+        Ok(swap_order) => {
+            // Log successful creation and schedule immediate execution
+            log!(
+                DEBUG,
+                "[minter_order]: Successfully created swap order for tx_id: {:?} with order {:?}. Scheduling execution.",
+                tx_id,
+                swap_order
             );
-        });
-        return Ok(desired_user_balance);
-    }
-    Ok(user_current_balance)
-}
-
-// Refunds tokens to user, returns refunded amount after fees
-async fn _refund(
-    caller: Principal,
-    token: Principal,
-    amount: U256,
-    to: &Account,
-) -> Result<U256, WithdrawError> {
-    // Fetches transfer fee for refund calculation
-    let transfer_fee = big_uint_to_u256(
-        LedgerClient::new(token)
-            .icrc_fee()
-            .await
-            .map_err(|_| WithdrawError::FeeUnknown)?
-            .0,
-    )
-    .map_err(|_| WithdrawError::FeeUnknown)?;
-
-    _withdraw(
-        caller,
-        token,
-        amount,
-        to,
-        &mut WithdrawMemo::Refund { amount: U256::ZERO },
-        transfer_fee,
-    )
-    .await
-}
-
-// Withdraws tokens, updates balance, handles transfer errors with rollback
-async fn _withdraw(
-    caller: Principal,
-    token: Principal,
-    amount: U256,
-    to: &Account,
-    memo: &mut WithdrawMemo,
-    transfer_fee: U256,
-) -> Result<U256, WithdrawError> {
-    let user_balance = get_user_balance(caller, token);
-
-    log!(
-        DEBUG,
-        "Withdrawing token {:?} with amount {:?} with transfer fee {:?} to user {:?} with balance {:?}",
-        token.to_text(),
-        amount,
-        transfer_fee,
-        caller.to_text(),
-        user_balance
-    );
-
-    // Ensures amount covers transfer fee
-    if amount.checked_sub(transfer_fee).is_none() {
-        return Err(WithdrawError::AmountTooLow {
-            min_withdrawal_amount: Nat::from(u256_to_big_uint(transfer_fee)),
-        });
-    }
-
-    // Checks for sufficient balance
-    if amount > user_balance {
-        return Err(WithdrawError::InsufficientBalance {
-            balance: u256_to_nat(user_balance),
-        });
-    }
-
-    // Deducts balance before transfer to prevent double-spending
-    mutate_state(|s| {
-        s.update_user_balance(
-            UserBalanceKey {
-                user: caller,
-                token,
-            },
-            UserBalance(user_balance - amount),
-        );
-    });
-
-    let withdrawal_amount = amount - transfer_fee;
-    let icrc_fee = u256_to_big_uint(transfer_fee);
-    memo.set_amount(amount);
-    match LedgerClient::new(token)
-        .withdraw(
-            *to,
-            u256_to_big_uint(withdrawal_amount),
-            memo.clone(),
-            icrc_fee,
-        )
-        .await
-    {
-        Ok(_) => Ok(withdrawal_amount),
-        Err(err) => {
-            // Restores balance on transfer failure
-            let latest_user_balance = get_user_balance(caller, token);
-            mutate_state(|s| {
-                s.update_user_balance(
-                    UserBalanceKey {
-                        user: caller,
-                        token,
-                    },
-                    UserBalance(latest_user_balance.checked_add(amount).unwrap_or(U256::MAX)),
-                );
+            ic_cdk_timers::set_timer(Duration::from_secs(0), || {
+                ic_cdk::futures::spawn_017_compat(execute_crosschain_swap(swap_order));
             });
+            Ok(())
+        }
+        Err(create_err) => {
+            // Log failure and initiate refund process
+            log!(
+                DEBUG,
+                "[minter_order]: Failed to create swap order for tx_id: {:?} with error: {:?}. Initiating refund.",
+                tx_id,
+                create_err
+            );
 
-            // Handles fee mismatch by updating pool fees
-            match err {
-                LedgerTransferError::BadFee { expected_fee } => {
-                    let new_transfer_fee =
-                        big_uint_to_u256(expected_fee.0).map_err(|_| WithdrawError::FeeUnknown)?;
+            // Prepare memo for the refund transfer
+            let mut memo = WithdrawMemo::TransferToMinter {
+                amount: amount_in,
+                tx_id: SwapTxId(tx_id.clone()),
+            };
 
-                    // Updates transfer fee across all pools for consistency
+            // Attempt to transfer back to the minter
+            let erc20_ledger_burn_index = match _transfer_to_minter(
+                token_in_icp_step,
+                amount_in,
+                from_minter.id,
+                &mut memo,
+            )
+            .await
+            {
+                Ok(erc20_ledger_burn_index) => erc20_ledger_burn_index,
+                Err(transfer_err) => {
+                    // Log transfer failure and record for retry
+                    log!(
+                        DEBUG,
+                        "[minter_order]: Refund transfer to origin minter failed for tx_id: {:?} with error: {:?}. Recording for retry.",
+                        tx_id,
+                        transfer_err
+                    );
                     mutate_state(|s| {
-                        s.update_token_transfer_fee_across_all_pools(token, new_transfer_fee)
+                        s.record_failed_dex_order_to_retry(RetryFailedDexOrder {
+                            tx_id: SwapTxId(tx_id.clone()),
+                            minter_id: from_minter.id,
+                            token_in: token_in_icp_step,
+                            amount_in,
+                            min_amount_out: amount_in,
+                            deadline: UNLIMITED_DEADLINE.into(),
+                            recipient: from_address.to_string(),
+                            erc20_ledger_burn_index: None,
+                            commands: vec![],
+                            commands_data: vec![],
+                            max_gas_fee_usd: None,
+                            gas_limit: REFUND_FAILED_SWAP_GAS_LIMIT.into(),
+                            is_refund: true,
+                            signing_fee: None,
+                        })
                     });
-                    Err(WithdrawError::FeeUnknown)
+                    return Ok(());
                 }
-                _ => Err(err.into()),
+            };
+
+            // Prepare DexOrderArgs for notifying the minter
+            let dex_order = DexOrderArgs {
+                tx_id: tx_id.clone(),
+                amount_in: u256_to_nat(amount_in),
+                min_amount_out: u256_to_nat(amount_in),
+                commands: vec![],
+                commands_data: vec![],
+                max_gas_fee_usd: None,
+                gas_limit: u256_to_nat(REFUND_FAILED_SWAP_GAS_LIMIT.into()),
+                deadline: u256_to_nat(UNLIMITED_DEADLINE.into()),
+                recipient: from_address.to_string(),
+                erc20_ledger_burn_index: erc20_ledger_burn_index.clone(),
+                is_refund: true,
+                signing_fee: None,
+            };
+
+            // Create a client for the minter and attempt to notify
+            let minter_client = MinterClient::new(from_minter.id);
+            match minter_client.dex_order(&dex_order).await {
+                Ok(_) => {
+                    // Log successful notification
+                    log!(
+                        DEBUG,
+                        "[minter_order]: Successfully notified origin minter for refund on tx_id: {:?}.",
+                        tx_id
+                    );
+                    // TODO: Record successful refund on the ICP side.
+                }
+                Err(notify_err) => {
+                    // Log notification failure and record for retry
+                    log!(
+                        DEBUG,
+                        "[minter_order]: Failed to notify origin minter for refund on tx_id: {:?} with error: {:?}. Recording for retry.",
+                        tx_id,
+                        notify_err
+                    );
+                    mutate_state(|s| {
+                        s.record_failed_dex_order_to_retry(RetryFailedDexOrder {
+                            tx_id: SwapTxId(tx_id.clone()),
+                            minter_id: from_minter.id,
+                            token_in: token_in_icp_step,
+                            amount_in,
+                            min_amount_out: amount_in,
+                            deadline: UNLIMITED_DEADLINE.into(),
+                            recipient: from_address.to_string(),
+                            erc20_ledger_burn_index: Some(erc20_ledger_burn_index),
+                            commands: vec![],
+                            commands_data: vec![],
+                            max_gas_fee_usd: None,
+                            gas_limit: REFUND_FAILED_SWAP_GAS_LIMIT.into(),
+                            is_refund: true,
+                            signing_fee: None,
+                        })
+                    });
+                }
             }
+            Ok(())
         }
     }
 }
 
-// Retrieves user's token balance from state
-pub fn get_user_balance(user: Principal, token: Principal) -> U256 {
-    read_state(|s| s.get_user_balance(&UserBalanceKey { user, token }).0)
+#[update]
+// swaps that start from ICP
+pub async fn cross_chain_swap(
+    CrosschainSwapArgs {
+        recipient,
+        encoded_swap_data,
+    }: CrosschainSwapArgs,
+) -> Result<String, CrosschainSwapError> {
+    let caller = validate_caller_not_anonymous();
+    let _guard = match PrincipalGuard::new_swap_guard(caller) {
+        Ok(guard) => guard,
+        Err(_err) => return Err(CrosschainSwapError::LockedPrincipal),
+    };
+    let dummy_tx_id = "dummy".to_string();
+    let temp_order = create_swap_order(
+        &encoded_swap_data,
+        U256::ZERO,
+        Principal::anonymous(),
+        None,
+        &dummy_tx_id,
+        None,
+        Some(caller),
+        &recipient,
+    )
+    .map_err(|e| match e {
+        SwapOrderCreationError::InvalidRlpData(e) => CrosschainSwapError::InvalidEncodedData(e),
+        SwapOrderCreationError::InvalidIcpSwapStep(_) => CrosschainSwapError::InvalidIcpSwapStep,
+        SwapOrderCreationError::InvalidToChain => CrosschainSwapError::InvalidToChain,
+        SwapOrderCreationError::InvalidRecipient(_) => CrosschainSwapError::InvalidRecipient,
+        SwapOrderCreationError::InvalidTokenIn => CrosschainSwapError::InvalidTokenIn,
+        _ => CrosschainSwapError::InvalidEncodedData(RlpDecodeError::InvalidRlpData),
+    })?;
+    let icp_swap_request = match &temp_order {
+        CrosschainSwapOrder::IcpToEvm {
+            icp_swap_request, ..
+        } => icp_swap_request.clone(),
+        _ => {
+            return Err(CrosschainSwapError::InvalidEncodedData(
+                RlpDecodeError::InvalidRlpData,
+            ));
+        }
+    };
+    // deposit section
+    // Configures user account with optional subaccount
+    let mut user_address: Account = caller.into();
+    if let Some(subaccount) = icp_swap_request.from_subaccount() {
+        user_address.subaccount = Some(subaccount);
+    }
+    let deposit_amount = icp_swap_request.deposit_amount();
+    let token_in = icp_swap_request.token_in();
+    // Deposits input tokens for the swap
+    let ledger_burn_index = _deposit(
+        token_in,
+        user_address,
+        deposit_amount.as_u256(),
+        &mut DepositMemo::SwapIn { amount: U256::ZERO },
+    )
+    .await
+    .map_err(CrosschainSwapError::DepositError)?;
+    let time = ic_cdk::api::time();
+    // 0 in chain ids refer to icp blockchain
+    let tx_id = SwapTxId::new("0", ledger_burn_index.0, time);
+    let swap_order = match temp_order {
+        CrosschainSwapOrder::IcpToEvm {
+            from,
+            recipient,
+            icp_swap_request,
+            evm_swap_step,
+            to_minter,
+            ..
+        } => CrosschainSwapOrder::IcpToEvm {
+            tx_id: tx_id.clone(),
+            from,
+            recipient,
+            icp_swap_request,
+            evm_swap_step,
+            to_minter,
+        },
+        _ => {
+            return Err(CrosschainSwapError::InvalidEncodedData(
+                RlpDecodeError::InvalidRlpData,
+            ));
+        }
+    };
+    log!(
+        DEBUG,
+        "[minter_order]: Successfully created swap order for tx_id: {:?}. Scheduling execution.",
+        tx_id
+    );
+    ic_cdk_timers::set_timer(Duration::from_secs(0), || {
+        ic_cdk::futures::spawn_017_compat(execute_crosschain_swap(swap_order))
+    });
+    Ok(tx_id.0)
 }
 
 fn main() {}

@@ -40,22 +40,22 @@ impl From<PoolHistory> for CandidPoolHistory {
             hourly_frame: value
                 .hourly_frame
                 .into_iter()
-                .map(|history| CandidHistoryBucket::from(history))
+                .map(CandidHistoryBucket::from)
                 .collect(),
             daily_frame: value
                 .daily_frame
                 .into_iter()
-                .map(|history| CandidHistoryBucket::from(history))
+                .map(CandidHistoryBucket::from)
                 .collect(),
             monthly_frame: value
                 .monthly_frame
                 .into_iter()
-                .map(|history| CandidHistoryBucket::from(history))
+                .map(CandidHistoryBucket::from)
                 .collect(),
             yearly_frame: value
                 .yearly_frame
                 .into_iter()
-                .map(|history| CandidHistoryBucket::from(history))
+                .map(CandidHistoryBucket::from)
                 .collect(),
         }
     }

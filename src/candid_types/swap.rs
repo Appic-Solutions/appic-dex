@@ -34,6 +34,7 @@ pub struct ExactInputSingleParams {
     pub amount_in: Nat,
     pub amount_out_minimum: Nat,
     pub from_subaccount: Option<Subaccount>,
+    pub recipient: Option<Principal>,
 }
 
 /// Parameters for a multi-hop exact-input swap
@@ -44,6 +45,7 @@ pub struct ExactInputParams {
     pub amount_in: Nat,
     pub amount_out_minimum: Nat,
     pub from_subaccount: Option<Subaccount>,
+    pub recipient: Option<Principal>,
 }
 
 /// Parameters for a single-hop exact-output swap
@@ -54,6 +56,7 @@ pub struct ExactOutputSingleParams {
     pub amount_out: Nat,
     pub amount_in_maximum: Nat,
     pub from_subaccount: Option<Subaccount>,
+    pub recipient: Option<Principal>,
 }
 
 /// notice Parameters for a multi-hop exact-output swap
@@ -64,6 +67,7 @@ pub struct ExactOutputParams {
     pub amount_out: Nat,
     pub amount_in_maximum: Nat,
     pub from_subaccount: Option<Subaccount>,
+    pub recipient: Option<Principal>,
 }
 
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize)]
@@ -72,6 +76,17 @@ pub enum SwapArgs {
     ExactInput(ExactInputParams),
     ExactOutputSingle(ExactOutputSingleParams),
     ExactOutput(ExactOutputParams),
+}
+
+impl SwapArgs {
+    pub fn recipient(&self) -> Option<Principal> {
+        match self {
+            SwapArgs::ExactInputSingle(args) => args.recipient,
+            SwapArgs::ExactInput(args) => args.recipient,
+            SwapArgs::ExactOutputSingle(args) => args.recipient,
+            SwapArgs::ExactOutput(args) => args.recipient,
+        }
+    }
 }
 
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize, PartialEq, Eq)]
@@ -120,6 +135,12 @@ pub enum SwapError {
         amount_in: Nat,
         amount_out: Nat,
     }, // swap was successful but amount_out withdrawal failed
+
+    // rlp to validated swap conversion errors
+    InvalidSwapChain,
+    InvalidRoute,
+    InvalidTokenIn,
+    InvalidTokenOut,
 }
 
 #[derive(Debug, Clone, CandidType, Deserialize, Serialize, PartialEq, Eq)]

@@ -1,7 +1,10 @@
 use candid::{CandidType, Nat, Principal};
 use serde::Deserialize;
 
-use crate::{events::Event, libraries::safe_cast::u256_to_nat, validation};
+use crate::{
+    candid_types::crosschain_swap::CandidCrosschainSwapOrder, events::Event,
+    libraries::safe_cast::u256_to_nat, validation,
+};
 
 use super::{pool::CandidPoolId, position::CandidPositionKey};
 
@@ -66,6 +69,12 @@ pub enum CandidEventType {
         token_out: Principal,
         swap_type: SwapType,
         principal: Principal,
+        recipient: Option<Principal>,
+        tx_id: Option<String>,
+    },
+    CrosschainSwap {
+        swap_order: CandidCrosschainSwapOrder,
+        is_refunded: bool,
     },
 }
 
@@ -123,7 +132,6 @@ impl From<Event> for CandidEvent {
                 amount1_paid: u256_to_nat(amount1_paid),
                 principal,
             },
-
             crate::events::EventType::BurntPosition {
                 burnt_position,
                 liquidity,
@@ -166,6 +174,8 @@ impl From<Event> for CandidEvent {
                 final_amount_out,
                 swap_args,
                 principal,
+                recipient,
+                tx_id,
             } => {
                 let (swap_type, token_in, token_out) = match swap_args {
                     validation::swap_args::ValidatedSwapArgs::ExactInputSingle {
@@ -235,8 +245,17 @@ impl From<Event> for CandidEvent {
                     token_out,
                     swap_type,
                     principal,
+                    recipient,
+                    tx_id: tx_id.map(|swap| swap.0),
                 }
             }
+            crate::events::EventType::CrosschainSwap {
+                swap_order,
+                is_refunded,
+            } => CandidEventType::CrosschainSwap {
+                swap_order: swap_order.into(),
+                is_refunded,
+            },
         };
         Self {
             timestamp: value.timestamp,

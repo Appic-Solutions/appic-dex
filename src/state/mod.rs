@@ -9,15 +9,19 @@
 
 use crate::{
     balances::types::{UserBalance, UserBalanceKey},
+    cross_chain::types::RetryFailedDexOrder,
     events::Event,
     historical::types::PoolHistory,
     libraries::{constants::Q128, full_math::mul_div},
+    minter_client::minter_types::{Minter, MinterKey},
     pool::{
         modify_liquidity::ModifyLiquidityBufferState,
         swap::SwapBufferState,
         types::{PoolFee, PoolId, PoolState, PoolTickSpacing},
     },
     position::types::{PositionInfo, PositionKey},
+    state::memory_manager::{minters_memory_id, retry_failed_dex_order},
+    swap_id::SwapTxId,
     tick::{
         get_fee_growth_inside,
         types::{BitmapWord, TickBitmapKey, TickInfo, TickKey},
@@ -47,7 +51,11 @@ thread_local! {
         tick_bitmaps: BTreeMap::init(tick_bitmaps_memory_id()),
         tick_spacings:BTreeMap::init(tick_spacings_memory_id()),
         pool_history:BTreeMap::init(pool_history_memory_id()),
-        events:Log::init(events_data_memory_id(), events_index_memory_id()).expect("Failed to initialize events log")
+        events:Log::init(events_data_memory_id(), events_index_memory_id()).expect("Failed to initialize events log"),
+
+        minters:BTreeMap::init(minters_memory_id()),
+
+        dex_orders_to_retry:BTreeMap::init(retry_failed_dex_order())
     }));
 }
 
@@ -63,6 +71,13 @@ pub struct State {
     // historical data storage
     pool_history: BTreeMap<PoolId, PoolHistory, StableMemory>,
     events: Log<Event, StableMemory, StableMemory>,
+
+    minters: BTreeMap<MinterKey, Minter, StableMemory>,
+
+    // failed transfers and minter notifications, that were supposed to send the twin usdc to the
+    // minter address and then notify the minter about the dex order. these events will be retried
+    // later.
+    dex_orders_to_retry: BTreeMap<SwapTxId, RetryFailedDexOrder, StableMemory>,
 }
 
 impl State {
@@ -335,6 +350,32 @@ impl State {
     pub fn total_event_count(&self) -> u64 {
         self.events.len()
     }
+
+    pub fn get_minter(&self, key: &MinterKey) -> Option<Minter> {
+        self.minters.get(key)
+    }
+
+    pub fn get_minter_by_principal(&self, minter: Principal) -> Option<(MinterKey, Minter)> {
+        self.minters.iter().find(|(key, _)| key.id == minter)
+    }
+
+    pub fn get_minter_by_chain_id(&self, chain_id: u64) -> Option<(MinterKey, Minter)> {
+        self.minters
+            .iter()
+            .find(|(key, _)| key.chain_id == chain_id)
+    }
+
+    pub fn record_failed_dex_order_to_retry(&mut self, value: RetryFailedDexOrder) {
+        self.dex_orders_to_retry.insert(value.tx_id.clone(), value);
+    }
+
+    pub fn remove_failed_dex_order_to_retry(&mut self, tx_id: &SwapTxId) {
+        self.dex_orders_to_retry.remove(tx_id);
+    }
+
+    pub fn add_minter(&mut self, key: MinterKey, info: Minter) {
+        self.minters.insert(key, info);
+    }
 }
 
 pub fn read_state<R>(f: impl FnOnce(&State) -> R) -> R {
@@ -359,4 +400,9 @@ where
             .as_mut()
             .expect("BUG: state is not initialized"))
     })
+}
+
+// Retrieves user's token balance from state
+pub fn get_user_balance(user: Principal, token: Principal) -> U256 {
+    read_state(|s| s.get_user_balance(&UserBalanceKey { user, token }).0)
 }

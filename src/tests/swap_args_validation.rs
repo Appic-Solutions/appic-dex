@@ -112,6 +112,7 @@ mod swap_args_tests {
             amount_in: Nat::from(1000u64),
             amount_out_minimum: Nat::from(500u64),
             from_subaccount: None,
+            recipient: None,
         });
 
         let result = validate_swap_args(args).unwrap();
@@ -146,6 +147,7 @@ mod swap_args_tests {
             amount_in: Nat::from(1000u64),
             amount_out_minimum: Nat::from(500u64),
             from_subaccount: None,
+            recipient: None,
         });
 
         assert_eq!(validate_swap_args(args), Err(SwapError::PoolNotInitialized));
@@ -164,6 +166,7 @@ mod swap_args_tests {
             amount_in: Nat::from(1000u64),
             amount_out_minimum: Nat::from(500u64),
             from_subaccount: None,
+            recipient: None,
         });
 
         let result = validate_swap_args(args).unwrap();
@@ -203,6 +206,7 @@ mod swap_args_tests {
             amount_in: Nat::from(1000u64),
             amount_out_minimum: Nat::from(500u64),
             from_subaccount: None,
+            recipient: None,
         });
 
         assert_eq!(
@@ -229,6 +233,7 @@ mod swap_args_tests {
             amount_in: Nat::from(1000u64),
             amount_out_minimum: Nat::from(500u64),
             from_subaccount: None,
+            recipient: None,
         });
 
         assert_eq!(
@@ -250,6 +255,7 @@ mod swap_args_tests {
             amount_out: Nat::from(500u64),
             amount_in_maximum: Nat::from(1000u64),
             from_subaccount: None,
+            recipient: None,
         });
 
         let result = validate_swap_args(args).unwrap();
@@ -284,6 +290,7 @@ mod swap_args_tests {
             amount_out: Nat::from(500u64),
             from_subaccount: None,
             amount_in_maximum: Nat::from(1000u64),
+            recipient: None,
         });
 
         assert_eq!(validate_swap_args(args), Err(SwapError::InvalidPoolFee));
@@ -302,6 +309,7 @@ mod swap_args_tests {
             amount_out: Nat::from(500u64),
             amount_in_maximum: Nat::from(1000u64),
             from_subaccount: None,
+            recipient: None,
         });
 
         let result = validate_swap_args(args).unwrap();
@@ -350,6 +358,7 @@ mod swap_args_tests {
             amount_out: Nat::from(500u64),
             amount_in_maximum: Nat::from(1000u64),
             from_subaccount: None,
+            recipient: None,
         });
 
         assert_eq!(validate_swap_args(args), Err(SwapError::InvalidPoolFee));

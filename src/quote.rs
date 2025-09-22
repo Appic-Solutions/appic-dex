@@ -35,7 +35,7 @@ pub fn process_single_hop_exact_input(params: QuoteExactSingleParams) -> Result<
     };
 
     let swap_result = swap_inner(swap_params)?;
-    println!("{:?}", swap_result);
+    println!("{swap_result:?}");
 
     let amount_out = select_amount(swap_result.swap_delta, swap_direction, false);
     Ok(amount_out.as_u256())
@@ -44,7 +44,7 @@ pub fn process_single_hop_exact_input(params: QuoteExactSingleParams) -> Result<
 /// Processes a multi-hop exact input quote, iterating through the path.
 pub fn process_multi_hop_exact_input(params: QuoteExactParams) -> Result<U256, QuoteError> {
     let path_length = params.path.len() as u8;
-    if path_length < MIN_PATH_LENGTH || path_length > MAX_PATH_LENGTH {
+    if !(MIN_PATH_LENGTH..=MAX_PATH_LENGTH).contains(&path_length) {
         return Err(QuoteError::InvalidPathLength);
     }
 
@@ -92,7 +92,7 @@ pub fn process_single_hop_exact_output(params: QuoteExactSingleParams) -> Result
 
     let swap_result = swap_inner(swap_params)?;
 
-    println!("{:?}", swap_result);
+    println!("{swap_result:?}");
 
     let amount_in = select_amount(swap_result.swap_delta, swap_direction, true);
     Ok((-amount_in).as_u256())
@@ -101,7 +101,7 @@ pub fn process_single_hop_exact_output(params: QuoteExactSingleParams) -> Result
 /// Processes a multi-hop exact output quote, iterating through the path in reverse.
 pub fn process_multi_hop_exact_output(params: QuoteExactParams) -> Result<U256, QuoteError> {
     let path_length = params.path.len() as u8;
-    if path_length < MIN_PATH_LENGTH || path_length > MAX_PATH_LENGTH {
+    if !(MIN_PATH_LENGTH..=MAX_PATH_LENGTH).contains(&path_length) {
         return Err(QuoteError::InvalidPathLength);
     }
 

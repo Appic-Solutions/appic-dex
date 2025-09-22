@@ -1,9 +1,12 @@
+pub mod address;
 pub mod balances;
 pub mod burn;
 pub mod candid_types;
 pub mod cbor;
 pub mod collect_fees;
+pub mod cross_chain;
 pub mod decrease_liquidity;
+pub mod deposit;
 pub mod events;
 pub mod guard;
 pub mod historical;
@@ -12,14 +15,17 @@ pub mod increase_liquidity;
 pub mod libraries;
 pub mod logs;
 pub mod mint;
+pub mod minter_client;
 pub mod pool;
 pub mod position;
 pub mod proxy_canister;
 pub mod quote;
 pub mod state;
 pub mod swap;
+pub mod swap_id;
 pub mod tick;
 pub mod validation;
+pub mod withdraw;
 
 #[cfg(test)]
 pub mod tests;

@@ -55,3 +55,25 @@ pub fn encode<Ctx, W: Write>(
     }
     Ok(())
 }
+
+pub mod option {
+    use super::*;
+    use ethnum::U256;
+    use minicbor::{Decode, Encode};
+
+    #[derive(Encode, Decode)]
+    #[cbor(transparent)]
+    struct CborU256(#[cbor(n(0), with = "crate::cbor::u256")] pub U256);
+
+    pub fn decode<Ctx>(d: &mut Decoder<'_>, ctx: &mut Ctx) -> Result<Option<U256>, Error> {
+        Ok(Option::<CborU256>::decode(d, ctx)?.map(|n| n.0))
+    }
+
+    pub fn encode<Ctx, W: Write>(
+        v: &Option<U256>,
+        e: &mut Encoder<W>,
+        ctx: &mut Ctx,
+    ) -> Result<(), minicbor::encode::Error<W::Error>> {
+        v.clone().map(CborU256).encode(e, ctx)
+    }
+}

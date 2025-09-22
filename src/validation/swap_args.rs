@@ -1,17 +1,18 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, fmt};
 
 use candid::Principal;
-use ethnum::I256;
+use ethnum::{I256, U256};
 use icrc_ledger_types::icrc1::account::Subaccount;
 use minicbor::{Decode, Encode};
 
 use crate::{
     candid_types::swap::{SwapArgs, SwapError},
+    cross_chain::rlp_decoder::{Blockchain, CrossChainStep},
     libraries::{
         path_key::{PathKey, Swap},
         safe_cast::big_uint_to_i256,
     },
-    pool::types::PoolId,
+    pool::types::{PoolFee, PoolId},
     state::read_state,
     swap::get_token_in_out,
 };
@@ -323,4 +324,162 @@ pub fn validate_swap_args(args: SwapArgs) -> Result<ValidatedSwapArgs, SwapError
 fn all_unique<T: Eq + std::hash::Hash>(vec: &[T]) -> bool {
     let set: HashSet<_> = vec.iter().collect();
     set.len() == vec.len()
+}
+
+pub fn create_validated_swap_args_from_rlp_swap_step(
+    CrossChainStep {
+        chain_id,
+        amount_in: _,
+        amount_out: _,
+        min_amount_out,
+        slippage: _,
+        gas_limit: _,
+        max_gas_fee: _,
+        gas_price_usd: _,
+        canister_fee_usd: _,
+        route,
+        qswap_data: _,
+    }: CrossChainStep,
+    real_amount_in: U256,
+    token_in_on_icp: Principal,
+) -> Result<ValidatedSwapArgs, SwapError> {
+    if chain_id != Blockchain::ICP {
+        return Err(SwapError::InvalidSwapChain);
+    }
+
+    let amount_in: I256 = real_amount_in
+        .try_into()
+        .map_err(|_| SwapError::InvalidAmountIn)?;
+
+    let amount_out_minimum: I256 = min_amount_out
+        .unwrap_or(U256::ZERO)
+        .try_into()
+        .map_err(|_| SwapError::InvalidAmountOutMinimum)?;
+
+    println!("route {:?},", route);
+
+    if route.is_empty() {
+        Err(SwapError::InvalidRoute)
+    } else if route.len() == 1 {
+        // single hop
+        let token_in =
+            Principal::from_text(&route[0].sell_token).map_err(|_| SwapError::InvalidTokenIn)?;
+
+        if token_in != token_in_on_icp {
+            return Err(SwapError::InvalidTokenIn);
+        }
+
+        let token_out =
+            Principal::from_text(&route[0].buy_token).map_err(|_| SwapError::InvalidTokenOut)?;
+
+        let fee = PoolFee(route[0].fee);
+
+        let (token0, token1) = if token_in < token_out {
+            (token_in, token_out)
+        } else {
+            (token_out, token_in)
+        };
+
+        let zero_for_one = token_in == token0;
+
+        let pool_id: PoolId = PoolId {
+            token0,
+            token1,
+            fee,
+        };
+
+        let pool = read_state(|s| s.get_pool(&pool_id)).ok_or(SwapError::PoolNotInitialized)?;
+        // In case in range liquidity is 0
+        if pool.liquidity == 0 {
+            return Err(SwapError::NoInRangeLiquidity);
+        }
+
+        Ok(ValidatedSwapArgs::ExactInputSingle {
+            pool_id,
+            zero_for_one,
+            amount_in,
+            amount_out_minimum,
+            from_subaccount: None,
+            token_in,
+            token_out,
+        })
+    } else if route.len() as u8 > MAX_PATH_LENGTH {
+        Err(SwapError::PathLengthTooBig {
+            maximum: MAX_PATH_LENGTH,
+            received: route.len() as u8,
+        })
+    } else {
+        let token_in =
+            Principal::from_text(&route[0].sell_token).map_err(|_| SwapError::InvalidTokenIn)?;
+
+        println!(
+            "token in {} token in on icp {}",
+            token_in.to_text(),
+            token_in_on_icp.to_text()
+        );
+
+        if token_in != token_in_on_icp {
+            return Err(SwapError::InvalidTokenIn);
+        }
+
+        let mut token_out = token_in;
+        let mut swap_path: Vec<Swap> = vec![];
+
+        for swap in route.iter() {
+            // single hop
+            let hop_token_in =
+                Principal::from_text(&swap.sell_token).map_err(|_| SwapError::InvalidTokenIn)?;
+
+            let hop_token_out =
+                Principal::from_text(&swap.buy_token).map_err(|_| SwapError::InvalidTokenOut)?;
+
+            println!("HOP  {:?}", swap);
+
+            let fee = PoolFee(swap.fee);
+
+            let (token0, token1) = if hop_token_in < hop_token_out {
+                (hop_token_in, hop_token_out)
+            } else {
+                (hop_token_out, hop_token_in)
+            };
+
+            let zero_for_one = token_in == token0;
+
+            let pool_id: PoolId = PoolId {
+                token0,
+                token1,
+                fee,
+            };
+
+            let pool = read_state(|s| s.get_pool(&pool_id)).ok_or(SwapError::PoolNotInitialized)?;
+            // In case in range liquidity is 0
+            if pool.liquidity == 0 {
+                return Err(SwapError::NoInRangeLiquidity);
+            }
+
+            swap_path.push(Swap {
+                pool_id,
+                zero_for_one,
+            });
+
+            token_out = hop_token_out;
+
+            println!("hop token out {}", hop_token_out.to_text())
+        }
+
+        // there should not be a duplication in swap path, meaning users can not swap using the
+        // same pool twice or more in a single swap transaction.
+        if !all_unique(&swap_path) {
+            return Err(SwapError::PathDuplicated);
+        }
+
+        Ok(ValidatedSwapArgs::ExactInput {
+            path: swap_path,
+            amount_in,
+            amount_out_minimum,
+            from_subaccount: None,
+            token_in,
+            token_out,
+        })
+    }
 }
