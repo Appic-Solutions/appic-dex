@@ -95,4 +95,6 @@ pub struct RetryFailedDexOrder {
     pub erc20_ledger_burn_index: Option<Nat>,
     #[n(12)]
     pub is_refund: bool,
+    #[n(13)]
+    pub signing_fee: Option<String>,
 }

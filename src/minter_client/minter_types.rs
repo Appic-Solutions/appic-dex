@@ -8,7 +8,8 @@ use crate::{
 };
 
 // Dex orders type to be sent to minter
-#[derive(CandidType, Deserialize, Clone, Debug, Encode, Decode, Eq, PartialEq, Ord, PartialOrd)]
+
+#[derive(CandidType, Deserialize, Clone, Debug, Encode, Decode, Eq, PartialEq)]
 pub struct DexOrderArgs {
     #[n(0)]
     pub tx_id: String,
@@ -22,15 +23,17 @@ pub struct DexOrderArgs {
     pub commands_data: Vec<String>,
     #[n(5)]
     pub max_gas_fee_usd: Option<String>,
-    #[cbor(n(6), with = "crate::cbor::nat")]
-    pub gas_limit: Nat,
+    #[n(6)]
+    pub signing_fee: Option<String>,
     #[cbor(n(7), with = "crate::cbor::nat")]
+    pub gas_limit: Nat,
+    #[cbor(n(8), with = "crate::cbor::nat")]
     pub deadline: Nat,
-    #[n(8)]
+    #[n(9)]
     pub recipient: String,
-    #[cbor(n(9), with = "crate::cbor::nat")]
+    #[cbor(n(10), with = "crate::cbor::nat")]
     pub erc20_ledger_burn_index: Nat,
-    #[n(10)]
+    #[n(11)]
     pub is_refund: bool,
 }
 

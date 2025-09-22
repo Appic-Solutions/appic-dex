@@ -110,6 +110,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                     recipient,
                                     erc20_ledger_burn_index: None,
                                     is_refund: false,
+                                    signing_fee: evm_swap_step.canister_fee_usd.clone(),
                                 })
                             });
                             return;
@@ -129,6 +130,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                         recipient: recipient.clone(),
                         erc20_ledger_burn_index: erc20_ledger_burn_index.clone(),
                         is_refund: false,
+                        signing_fee: evm_swap_step.canister_fee_usd.clone(),
                     };
                     let minter_client = MinterClient::new(to_minter.id);
                     match minter_client.dex_order(&dex_order).await {
@@ -173,6 +175,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                     recipient,
                                     erc20_ledger_burn_index: Some(erc20_ledger_burn_index),
                                     is_refund: false,
+                                    signing_fee: evm_swap_step.canister_fee_usd.clone(),
                                 })
                             });
                         }
@@ -221,6 +224,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                     max_gas_fee_usd: None,
                                     gas_limit: REFUND_FAILED_SWAP_GAS_LIMIT.into(),
                                     is_refund: true,
+                                    signing_fee: None,
                                 })
                             });
                             return;
@@ -238,6 +242,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                         recipient: from_address.to_string(),
                         erc20_ledger_burn_index: erc20_ledger_burn_index.clone(),
                         is_refund: true,
+                        signing_fee: None,
                     };
                     let minter_client = MinterClient::new(from_minter.id);
                     match minter_client.dex_order(&dex_order).await {
@@ -281,6 +286,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                     max_gas_fee_usd: None,
                                     gas_limit: REFUND_FAILED_SWAP_GAS_LIMIT.into(),
                                     is_refund: true,
+                                    signing_fee: None,
                                 })
                             });
                         }
@@ -406,6 +412,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                     max_gas_fee_usd: None,
                                     gas_limit: REFUND_FAILED_SWAP_GAS_LIMIT.into(),
                                     is_refund: true,
+                                    signing_fee: None,
                                 })
                             });
 
@@ -424,6 +431,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                         recipient: from_address.to_string(),
                         erc20_ledger_burn_index: erc20_ledger_burn_index.clone(),
                         is_refund: true,
+                        signing_fee: None,
                     };
                     let minter_client = MinterClient::new(from_minter.id);
                     match minter_client.dex_order(&dex_order).await {
@@ -467,6 +475,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                     max_gas_fee_usd: None,
                                     gas_limit: REFUND_FAILED_SWAP_GAS_LIMIT.into(),
                                     is_refund: true,
+                                    signing_fee: None,
                                 })
                             });
                         }
@@ -554,6 +563,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                     recipient,
                                     erc20_ledger_burn_index: None,
                                     is_refund: false,
+                                    signing_fee: evm_swap_step.canister_fee_usd.clone(),
                                 })
                             });
                             return;
@@ -573,6 +583,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                         recipient: recipient.clone(),
                         erc20_ledger_burn_index: erc20_ledger_burn_index.clone(),
                         is_refund: false,
+                        signing_fee: evm_swap_step.canister_fee_usd.clone(),
                     };
                     let minter_client = MinterClient::new(to_minter.id);
                     match minter_client.dex_order(&dex_order).await {
@@ -617,6 +628,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                     recipient,
                                     erc20_ledger_burn_index: Some(erc20_ledger_burn_index),
                                     is_refund: false,
+                                    signing_fee: evm_swap_step.canister_fee_usd.clone(),
                                 })
                             });
                         }
@@ -751,6 +763,7 @@ pub async fn refund_failed_crosschain_swap_to_the_minter(args: RetryFailedDexOrd
                 recipient: args.recipient.clone(),
                 erc20_ledger_burn_index,
                 is_refund: args.is_refund,
+                signing_fee: args.signing_fee,
             };
             match minter_client.dex_order(&dex_order).await {
                 Ok(_) => {
@@ -809,6 +822,7 @@ pub async fn refund_failed_crosschain_swap_to_the_minter(args: RetryFailedDexOrd
                 recipient: args.recipient.clone(),
                 erc20_ledger_burn_index: erc20_ledger_burn_index.clone(),
                 is_refund: args.is_refund,
+                signing_fee: args.signing_fee.clone(),
             };
             match minter_client.dex_order(&dex_order).await {
                 Ok(_) => {

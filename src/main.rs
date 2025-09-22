@@ -1121,6 +1121,7 @@ async fn minter_order(
                             max_gas_fee_usd: None,
                             gas_limit: REFUND_FAILED_SWAP_GAS_LIMIT.into(),
                             is_refund: true,
+                            signing_fee: None,
                         })
                     });
                     return Ok(());
@@ -1140,6 +1141,7 @@ async fn minter_order(
                 recipient: from_address.to_string(),
                 erc20_ledger_burn_index: erc20_ledger_burn_index.clone(),
                 is_refund: true,
+                signing_fee: None,
             };
 
             // Create a client for the minter and attempt to notify
@@ -1177,6 +1179,7 @@ async fn minter_order(
                             max_gas_fee_usd: None,
                             gas_limit: REFUND_FAILED_SWAP_GAS_LIMIT.into(),
                             is_refund: true,
+                            signing_fee: None,
                         })
                     });
                 }
@@ -1185,7 +1188,6 @@ async fn minter_order(
         }
     }
 }
-
 
 #[update]
 // swaps that start from ICP
