@@ -131,6 +131,12 @@ type CandidHistoryBucket = record {
   token1_reserves : nat;
   active_tick : int;
 };
+type CandidMinter = record {
+  id : principal;
+  usdc_address : text;
+  chain_id : nat64;
+  twin_usdc_principal : principal;
+};
 type CandidPathKey = record { fee : nat; intermediary_token : principal };
 type CandidPoolHistory = record {
   hourly_frame : vec CandidHistoryBucket;
@@ -464,6 +470,7 @@ type SwapType = variant {
   ExactOutputSingle : CandidPoolId;
   ExactInputSingle : CandidPoolId;
 };
+type UpgradeArgs = record { upgrade_minters : opt vec CandidMinter };
 type UserBalanceArgs = record { token : principal; user : principal };
 type WithdrawError = variant {
   FeeUnknown;
@@ -484,6 +491,7 @@ service : () -> {
   deposit : (DepositArgs) -> (Result_5);
   get_active_ticks : (CandidPoolId) -> (vec CandidTickInfo) query;
   get_events : (GetEventsArg) -> (GetEventsResult) query;
+  get_minters : () -> (vec CandidMinter) query;
   get_pool : (CandidPoolId) -> (opt CandidPoolState) query;
   get_pool_history : (CandidPoolId) -> (opt CandidPoolHistory) query;
   get_pools : () -> (vec record { CandidPoolId; CandidPoolState }) query;
@@ -496,7 +504,9 @@ service : () -> {
   minter_order : (ReceivedSwapOrderEvent) -> (Result_8);
   multi_quote : (vec QuoteArgs) -> (vec Result_9) query;
   quote : (QuoteArgs) -> (Result_9) query;
+  remove_minter : (MinterKey) -> ();
   swap : (SwapArgs) -> (Result_10);
+  update_minters : (UpgradeArgs) -> ();
   user_balance : (UserBalanceArgs) -> (nat) query;
   user_balances : (principal) -> (vec Balance) query;
   withdraw : (Balance) -> (Result_11);

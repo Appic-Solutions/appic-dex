@@ -351,6 +351,10 @@ impl State {
         self.events.len()
     }
 
+    pub fn get_minters(&self) -> Vec<(MinterKey, Minter)> {
+        self.minters.iter().collect()
+    }
+
     pub fn get_minter(&self, key: &MinterKey) -> Option<Minter> {
         self.minters.get(key)
     }
@@ -375,6 +379,10 @@ impl State {
 
     pub fn add_minter(&mut self, key: MinterKey, info: Minter) {
         self.minters.insert(key, info);
+    }
+
+    pub fn remove_minter(&mut self, key: MinterKey) {
+        self.minters.remove(&key);
     }
 }
 

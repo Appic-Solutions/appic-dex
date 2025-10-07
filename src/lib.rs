@@ -27,5 +27,8 @@ pub mod tick;
 pub mod validation;
 pub mod withdraw;
 
+pub const APPIC_CONTROLLER: &str =
+    "tb3vi-54bcb-4oudm-fmp2s-nntjp-rmhd3-ukvnq-lawfq-vk5vy-mnlc7-pae";
+
 #[cfg(test)]
 pub mod tests;

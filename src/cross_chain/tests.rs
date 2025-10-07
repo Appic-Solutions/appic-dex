@@ -192,6 +192,7 @@ fn should_create_evm_evm_swap_order() {
         _ => panic!("Invalid swap order"),
     }
 }
+
 #[test]
 fn should_create_evm_to_icp_swap_order() {
     prepare_state();

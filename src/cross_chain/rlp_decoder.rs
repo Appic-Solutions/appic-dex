@@ -101,7 +101,7 @@ pub struct PoolHop {
     pub fee: u32,
 }
 
-#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Default)]
 pub struct QSwapData {
     #[n(0)]
     pub commands: Vec<u8>,
@@ -180,7 +180,7 @@ impl RlpDecoder {
             return Err(RlpDecodeError::InvalidRlpData);
         }
 
-        Self::validate_input_size(&encoded_data[2..])?;   
+        Self::validate_input_size(&encoded_data[2..])?;
         Self::decode_cross_chain_data_internal(&encoded_data[2..])
     }
 
@@ -298,9 +298,10 @@ impl RlpDecoder {
         if let Ok(count) = route_rlp.item_count() {
             for i in 0..count {
                 if let Ok(hop_rlp) = route_rlp.at(i)
-                    && let Ok(hop) = Self::decode_pool_hop(hop_rlp) {
-                        route.push(hop);
-                    }
+                    && let Ok(hop) = Self::decode_pool_hop(hop_rlp)
+                {
+                    route.push(hop);
+                }
             }
         }
 
@@ -334,9 +335,10 @@ impl RlpDecoder {
         if let Ok(count) = commands_rlp.item_count() {
             for i in 0..count {
                 if let Ok(command_str) = commands_rlp.val_at::<String>(i)
-                    && let Ok(command) = command_str.parse::<u8>() {
-                        commands.push(command);
-                    }
+                    && let Ok(command) = command_str.parse::<u8>()
+                {
+                    commands.push(command);
+                }
             }
         }
 
@@ -358,15 +360,11 @@ impl RlpDecoder {
             U256::ZERO
         };
 
-        if commands.is_empty() && command_data.is_empty() {
-            Ok(None)
-        } else {
-            Ok(Some(QSwapData {
-                commands,
-                command_data,
-                deadline,
-            }))
-        }
+        Ok(Some(QSwapData {
+            commands,
+            command_data,
+            deadline,
+        }))
     }
 
     fn decode_pool_hop(hop_rlp: Rlp) -> Result<PoolHop, RlpDecodeError> {

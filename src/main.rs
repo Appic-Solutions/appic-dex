@@ -1,6 +1,7 @@
 use std::{str::FromStr, time::Duration};
 
 use appic_dex::{
+    APPIC_CONTROLLER,
     address::Address,
     balances::types::{UserBalance, UserBalanceKey},
     burn::execute_burn_position,
@@ -18,7 +19,7 @@ use appic_dex::{
         quote::{QuoteArgs, QuoteError},
         swap::{CandidSwapSuccess, SwapArgs, SwapError},
         tick::CandidTickInfo,
-        upgrade::UpgradeArgs,
+        upgrade::{CandidMinter, UpgradeArgs},
     },
     collect_fees::execute_collect_fees,
     cross_chain::{
@@ -141,6 +142,47 @@ fn post_upgrade(args: Option<UpgradeArgs>) {
             })
         }
     }
+}
+
+#[update]
+fn update_minters(args: UpgradeArgs) {
+    let caller = ic_cdk::api::msg_caller();
+    if caller != Principal::from_text(APPIC_CONTROLLER).unwrap() {
+        panic!("Only appic controller is allowed to call this endpoint");
+    }
+
+    if let Some(minters_to_upgrade) = args.upgrade_minters {
+        for minter in minters_to_upgrade {
+            let twin_usdc_principal = minter.twin_usdc_principal;
+            let chain_id = minter.chain_id;
+            let usdc_address = Address::from_str(&minter.usdc_address)
+                .expect("Failed to aprsed usdc address for chain {chain_id}");
+            let minter_id = minter.id;
+
+            mutate_state(|s| {
+                s.add_minter(
+                    MinterKey {
+                        chain_id,
+                        id: minter_id,
+                    },
+                    Minter {
+                        twin_usdc_principal,
+                        usdc_address,
+                    },
+                )
+            })
+        }
+    }
+}
+
+#[update]
+fn remove_minter(minter: MinterKey) {
+    let caller = ic_cdk::api::msg_caller();
+    if caller != Principal::from_text(APPIC_CONTROLLER).unwrap() {
+        panic!("Only appic controller is allowed to call this endpoint");
+    }
+
+    mutate_state(|s| s.remove_minter(minter));
 }
 
 // Queries state of a specific pool by ID, converts to Candid format, returns None if not found
@@ -990,6 +1032,19 @@ async fn withdraw(withdraw_args: WithdrawArgs) -> Result<Nat, WithdrawError> {
     )
     .await
     .map(u256_to_nat)
+}
+
+#[query]
+fn get_minters() -> Vec<CandidMinter> {
+    read_state(|s| s.get_minters())
+        .iter()
+        .map(|(key, minter)| CandidMinter {
+            id: key.id,
+            chain_id: key.chain_id,
+            twin_usdc_principal: minter.twin_usdc_principal,
+            usdc_address: minter.usdc_address.to_string(),
+        })
+        .collect()
 }
 
 // Main function to process swap orders from minters for cross-chain swaps.
