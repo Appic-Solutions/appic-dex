@@ -329,6 +329,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                         "[execute_crosschain_swap]: ICP swap succeeded for tx_id: {:?}. Proceeding to withdraw to recipient.",
                         tx_id
                     );
+
                     let mut memo = WithdrawMemo::SwapOut {
                         amount: amount_out.as_u256(),
                     };

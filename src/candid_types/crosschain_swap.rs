@@ -94,7 +94,6 @@ impl From<ValidatedSwapArgs> for SwapType {
                 token_in: _,
                 token_out: _,
             } => SwapType::ExactInputSingle(pool_id.into()),
-
             ValidatedSwapArgs::ExactInput {
                 path,
                 amount_in: _,
@@ -116,7 +115,6 @@ impl From<ValidatedSwapArgs> for SwapType {
                 token_in: _,
                 token_out: _,
             } => SwapType::ExactOutputSingle(pool_id.into()),
-
             ValidatedSwapArgs::ExactOutput {
                 path,
                 amount_out: _,
@@ -129,6 +127,10 @@ impl From<ValidatedSwapArgs> for SwapType {
                     .map(|swap| CandidPoolId::from(swap.pool_id))
                     .collect(),
             ),
+            ValidatedSwapArgs::NoSwapNeeded {
+                token: _,
+                amount: _,
+            } => SwapType::NoSwapNeeded,
         }
     }
 }
@@ -148,10 +150,10 @@ impl From<CrossChainStep> for CandidCrosschainStep {
             chain_id: value.chain_id,
             amount_in: u256_to_nat(value.amount_in),
             amount_out: u256_to_nat(value.amount_out),
-            min_amount_out: value.min_amount_out.map(|amount| u256_to_nat(amount)),
+            min_amount_out: value.min_amount_out.map(u256_to_nat),
             slippage: value.slippage,
-            gas_limit: value.gas_limit.map(|amount| u256_to_nat(amount)),
-            max_gas_fee: value.max_gas_fee.map(|amount| u256_to_nat(amount)),
+            gas_limit: value.gas_limit.map(u256_to_nat),
+            max_gas_fee: value.max_gas_fee.map(u256_to_nat),
             gas_price_usd: value.gas_price_usd,
             canister_fee_usd: value.canister_fee_usd,
         }

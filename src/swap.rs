@@ -52,7 +52,6 @@ pub fn execute_swap(
 
     // Execute Swap Based on Args
     let swap_result: SwapSuccessfulResult = match validated_swap_args {
-        //  Single-Hop Exact Input
         ValidatedSwapArgs::ExactInputSingle {
             pool_id,
             zero_for_one,
@@ -85,7 +84,6 @@ pub fn execute_swap(
                 swap_success_list: vec![hop_result],
             }
         }
-        //  Multi-Hop Exact Input
         ValidatedSwapArgs::ExactInput {
             path,
             amount_in,
@@ -126,7 +124,6 @@ pub fn execute_swap(
                 swap_success_list,
             }
         }
-        //  Single-Hop Exact Output
         ValidatedSwapArgs::ExactOutputSingle {
             pool_id,
             zero_for_one,
@@ -158,7 +155,6 @@ pub fn execute_swap(
                 swap_success_list: vec![hop_result],
             }
         }
-        //  Multi-Hop Exact Output
         ValidatedSwapArgs::ExactOutput {
             path,
             amount_out,
@@ -206,6 +202,29 @@ pub fn execute_swap(
                 token_out_transfer_fee,
                 amount_out: *amount_out,
                 swap_success_list,
+            }
+        }
+        // when token is already usdc and no need to do any swap to be sent to minter
+        ValidatedSwapArgs::NoSwapNeeded { token, amount } => {
+            let token_out_transfer_fee = read_state(|s| {
+                s.get_pools().iter().find_map(|(pool_id, pool_state)| {
+                    if pool_id.token0 == *token {
+                        Some(pool_state.token0_transfer_fee)
+                    } else if pool_id.token1 == *token {
+                        Some(pool_state.token1_transfer_fee)
+                    } else {
+                        None
+                    }
+                })
+            })
+            .expect("BUG: expect the usdc pool to exist");
+
+            SwapSuccessfulResult {
+                amount_in: *amount,
+                // cause this is being sent to minter and for burning transfer fee is zero
+                token_out_transfer_fee,
+                amount_out: *amount,
+                swap_success_list: vec![],
             }
         }
     };

@@ -84,6 +84,7 @@ pub enum SwapType {
     ExactInput(Vec<CandidPoolId>),
     ExactOutputSingle(CandidPoolId),
     ExactOutput(Vec<CandidPoolId>),
+    NoSwapNeeded,
 }
 
 #[derive(CandidType, Deserialize, Debug, Clone)]
@@ -236,6 +237,9 @@ impl From<Event> for CandidEvent {
                         token_in,
                         token_out,
                     ),
+                    validation::swap_args::ValidatedSwapArgs::NoSwapNeeded { token, amount: _ } => {
+                        (SwapType::NoSwapNeeded, token, token)
+                    }
                 };
 
                 CandidEventType::Swap {

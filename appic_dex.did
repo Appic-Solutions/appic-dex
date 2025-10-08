@@ -469,6 +469,7 @@ type SwapType = variant {
   ExactInput : vec CandidPoolId;
   ExactOutputSingle : CandidPoolId;
   ExactInputSingle : CandidPoolId;
+  NoSwapNeeded;
 };
 type UpgradeArgs = record { upgrade_minters : opt vec CandidMinter };
 type UserBalanceArgs = record { token : principal; user : principal };

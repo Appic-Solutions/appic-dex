@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fmt};
+use std::collections::HashSet;
 
 use candid::Principal;
 use ethnum::{I256, U256};
@@ -85,6 +85,14 @@ pub enum ValidatedSwapArgs {
         #[cbor(n(5), with = "crate::cbor::principal")]
         token_out: Principal,
     },
+    // Used for crosschain swaps, when the token is already USDC and no ICP swap is required
+    #[n(4)]
+    NoSwapNeeded {
+        #[cbor(n(4), with = "crate::cbor::principal")]
+        token: Principal,
+        #[cbor(n(1), with = "crate::cbor::i256")]
+        amount: I256,
+    },
 }
 
 impl ValidatedSwapArgs {
@@ -98,6 +106,7 @@ impl ValidatedSwapArgs {
             ValidatedSwapArgs::ExactOutput {
                 amount_in_maximum, ..
             } => *amount_in_maximum,
+            ValidatedSwapArgs::NoSwapNeeded { amount, .. } => *amount,
         }
     }
     pub fn token_in(&self) -> Principal {
@@ -106,6 +115,7 @@ impl ValidatedSwapArgs {
             ValidatedSwapArgs::ExactInput { token_in, .. } => *token_in,
             ValidatedSwapArgs::ExactOutputSingle { token_in, .. } => *token_in,
             ValidatedSwapArgs::ExactOutput { token_in, .. } => *token_in,
+            ValidatedSwapArgs::NoSwapNeeded { token, .. } => *token,
         }
     }
 
@@ -115,6 +125,7 @@ impl ValidatedSwapArgs {
             ValidatedSwapArgs::ExactInput { token_out, .. } => *token_out,
             ValidatedSwapArgs::ExactOutputSingle { token_out, .. } => *token_out,
             ValidatedSwapArgs::ExactOutput { token_out, .. } => *token_out,
+            ValidatedSwapArgs::NoSwapNeeded { token, .. } => *token,
         }
     }
 
@@ -132,6 +143,7 @@ impl ValidatedSwapArgs {
             ValidatedSwapArgs::ExactOutput {
                 from_subaccount, ..
             } => *from_subaccount,
+            ValidatedSwapArgs::NoSwapNeeded { .. } => None,
         }
     }
 }
@@ -360,6 +372,17 @@ pub fn create_validated_swap_args_from_rlp_swap_step(
 
     if route.is_empty() {
         Err(SwapError::InvalidRoute)
+    } else if route.len() == 1 && route[0].sell_token == route[0].buy_token {
+        let token_in =
+            Principal::from_text(&route[0].sell_token).map_err(|_| SwapError::InvalidTokenIn)?;
+        if token_in != token_in_on_icp {
+            return Err(SwapError::InvalidRoute);
+        }
+
+        Ok(ValidatedSwapArgs::NoSwapNeeded {
+            token: token_in_on_icp,
+            amount: amount_in,
+        })
     } else if route.len() == 1 {
         // single hop
         let token_in =
