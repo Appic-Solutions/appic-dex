@@ -7,7 +7,7 @@ use appic_dex::{
     burn::execute_burn_position,
     candid_types::{
         Balance, DepositArgs, DepositError, UserBalanceArgs, WithdrawArgs, WithdrawError,
-        crosschain_swap::{CrosschainSwapArgs, CrosschainSwapError},
+        crosschain_swap::{CrosschainSwapArgs, CrosschainSwapError, CrosschainSwapStatus},
         events::{CandidEvent, GetEventsArg, GetEventsResult},
         pool::{CandidPoolId, CandidPoolState, CreatePoolArgs, CreatePoolError},
         pool_history::CandidPoolHistory,
@@ -33,6 +33,10 @@ use appic_dex::{
     deposit::{_deposit, _deposit_if_needed},
     guard::PrincipalGuard,
     historical::capture_historical_data,
+    icrc_21::{
+        ConsentInfo, ConsentMessage, ConsentMessageMetadata, ConsentMessageRequest,
+        ConsentMessageResponse, DeviceSpec, ErrorInfo, TextValue, Value,
+    },
     icrc_client::{
         LedgerClient,
         memo::{DepositMemo, WithdrawMemo},
@@ -139,6 +143,11 @@ fn post_upgrade(args: Option<UpgradeArgs>) {
             })
         }
     }
+}
+
+#[query]
+fn get_crosschain_swap_status(tx_id: String) -> Option<CrosschainSwapStatus> {
+    read_state(|s| s.get_crosschain_swap_status(SwapTxId(tx_id)))
 }
 
 #[update]
@@ -1271,6 +1280,7 @@ pub async fn cross_chain_swap(
         SwapOrderCreationError::InvalidToChain => CrosschainSwapError::InvalidToChain,
         SwapOrderCreationError::InvalidRecipient(_) => CrosschainSwapError::InvalidRecipient,
         SwapOrderCreationError::InvalidTokenIn => CrosschainSwapError::InvalidTokenIn,
+        SwapOrderCreationError::InvalidTokenOut => CrosschainSwapError::InvalidTokenOut,
         _ => CrosschainSwapError::InvalidEncodedData(RlpDecodeError::InvalidRlpData),
     })?;
     let icp_swap_request = match &temp_order {
@@ -1334,6 +1344,423 @@ pub async fn cross_chain_swap(
         ic_cdk::futures::spawn_017_compat(execute_crosschain_swap(swap_order))
     });
     Ok(tx_id.0)
+}
+
+// The consent message function
+#[update]
+fn icrc21_canister_call_consent_message(req: ConsentMessageRequest) -> ConsentMessageResponse {
+    use appic_dex::icrc_21::Error;
+
+    let language = req.user_preferences.metadata.language.clone();
+    let _utc_offset_minutes = req.user_preferences.metadata.utc_offset_minutes; // Not used, as no timestamps
+    let device_spec = req.user_preferences.device_spec.clone();
+
+    // Support only English for simplicity
+    if language != "en" {
+        return ConsentMessageResponse::Err(Error::GenericError {
+            error_code: Nat::from(1u64),
+            description: "Unsupported language".to_string(),
+        });
+    }
+
+    // Response metadata: no utc_offset_minutes since not timezone sensitive
+    let response_metadata = ConsentMessageMetadata {
+        language,
+        utc_offset_minutes: None,
+    };
+
+    // Helper function to create fields from key-value pairs
+    fn create_fields(pairs: Vec<(&str, String)>) -> Vec<(String, Value)> {
+        pairs
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), Value::Text(TextValue { content: v })))
+            .collect()
+    }
+
+    // Generate intent and fields or text message
+    let (intent, fields_opt, text_message) = match req.method.as_str() {
+        "burn" => match candid::decode_one::<BurnPositionArgs>(&req.arg) {
+            Ok(args) => {
+                let intent = "Burn Position".to_string();
+                let fields = create_fields(vec![
+                    ("Pool Token0", args.pool.token0.to_string()),
+                    ("Pool Token1", args.pool.token1.to_string()),
+                    ("Tick Lower", args.tick_lower.to_string()),
+                    ("Tick Upper", args.tick_upper.to_string()),
+                    ("Min Amount0", args.amount0_min.to_string()),
+                    ("Min Amount1", args.amount1_min.to_string()),
+                ]);
+                let text = format!(
+                    "Remove all liquidity from {} / {} pool (range {} to {}). Min received: {} {}, {} {}.",
+                    args.pool.token0,
+                    args.pool.token1,
+                    args.tick_lower,
+                    args.tick_upper,
+                    args.amount0_min,
+                    args.pool.token0,
+                    args.amount1_min,
+                    args.pool.token1
+                );
+                (intent, Some(fields), text)
+            }
+            Err(e) => {
+                return ConsentMessageResponse::Err(Error::GenericError {
+                    error_code: Nat::from(100u64),
+                    description: format!("Failed to decode arguments: {}", e),
+                });
+            }
+        },
+        "collect_fees" => match candid::decode_one::<CandidPositionKey>(&req.arg) {
+            Ok(args) => {
+                let intent = "Collect Fees".to_string();
+                let fields = create_fields(vec![
+                    ("Pool Token0", args.pool.token0.to_string()),
+                    ("Pool Token1", args.pool.token1.to_string()),
+                    ("Tick Lower", args.tick_lower.to_string()),
+                    ("Tick Upper", args.tick_upper.to_string()),
+                ]);
+                let text = format!(
+                    "Collect fees from position in {} / {} pool (range {} to {}).",
+                    args.pool.token0, args.pool.token1, args.tick_lower, args.tick_upper
+                );
+                (intent, Some(fields), text)
+            }
+            Err(e) => {
+                return ConsentMessageResponse::Err(Error::GenericError {
+                    error_code: Nat::from(100u64),
+                    description: format!("Failed to decode arguments: {}", e),
+                });
+            }
+        },
+        "create_pool" => match candid::decode_one::<CreatePoolArgs>(&req.arg) {
+            Ok(args) => {
+                let intent = "Create Pool".to_string();
+                let fields = create_fields(vec![
+                    ("Token A", args.token_a.to_string()),
+                    ("Token B", args.token_b.to_string()),
+                    ("Fee", args.fee.to_string()),
+                    ("Sqrt Price X96", args.sqrt_price_x96.to_string()),
+                ]);
+                let text = format!(
+                    "Create pool for {} / {} with fee {} and initial price {}.",
+                    args.token_a, args.token_b, args.fee, args.sqrt_price_x96
+                );
+                (intent, Some(fields), text)
+            }
+            Err(e) => {
+                return ConsentMessageResponse::Err(Error::GenericError {
+                    error_code: Nat::from(100u64),
+                    description: format!("Failed to decode arguments: {}", e),
+                });
+            }
+        },
+        "cross_chain_swap" => match candid::decode_one::<CrosschainSwapArgs>(&req.arg) {
+            Ok(args) => {
+                let intent = "Cross-Chain Swap".to_string();
+                let fields = create_fields(vec![("Recipient", args.recipient.clone())]);
+                let text = format!("Perform cross-chain swap to recipient {}.", args.recipient);
+                (intent, Some(fields), text)
+            }
+            Err(e) => {
+                return ConsentMessageResponse::Err(Error::GenericError {
+                    error_code: Nat::from(100u64),
+                    description: format!("Failed to decode arguments: {}", e),
+                });
+            }
+        },
+        "decrease_liquidity" => match candid::decode_one::<DecreaseLiquidityArgs>(&req.arg) {
+            Ok(args) => {
+                let intent = "Decrease Liquidity".to_string();
+                let fields = create_fields(vec![
+                    ("Liquidity", args.liquidity.to_string()),
+                    ("Pool Token0", args.pool.token0.to_string()),
+                    ("Pool Token1", args.pool.token1.to_string()),
+                    ("Tick Lower", args.tick_lower.to_string()),
+                    ("Tick Upper", args.tick_upper.to_string()),
+                    ("Min Amount0", args.amount0_min.to_string()),
+                    ("Min Amount1", args.amount1_min.to_string()),
+                ]);
+                let text = format!(
+                    "Remove {} liquidity from {} / {} pool (range {} to {}). Min received: {} {}, {} {}.",
+                    args.liquidity,
+                    args.pool.token0,
+                    args.pool.token1,
+                    args.tick_lower,
+                    args.tick_upper,
+                    args.amount0_min,
+                    args.pool.token0,
+                    args.amount1_min,
+                    args.pool.token1
+                );
+                (intent, Some(fields), text)
+            }
+            Err(e) => {
+                return ConsentMessageResponse::Err(Error::GenericError {
+                    error_code: Nat::from(100u64),
+                    description: format!("Failed to decode arguments: {}", e),
+                });
+            }
+        },
+        "deposit" => match candid::decode_one::<DepositArgs>(&req.arg) {
+            Ok(args) => {
+                let intent = "Deposit".to_string();
+                let fields = create_fields(vec![
+                    ("Amount", args.amount.to_string()),
+                    ("Token", args.token.to_string()),
+                ]);
+                let text = format!("Deposit {} of token {}.", args.amount, args.token);
+                (intent, Some(fields), text)
+            }
+            Err(e) => {
+                return ConsentMessageResponse::Err(Error::GenericError {
+                    error_code: Nat::from(100u64),
+                    description: format!("Failed to decode arguments: {}", e),
+                });
+            }
+        },
+        "increase_liquidity" => match candid::decode_one::<IncreaseLiquidityArgs>(&req.arg) {
+            Ok(args) => {
+                let intent = "Increase Liquidity".to_string();
+                let fields = create_fields(vec![
+                    ("Pool Token0", args.pool.token0.to_string()),
+                    ("Pool Token1", args.pool.token1.to_string()),
+                    ("Tick Lower", args.tick_lower.to_string()),
+                    ("Tick Upper", args.tick_upper.to_string()),
+                    ("Max Amount0", args.amount0_max.to_string()),
+                    ("Max Amount1", args.amount1_max.to_string()),
+                ]);
+                let text = format!(
+                    "Add liquidity to {} / {} pool (range {} to {}) with max {} {}, {} {}.",
+                    args.pool.token0,
+                    args.pool.token1,
+                    args.tick_lower,
+                    args.tick_upper,
+                    args.amount0_max,
+                    args.pool.token0,
+                    args.amount1_max,
+                    args.pool.token1
+                );
+                (intent, Some(fields), text)
+            }
+            Err(e) => {
+                return ConsentMessageResponse::Err(Error::GenericError {
+                    error_code: Nat::from(100u64),
+                    description: format!("Failed to decode arguments: {}", e),
+                });
+            }
+        },
+        "mint_position" => match candid::decode_one::<MintPositionArgs>(&req.arg) {
+            Ok(args) => {
+                let intent = "Mint Position".to_string();
+                let fields = create_fields(vec![
+                    ("Pool Token0", args.pool.token0.to_string()),
+                    ("Pool Token1", args.pool.token1.to_string()),
+                    ("Tick Lower", args.tick_lower.to_string()),
+                    ("Tick Upper", args.tick_upper.to_string()),
+                    ("Max Amount0", args.amount0_max.to_string()),
+                    ("Max Amount1", args.amount1_max.to_string()),
+                ]);
+                let text = format!(
+                    "Create position in {} / {} pool (range {} to {}) with max {} {}, {} {}.",
+                    args.pool.token0,
+                    args.pool.token1,
+                    args.tick_lower,
+                    args.tick_upper,
+                    args.amount0_max,
+                    args.pool.token0,
+                    args.amount1_max,
+                    args.pool.token1
+                );
+                (intent, Some(fields), text)
+            }
+            Err(e) => {
+                return ConsentMessageResponse::Err(Error::GenericError {
+                    error_code: Nat::from(100u64),
+                    description: format!("Failed to decode arguments: {}", e),
+                });
+            }
+        },
+        "minter_order" => match candid::decode_one::<ReceivedSwapOrderEvent>(&req.arg) {
+            Ok(args) => {
+                let intent = "Minter Order".to_string();
+                let fields = create_fields(vec![
+                    ("Amount In", args.amount_in.to_string()),
+                    ("Token In", args.token_in.clone()),
+                    ("Amount Out", args.amount_out.to_string()),
+                    ("Token Out", args.token_out.clone()),
+                    ("Recipient", args.recipient.clone()),
+                ]);
+                let text = format!(
+                    "Process order: swap {} {} for min {} {} to {}.",
+                    args.amount_in, args.token_in, args.amount_out, args.token_out, args.recipient
+                );
+                (intent, Some(fields), text)
+            }
+            Err(e) => {
+                return ConsentMessageResponse::Err(Error::GenericError {
+                    error_code: Nat::from(100u64),
+                    description: format!("Failed to decode arguments: {}", e),
+                });
+            }
+        },
+        "remove_minter" => match candid::decode_one::<MinterKey>(&req.arg) {
+            Ok(args) => {
+                let intent = "Remove Minter".to_string();
+                let fields = create_fields(vec![
+                    ("Minter ID", args.id.to_string()),
+                    ("Chain ID", args.chain_id.to_string()),
+                ]);
+                let text = format!("Remove minter {} on chain {}.", args.id, args.chain_id);
+                (intent, Some(fields), text)
+            }
+            Err(e) => {
+                return ConsentMessageResponse::Err(Error::GenericError {
+                    error_code: Nat::from(100u64),
+                    description: format!("Failed to decode arguments: {}", e),
+                });
+            }
+        },
+        "swap" => match candid::decode_one::<SwapArgs>(&req.arg) {
+            Ok(args) => {
+                let (intent, fields, text) = match args {
+                    SwapArgs::ExactInput(params) => {
+                        let intent = "Exact Input Swap".to_string();
+                        let fields = create_fields(vec![
+                            ("Amount In", params.amount_in.to_string()),
+                            ("Token In", params.token_in.to_string()),
+                            ("Min Amount Out", params.amount_out_minimum.to_string()),
+                        ]);
+                        let text = format!(
+                            "Swap {} of {} for min {} output.",
+                            params.amount_in, params.token_in, params.amount_out_minimum
+                        );
+                        (intent, fields, text)
+                    }
+                    SwapArgs::ExactOutput(params) => {
+                        let intent = "Exact Output Swap".to_string();
+                        let fields = create_fields(vec![
+                            ("Max Amount In", params.amount_in_maximum.to_string()),
+                            ("Amount Out", params.amount_out.to_string()),
+                            ("Token Out", params.token_out.to_string()),
+                        ]);
+                        let text = format!(
+                            "Swap max {} input for {} of {}.",
+                            params.amount_in_maximum, params.amount_out, params.token_out
+                        );
+                        (intent, fields, text)
+                    }
+                    SwapArgs::ExactInputSingle(params) => {
+                        let intent = "Exact Input Single Swap".to_string();
+                        let fields = create_fields(vec![
+                            ("Amount In", params.amount_in.to_string()),
+                            ("Min Amount Out", params.amount_out_minimum.to_string()),
+                            ("Pool Token0", params.pool_id.token0.to_string()),
+                            ("Pool Token1", params.pool_id.token1.to_string()),
+                        ]);
+                        let text = format!(
+                            "Swap {} input for min {} output in {} / {} pool.",
+                            params.amount_in,
+                            params.amount_out_minimum,
+                            params.pool_id.token0,
+                            params.pool_id.token1
+                        );
+                        (intent, fields, text)
+                    }
+                    SwapArgs::ExactOutputSingle(params) => {
+                        let intent = "Exact Output Single Swap".to_string();
+                        let fields = create_fields(vec![
+                            ("Max Amount In", params.amount_in_maximum.to_string()),
+                            ("Amount Out", params.amount_out.to_string()),
+                            ("Pool Token0", params.pool_id.token0.to_string()),
+                            ("Pool Token1", params.pool_id.token1.to_string()),
+                        ]);
+                        let text = format!(
+                            "Swap max {} input for {} output in {} / {} pool.",
+                            params.amount_in_maximum,
+                            params.amount_out,
+                            params.pool_id.token0,
+                            params.pool_id.token1
+                        );
+                        (intent, fields, text)
+                    }
+                };
+                (intent, Some(fields), text)
+            }
+            Err(e) => {
+                return ConsentMessageResponse::Err(Error::GenericError {
+                    error_code: Nat::from(100u64),
+                    description: format!("Failed to decode arguments: {}", e),
+                });
+            }
+        },
+        "update_minters" => match candid::decode_one::<UpgradeArgs>(&req.arg) {
+            Ok(_) => {
+                let intent = "Update Minters".to_string();
+                let fields = vec![];
+                let text = "Update the list of minters.".to_string();
+                (intent, Some(fields), text)
+            }
+            Err(e) => {
+                return ConsentMessageResponse::Err(Error::GenericError {
+                    error_code: Nat::from(100u64),
+                    description: format!("Failed to decode arguments: {}", e),
+                });
+            }
+        },
+        "withdraw" => match candid::decode_one::<Balance>(&req.arg) {
+            Ok(args) => {
+                let intent = "Withdraw".to_string();
+                let fields = create_fields(vec![
+                    ("Amount", args.amount.to_string()),
+                    ("Token", args.token.to_string()),
+                ]);
+                let text = format!("Withdraw {} of {}.", args.amount, args.token);
+                (intent, Some(fields), text)
+            }
+            Err(e) => {
+                return ConsentMessageResponse::Err(Error::GenericError {
+                    error_code: Nat::from(100u64),
+                    description: format!("Failed to decode arguments: {}", e),
+                });
+            }
+        },
+        // Query methods
+        "get_active_ticks"
+        | "get_events"
+        | "get_minters"
+        | "get_pool"
+        | "get_pool_history"
+        | "get_pools"
+        | "get_position"
+        | "get_positions_by_owner"
+        | "multi_quote"
+        | "quote"
+        | "user_balance"
+        | "user_balances" => {
+            return ConsentMessageResponse::Err(Error::UnsupportedCanisterCall(ErrorInfo {
+                description: "Query methods do not require consent.".to_string(),
+            }));
+        }
+        _ => {
+            return ConsentMessageResponse::Err(Error::UnsupportedCanisterCall(ErrorInfo {
+                description: "Method not supported.".to_string(),
+            }));
+        }
+    };
+
+    // Determine consent_message based on device_spec
+    let consent_message = match device_spec {
+        Some(DeviceSpec::FieldsDisplay) => ConsentMessage::FieldsDisplayMessage {
+            intent,
+            fields: fields_opt.unwrap_or_default(),
+        },
+        _ => ConsentMessage::GenericDisplayMessage(text_message),
+    };
+
+    ConsentMessageResponse::Ok(ConsentInfo {
+        consent_message,
+        metadata: response_metadata,
+    })
 }
 
 fn main() {}

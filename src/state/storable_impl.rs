@@ -9,6 +9,7 @@ use crate::{
     minter_client::minter_types::{Minter, MinterKey},
     pool::types::{PoolFee, PoolId, PoolState, PoolTickSpacing},
     position::types::{PositionInfo, PositionKey},
+    state::SwapOrderStatus,
     swap_id::SwapTxId,
     tick::types::{BitmapWord, TickBitmapKey, TickInfo, TickKey},
 };
@@ -57,3 +58,4 @@ impl_storable_minicbor!(SwapTxId);
 impl_storable_minicbor!(Minter);
 impl_storable_minicbor!(MinterKey);
 impl_storable_minicbor!(RetryFailedDexOrder);
+impl_storable_minicbor!(SwapOrderStatus);

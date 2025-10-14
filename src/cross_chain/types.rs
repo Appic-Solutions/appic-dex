@@ -67,6 +67,16 @@ pub enum CrosschainSwapOrder {
     },
 }
 
+impl CrosschainSwapOrder {
+    pub fn tx_id(&self) -> SwapTxId {
+        match self {
+            CrosschainSwapOrder::EvmToEvm { tx_id, .. } => tx_id.clone(),
+            CrosschainSwapOrder::EvmToIcp { tx_id, .. } => tx_id.clone(),
+            CrosschainSwapOrder::IcpToEvm { tx_id, .. } => tx_id.clone(),
+        }
+    }
+}
+
 #[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct RetryFailedDexOrder {
     #[n(0)]
@@ -97,4 +107,12 @@ pub struct RetryFailedDexOrder {
     pub is_refund: bool,
     #[n(13)]
     pub signing_fee: Option<String>,
+}
+
+#[derive(Encode, Decode, Clone, Debug, Eq, PartialEq)]
+pub struct SwapOrderStatus {
+    #[n(0)]
+    pub is_refund: bool,
+    #[cbor(n(1), with = "crate::cbor::u256::option")]
+    pub icp_amount_out: Option<U256>,
 }

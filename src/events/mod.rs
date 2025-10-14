@@ -103,6 +103,8 @@ pub enum EventType {
         swap_order: CrosschainSwapOrder,
         #[n(1)]
         is_refunded: bool,
+        #[cbor(n(2), with = "crate::cbor::u256::option")]
+        icp_amount_out: Option<U256>,
     },
 }
 

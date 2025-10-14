@@ -84,3 +84,9 @@ const RETRY_FAILED_DEX_ORDER: MemoryId = MemoryId::new(11);
 pub fn retry_failed_dex_order() -> StableMemory {
     MEMORY_MANAGER.with(|m| m.borrow().get(RETRY_FAILED_DEX_ORDER))
 }
+
+const SUCCESSFUL_SWAP_ORDER: MemoryId = MemoryId::new(12);
+
+pub fn successful_swap_order_memory_id() -> StableMemory {
+    MEMORY_MANAGER.with(|m| m.borrow().get(SUCCESSFUL_SWAP_ORDER))
+}

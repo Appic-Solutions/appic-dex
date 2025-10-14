@@ -146,6 +146,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                 payload: EventType::CrosschainSwap {
                                     swap_order: args.clone(),
                                     is_refunded: false,
+                                    icp_amount_out: Some(amount_out.as_u256()),
                                 },
                             };
 
@@ -259,6 +260,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                 payload: EventType::CrosschainSwap {
                                     swap_order: args.clone(),
                                     is_refunded: true,
+                                    icp_amount_out: None,
                                 },
                             };
 
@@ -365,6 +367,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                         payload: EventType::CrosschainSwap {
                             swap_order: args.clone(),
                             is_refunded: false,
+                            icp_amount_out: Some(amount_out.as_u256()),
                         },
                     };
 
@@ -449,6 +452,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                 payload: EventType::CrosschainSwap {
                                     swap_order: args.clone(),
                                     is_refunded: true,
+                                    icp_amount_out: None,
                                 },
                             };
 
@@ -600,6 +604,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                 payload: EventType::CrosschainSwap {
                                     swap_order: args.clone(),
                                     is_refunded: false,
+                                    icp_amount_out: Some(amount_out.as_u256()),
                                 },
                             };
 
@@ -673,6 +678,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                         payload: EventType::CrosschainSwap {
                             swap_order: args.clone(),
                             is_refunded: true,
+                            icp_amount_out: None,
                         },
                     };
 

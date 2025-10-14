@@ -9,10 +9,11 @@
 
 use crate::{
     balances::types::{UserBalance, UserBalanceKey},
-    cross_chain::types::RetryFailedDexOrder,
-    events::Event,
+    candid_types::crosschain_swap::CrosschainSwapStatus,
+    cross_chain::types::{RetryFailedDexOrder, SwapOrderStatus},
+    events::{Event, EventType},
     historical::types::PoolHistory,
-    libraries::{constants::Q128, full_math::mul_div},
+    libraries::{constants::Q128, full_math::mul_div, safe_cast::u256_to_nat},
     minter_client::minter_types::{Minter, MinterKey},
     pool::{
         modify_liquidity::ModifyLiquidityBufferState,
@@ -20,7 +21,9 @@ use crate::{
         types::{PoolFee, PoolId, PoolState, PoolTickSpacing},
     },
     position::types::{PositionInfo, PositionKey},
-    state::memory_manager::{minters_memory_id, retry_failed_dex_order},
+    state::memory_manager::{
+        minters_memory_id, retry_failed_dex_order, successful_swap_order_memory_id,
+    },
     swap_id::SwapTxId,
     tick::{
         get_fee_growth_inside,
@@ -55,7 +58,9 @@ thread_local! {
 
         minters:BTreeMap::init(minters_memory_id()),
 
-        dex_orders_to_retry:BTreeMap::init(retry_failed_dex_order())
+        dex_orders_to_retry:BTreeMap::init(retry_failed_dex_order()),
+        crosschain_swap_orders:BTreeMap::init(successful_swap_order_memory_id())
+
     }));
 }
 
@@ -78,6 +83,9 @@ pub struct State {
     // minter address and then notify the minter about the dex order. these events will be retried
     // later.
     dex_orders_to_retry: BTreeMap<SwapTxId, RetryFailedDexOrder, StableMemory>,
+
+    // is swap_order was a reund or not a refund
+    crosschain_swap_orders: BTreeMap<SwapTxId, SwapOrderStatus, StableMemory>,
 }
 
 impl State {
@@ -334,6 +342,21 @@ impl State {
     }
 
     pub fn record_event(&mut self, event: Event) {
+        if let EventType::CrosschainSwap {
+            ref swap_order,
+            is_refunded,
+            icp_amount_out,
+        } = event.payload
+        {
+            self.crosschain_swap_orders.insert(
+                swap_order.tx_id(),
+                SwapOrderStatus {
+                    is_refund: is_refunded,
+                    icp_amount_out,
+                },
+            );
+        };
+
         self.events
             .append(&event)
             .expect("Recording an event should be successful");
@@ -375,6 +398,26 @@ impl State {
 
     pub fn remove_failed_dex_order_to_retry(&mut self, tx_id: &SwapTxId) {
         self.dex_orders_to_retry.remove(tx_id);
+    }
+
+    pub fn get_crosschain_swap_status(&self, tx_id: SwapTxId) -> Option<CrosschainSwapStatus> {
+        if let Some(status) = self.crosschain_swap_orders.get(&tx_id) {
+            if status.is_refund {
+                return Some(CrosschainSwapStatus::Refunded);
+            } else {
+                return Some(CrosschainSwapStatus::Successful(u256_to_nat(
+                    status
+                        .icp_amount_out
+                        .expect("BUG: amount out should be present"),
+                )));
+            }
+        }
+
+        if let Some(_pending_order) = self.dex_orders_to_retry.get(&tx_id) {
+            return Some(CrosschainSwapStatus::Pending);
+        }
+
+        None
     }
 
     pub fn add_minter(&mut self, key: MinterKey, info: Minter) {

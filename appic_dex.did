@@ -112,6 +112,7 @@ type CandidEventType = variant {
   CrosschainSwap : record {
     swap_order : CandidCrosschainSwapOrder;
     is_refunded : bool;
+    icp_amount_out : opt nat;
   };
 };
 type CandidHistoryBucket = record {
@@ -200,6 +201,30 @@ type CollectFeesSuccess = record {
   token0_collected : nat;
   token1_collected : nat;
 };
+type ConsentInfo = record {
+  metadata : ConsentMessageMetadata;
+  consent_message : ConsentMessage;
+};
+type ConsentMessage = variant {
+  FieldsDisplayMessage : record {
+    fields : vec record { text; Value };
+    intent : text;
+  };
+  GenericDisplayMessage : text;
+};
+type ConsentMessageMetadata = record {
+  utc_offset_minutes : opt int16;
+  language : text;
+};
+type ConsentMessageRequest = record {
+  arg : blob;
+  method : text;
+  user_preferences : ConsentMessageSpec;
+};
+type ConsentMessageSpec = record {
+  metadata : ConsentMessageMetadata;
+  device_spec : opt DeviceSpec;
+};
 type CreatePoolArgs = record {
   fee : nat;
   sqrt_price_x96 : nat;
@@ -221,8 +246,10 @@ type CrosschainSwapError = variant {
   InvalidTokenIn;
   InvalidRecipient;
   LockedPrincipal;
+  InvalidTokenOut;
   InvalidIcpSwapStep;
 };
+type CrosschainSwapStatus = variant { Refunded; Successful : nat; Pending };
 type DecreaseLiquidityArgs = record {
   amount1_min : nat;
   pool : CandidPoolId;
@@ -260,6 +287,15 @@ type DepositError = variant {
   AmountOverflow;
   InsufficientFunds : record { balance : nat };
 };
+type DeviceSpec = variant { GenericDisplay; FieldsDisplay };
+type DurationSeconds = record { amount : nat64 };
+type Error = variant {
+  GenericError : record { description : text; error_code : nat };
+  InsufficientPayment : ErrorInfo;
+  UnsupportedCanisterCall : ErrorInfo;
+  ConsentMessageUnavailable : ErrorInfo;
+};
+type ErrorInfo = record { description : text };
 type ExactInputParams = record {
   token_in : principal;
   path : vec CandidPathKey;
@@ -383,16 +419,17 @@ type ReceivedSwapOrderEvent = record {
 };
 type Result = variant { Ok; Err : BurnPositionError };
 type Result_1 = variant { Ok : CollectFeesSuccess; Err : CollectFeesError };
-type Result_10 = variant { Ok : CandidSwapSuccess; Err : SwapError };
-type Result_11 = variant { Ok : nat; Err : WithdrawError };
+type Result_10 = variant { Ok : nat; Err : QuoteError };
+type Result_11 = variant { Ok : CandidSwapSuccess; Err : SwapError };
+type Result_12 = variant { Ok : nat; Err : WithdrawError };
 type Result_2 = variant { Ok : CandidPoolId; Err : CreatePoolError };
 type Result_3 = variant { Ok : text; Err : CrosschainSwapError };
 type Result_4 = variant { Ok; Err : DecreaseLiquidityError };
 type Result_5 = variant { Ok; Err : DepositError };
-type Result_6 = variant { Ok : nat; Err : IncreaseLiquidityError };
-type Result_7 = variant { Ok : nat; Err : MintPositionError };
-type Result_8 = variant { Ok; Err : SwapOrderCreationError };
-type Result_9 = variant { Ok : nat; Err : QuoteError };
+type Result_6 = variant { Ok : ConsentInfo; Err : Error };
+type Result_7 = variant { Ok : nat; Err : IncreaseLiquidityError };
+type Result_8 = variant { Ok : nat; Err : MintPositionError };
+type Result_9 = variant { Ok; Err : SwapOrderCreationError };
 type RlpDecodeError = variant {
   InvalidAmount;
   InvalidTokenAddress : text;
@@ -462,6 +499,7 @@ type SwapOrderCreationError = variant {
   InvalidRecipient : text;
   FailedRlpDecoding;
   InvalidRlpData : RlpDecodeError;
+  InvalidTokenOut;
   InvalidIcpSwapStep : SwapError;
 };
 type SwapType = variant {
@@ -471,8 +509,16 @@ type SwapType = variant {
   ExactInputSingle : CandidPoolId;
   NoSwapNeeded;
 };
+type TextValue = record { content : text };
+type TokenAmount = record { decimals : nat8; amount : nat64; symbol : text };
 type UpgradeArgs = record { upgrade_minters : opt vec CandidMinter };
 type UserBalanceArgs = record { token : principal; user : principal };
+type Value = variant {
+  Text : TextValue;
+  TokenAmount : TokenAmount;
+  TimestampSeconds : DurationSeconds;
+  DurationSeconds : DurationSeconds;
+};
 type WithdrawError = variant {
   FeeUnknown;
   TemporarilyUnavailable : text;
@@ -491,6 +537,7 @@ service : () -> {
   decrease_liquidity : (DecreaseLiquidityArgs) -> (Result_4);
   deposit : (DepositArgs) -> (Result_5);
   get_active_ticks : (CandidPoolId) -> (vec CandidTickInfo) query;
+  get_crosschain_swap_status : (text) -> (opt CrosschainSwapStatus) query;
   get_events : (GetEventsArg) -> (GetEventsResult) query;
   get_minters : () -> (vec CandidMinter) query;
   get_pool : (CandidPoolId) -> (opt CandidPoolState) query;
@@ -500,15 +547,16 @@ service : () -> {
   get_positions_by_owner : (principal) -> (
       vec record { CandidPositionKey; CandidPositionInfo },
     ) query;
-  increase_liquidity : (IncreaseLiquidityArgs) -> (Result_6);
-  mint_position : (MintPositionArgs) -> (Result_7);
-  minter_order : (ReceivedSwapOrderEvent) -> (Result_8);
-  multi_quote : (vec QuoteArgs) -> (vec Result_9) query;
-  quote : (QuoteArgs) -> (Result_9) query;
+  icrc21_canister_call_consent_message : (ConsentMessageRequest) -> (Result_6);
+  increase_liquidity : (IncreaseLiquidityArgs) -> (Result_7);
+  mint_position : (MintPositionArgs) -> (Result_8);
+  minter_order : (ReceivedSwapOrderEvent) -> (Result_9);
+  multi_quote : (vec QuoteArgs) -> (vec Result_10) query;
+  quote : (QuoteArgs) -> (Result_10) query;
   remove_minter : (MinterKey) -> ();
-  swap : (SwapArgs) -> (Result_10);
+  swap : (SwapArgs) -> (Result_11);
   update_minters : (UpgradeArgs) -> ();
   user_balance : (UserBalanceArgs) -> (nat) query;
   user_balances : (principal) -> (vec Balance) query;
-  withdraw : (Balance) -> (Result_11);
+  withdraw : (Balance) -> (Result_12);
 }

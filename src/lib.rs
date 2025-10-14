@@ -10,6 +10,7 @@ pub mod deposit;
 pub mod events;
 pub mod guard;
 pub mod historical;
+pub mod icrc_21;
 pub mod icrc_client;
 pub mod increase_liquidity;
 pub mod libraries;

@@ -13,6 +13,14 @@ use crate::{
 
 use super::*;
 
+#[derive(CandidType, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
+//the amount that was refunded to swapped out
+pub enum CrosschainSwapStatus {
+    Successful(Nat),
+    Refunded,
+    Pending,
+}
+
 // a fetched swap event from the swap contract logs
 #[derive(CandidType, Deserialize, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, Debug, Clone)]
 pub struct CrosschainSwapArgs {
@@ -29,6 +37,7 @@ pub enum CrosschainSwapError {
     InvalidEncodedData(RlpDecodeError),
     InvalidIcpSwapStep,
     InvalidTokenIn,
+    InvalidTokenOut,
     InvalidToChain,
     LockedPrincipal,
     DepositError(DepositError),

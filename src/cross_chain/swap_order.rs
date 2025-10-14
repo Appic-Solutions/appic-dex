@@ -50,13 +50,18 @@ pub fn create_swap_order(
             _ => return Err(SwapOrderCreationError::InvalidToChain),
         };
 
-        let (to_minter, _) = read_state(|s| s.get_minter_by_chain_id(to_chain_id))
+        let (to_minter, to_minter_info) = read_state(|s| s.get_minter_by_chain_id(to_chain_id))
             .ok_or(SwapOrderCreationError::InvalidToChain)?;
 
         amount_in = crosschain_quote.steps[0].amount_in;
 
-        token_in_icp_step = Principal::from_text(&crosschain_quote.steps[0].route[0].sell_token)
-            .map_err(|_| SwapOrderCreationError::InvalidTokenIn)?;
+        // in case the route is empty it means the token should already be USDC so we pick USDC
+        token_in_icp_step = if crosschain_quote.steps[0].route.is_empty() {
+            to_minter_info.twin_usdc_principal
+        } else {
+            Principal::from_text(&crosschain_quote.steps[0].route[0].sell_token)
+                .map_err(|_| SwapOrderCreationError::InvalidTokenIn)?
+        };
 
         let icp_swap_request = create_validated_swap_args_from_rlp_swap_step(
             crosschain_quote.steps[0].clone(),
@@ -64,6 +69,10 @@ pub fn create_swap_order(
             token_in_icp_step,
         )
         .map_err(SwapOrderCreationError::InvalidIcpSwapStep)?;
+
+        if icp_swap_request.token_out() != to_minter_info.twin_usdc_principal {
+            return Err(SwapOrderCreationError::InvalidTokenIn);
+        }
         Ok(CrosschainSwapOrder::IcpToEvm {
             tx_id: SwapTxId(tx_id.to_string()),
             from,

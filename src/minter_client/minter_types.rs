@@ -127,4 +127,5 @@ pub enum SwapOrderCreationError {
     InvalidRecipient(String),
     InvalidRlpData(RlpDecodeError),
     InvalidTokenIn,
+    InvalidTokenOut,
 }
