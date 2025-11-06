@@ -105,6 +105,12 @@ pub enum EventType {
         is_refunded: bool,
         #[cbor(n(2), with = "crate::cbor::u256::option")]
         icp_amount_out: Option<U256>,
+        #[cbor(n(3), with = "crate::cbor::principal::option")]
+        icp_token_in: Option<Principal>,
+        #[cbor(n(4), with = "crate::cbor::principal::option")]
+        icp_token_out: Option<Principal>,
+        #[cbor(n(5), with = "crate::cbor::u256::option")]
+        icp_amount_in: Option<U256>,
     },
 }
 

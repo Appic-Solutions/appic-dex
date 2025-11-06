@@ -40,7 +40,7 @@ pub fn validate_min_out(
         log!(
             DEBUG,
             "[slippage_check]: failed to meet minimum of {:?} token0, with amount0 {:?}",
-            amount1_min,
+            amount0_min,
             amount0
         );
         return Err(BalanceDeltaValidationError::MinimumAmountInsufficient {

@@ -91,7 +91,7 @@ pub struct CrossChainStep {
     pub qswap_data: Option<QSwapData>,
 }
 
-#[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[derive(CandidType, Deserialize, Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct PoolHop {
     #[n(0)]
     pub sell_token: String,

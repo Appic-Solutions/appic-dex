@@ -54,7 +54,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                 Some(tx_id.clone()),
             ) {
                 // On success, transfer the output amount to the target minter and notify it with the DEX order.
-                Ok((_amount_in, amount_out, _token_out_transfer_fee)) => {
+                Ok((amount_in, amount_out, _token_out_transfer_fee)) => {
                     log!(
                         DEBUG,
                         "[execute_crosschain_swap]: ICP swap succeeded for tx_id: {:?}. Proceeding to transfer to target minter.",
@@ -147,6 +147,9 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                     swap_order: args.clone(),
                                     is_refunded: false,
                                     icp_amount_out: Some(amount_out.as_u256()),
+                                    icp_token_in: Some(icp_swap_request.token_in()),
+                                    icp_token_out: Some(icp_swap_request.token_out()),
+                                    icp_amount_in: Some(amount_in.as_u256()),
                                 },
                             };
 
@@ -261,6 +264,11 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                     swap_order: args.clone(),
                                     is_refunded: true,
                                     icp_amount_out: None,
+                                    icp_token_in: Some(icp_swap_request.token_in()),
+                                    icp_token_out: Some(icp_swap_request.token_out()),
+                                    icp_amount_in: Some(
+                                        icp_swap_request.deposit_amount().as_u256(),
+                                    ),
                                 },
                             };
 
@@ -325,7 +333,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                 Some(tx_id.clone()),
             ) {
                 // On success, withdraw the output amount to the recipient's ICP principal.
-                Ok((_amount_in, amount_out, token_out_transfer_fee)) => {
+                Ok((amount_in, amount_out, token_out_transfer_fee)) => {
                     log!(
                         DEBUG,
                         "[execute_crosschain_swap]: ICP swap succeeded for tx_id: {:?}. Proceeding to withdraw to recipient.",
@@ -368,6 +376,9 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                             swap_order: args.clone(),
                             is_refunded: false,
                             icp_amount_out: Some(amount_out.as_u256()),
+                            icp_token_in: Some(icp_swap_request.token_in()),
+                            icp_token_out: Some(icp_swap_request.token_out()),
+                            icp_amount_in: Some(amount_in.as_u256()),
                         },
                     };
 
@@ -453,6 +464,11 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                     swap_order: args.clone(),
                                     is_refunded: true,
                                     icp_amount_out: None,
+                                    icp_token_in: Some(icp_swap_request.token_in()),
+                                    icp_token_out: Some(icp_swap_request.token_out()),
+                                    icp_amount_in: Some(
+                                        icp_swap_request.deposit_amount().as_u256(),
+                                    ),
                                 },
                             };
 
@@ -512,7 +528,7 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                 Some(tx_id.clone()),
             ) {
                 // On success, transfer the output amount to the target minter and notify it with the DEX order.
-                Ok((_amount_in, amount_out, _token_out_transfer_fee)) => {
+                Ok((amount_in, amount_out, _token_out_transfer_fee)) => {
                     log!(
                         DEBUG,
                         "[execute_crosschain_swap]: ICP swap succeeded for tx_id: {:?}. Proceeding to transfer to target minter.",
@@ -605,6 +621,9 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                                     swap_order: args.clone(),
                                     is_refunded: false,
                                     icp_amount_out: Some(amount_out.as_u256()),
+                                    icp_token_in: Some(icp_swap_request.token_in()),
+                                    icp_token_out: Some(icp_swap_request.token_out()),
+                                    icp_amount_in: Some(amount_in.as_u256()),
                                 },
                             };
 
@@ -679,6 +698,9 @@ pub async fn execute_crosschain_swap(args: CrosschainSwapOrder) {
                             swap_order: args.clone(),
                             is_refunded: true,
                             icp_amount_out: None,
+                            icp_token_in: Some(icp_swap_request.token_in()),
+                            icp_token_out: Some(icp_swap_request.token_out()),
+                            icp_amount_in: Some(icp_swap_request.deposit_amount().as_u256()),
                         },
                     };
 

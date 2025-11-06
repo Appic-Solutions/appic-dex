@@ -76,6 +76,9 @@ pub enum CandidEventType {
         swap_order: CandidCrosschainSwapOrder,
         is_refunded: bool,
         icp_amount_out: Option<Nat>,
+        icp_token_in: Option<Principal>,
+        icp_token_out: Option<Principal>,
+        icp_amount_in: Option<Nat>,
     },
 }
 
@@ -258,10 +261,16 @@ impl From<Event> for CandidEvent {
                 swap_order,
                 is_refunded,
                 icp_amount_out,
+                icp_token_in,
+                icp_token_out,
+                icp_amount_in,
             } => CandidEventType::CrosschainSwap {
                 swap_order: swap_order.into(),
                 is_refunded,
                 icp_amount_out: icp_amount_out.map(u256_to_nat),
+                icp_token_in,
+                icp_token_out,
+                icp_amount_in: icp_amount_in.map(u256_to_nat),
             },
         };
         Self {

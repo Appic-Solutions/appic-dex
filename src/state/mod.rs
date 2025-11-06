@@ -346,6 +346,9 @@ impl State {
             ref swap_order,
             is_refunded,
             icp_amount_out,
+            icp_token_in: _,
+            icp_token_out: _,
+            icp_amount_in: _,
         } = event.payload
         {
             self.crosschain_swap_orders.insert(

@@ -3,7 +3,7 @@ use minicbor::{Decode, Encode};
 use crate::{
     candid_types::{events::SwapType, pool::CandidPoolId},
     cross_chain::{
-        rlp_decoder::{Blockchain, CrossChainStep, RlpDecodeError},
+        rlp_decoder::{Blockchain, CrossChainStep, PoolHop, RlpDecodeError},
         types::{CrosschainSwapOrder, Recipient},
     },
     libraries::safe_cast::u256_to_nat,
@@ -89,6 +89,7 @@ pub struct CandidCrosschainStep {
     pub max_gas_fee: Option<Nat>,
     pub gas_price_usd: Option<String>,
     pub canister_fee_usd: Option<String>,
+    pub route: Vec<PoolHop>,
 }
 
 impl From<ValidatedSwapArgs> for SwapType {
@@ -165,6 +166,7 @@ impl From<CrossChainStep> for CandidCrosschainStep {
             max_gas_fee: value.max_gas_fee.map(u256_to_nat),
             gas_price_usd: value.gas_price_usd,
             canister_fee_usd: value.canister_fee_usd,
+            route: value.route,
         }
     }
 }

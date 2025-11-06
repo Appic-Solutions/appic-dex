@@ -30,6 +30,7 @@ type CandidCrosschainStep = record {
   gas_limit : opt nat;
   amount_in : nat;
   max_gas_fee : opt nat;
+  route : vec PoolHop;
   slippage : opt text;
 };
 type CandidCrosschainSwapOrder = variant {
@@ -110,7 +111,10 @@ type CandidEventType = variant {
     amount1_paid : nat;
   };
   CrosschainSwap : record {
+    icp_token_in : opt principal;
     swap_order : CandidCrosschainSwapOrder;
+    icp_amount_in : opt nat;
+    icp_token_out : opt principal;
     is_refunded : bool;
     icp_amount_out : opt nat;
   };
@@ -380,6 +384,7 @@ type MintPositionError = variant {
   AmountOverflow;
 };
 type MinterKey = record { id : principal; chain_id : nat64 };
+type PoolHop = record { fee : nat32; sell_token : text; buy_token : text };
 type QuoteArgs = variant {
   QuoteExactOutput : QuoteExactParams;
   QuoteExactOutputSingleParams : QuoteExactSingleParams;
